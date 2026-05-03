@@ -70,3 +70,15 @@ def excluir_fatura(id):
         flash('Declaração excluída. Você pode reenviar o arquivo.', 'info')
     return redirect(url_for('client.faturas'))
 
+@client_bp.route('/perfil', methods=['GET', 'POST'])
+@login_required
+def perfil():
+    if request.method == 'POST':
+        current_user.nome = request.form.get('nome')
+        current_user.corretora = request.form.get('corretora')
+        current_user.perfil_risco = request.form.get('perfil_risco')
+        db.session.commit()
+        flash('Perfil atualizado com sucesso!', 'success')
+        return redirect(url_for('client.perfil'))
+    return render_template('client/perfil.html', user=current_user)
+

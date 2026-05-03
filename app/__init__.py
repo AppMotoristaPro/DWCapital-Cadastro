@@ -12,7 +12,13 @@ def create_app():
     load_dotenv()
 
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dw-secret-prod-2026')
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL').replace("postgres://", "postgresql://", 1)
+    
+    # Ajuste para garantir conexão segura com Neon
+    database_url = os.getenv('DATABASE_URL')
+    if database_url and database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
+        
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     db.init_app(app)
@@ -24,7 +30,7 @@ def create_app():
     from app.auth.routes import auth_bp
     from app.admin.routes import admin_bp
     
-    # Registramos o cliente sem prefixo para ele ser a "raiz" do dashboard
+    # Registramos o cliente com o nome 'client' para o url_for('client.xxxxx') funcionar
     app.register_blueprint(client_bp, name='client') 
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
