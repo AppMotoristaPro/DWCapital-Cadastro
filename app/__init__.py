@@ -12,25 +12,19 @@ def create_app():
     load_dotenv()
 
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dw-secret-prod-2026')
-    database_url = os.getenv('DATABASE_URL')
-    
-    if not database_url:
-        raise ValueError("DATABASE_URL não configurada.")
-
-    if database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql://", 1)
-    
-    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL').replace("postgres://", "postgresql://", 1)
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     db.init_app(app)
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
 
+    # Importação e Registro dos Blueprints
     from app.client.routes import client_bp
     from app.auth.routes import auth_bp
     from app.admin.routes import admin_bp
     
+    # Verifique se esta linha existe e se o nome da variável é client_bp
     app.register_blueprint(client_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
