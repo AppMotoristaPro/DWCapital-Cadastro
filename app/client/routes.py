@@ -8,10 +8,6 @@ from app.utils.pdf_parser import extrair_dados_nota_corretagem
 
 client_bp = Blueprint('client', __name__)
 
-@client_bp.route('/')
-def index():
-    return redirect(url_for('auth.login'))
-
 @client_bp.route('/dashboard')
 @login_required
 def dashboard():
@@ -21,50 +17,26 @@ def dashboard():
 @login_required
 def faturas():
     if request.method == 'POST':
-        fatura_id = request.form.get('fatura_id')
-        arquivo_pdf = request.files.get('relatorio_pdf')
-        
-        if arquivo_pdf and arquivo_pdf.filename.lower().endswith('.pdf'):
-            filename = secure_filename(arquivo_pdf.filename)
-            filepath = os.path.join('/tmp', filename)
-            arquivo_pdf.save(filepath)
+        f_id = request.form.get('fatura_id')
+        pdf = request.files.get('relatorio_pdf')
+        if pdf and pdf.filename.lower().endswith('.pdf'):
+            path = os.path.join('/tmp', secure_filename(pdf.filename))
+            pdf.save(path)
+            dados = extrair_dados_nota_corretagem(path)
+            os.remove(path) if os.path.exists(path) else None
             
-            # Extração dos dados baseada na Nota da Genial
-            bruto, liquido = extrair_dados_nota_corretagem(filepath)
-            
-            if os.path.exists(filepath):
-                os.remove(filepath)
-                
-            if bruto is not None and liquido is not None:
-                fatura = Fatura.query.get(fatura_id)
+            if dados:
+                fatura = Fatura.query.get(f_id)
                 if fatura and fatura.user_id == current_user.id:
-                    fatura.bruto = bruto
-                    fatura.liquido = liquido
-                    # Cálculo de 30% sobre o líquido positivo
-                    fatura.repasse = liquido * 0.30 if liquido > 0 else 0.0
+                    fatura.bruto = dados['bruto']
+                    fatura.liquido = dados['liquido']
+                    # Regra: (Líquido - 19% IRRF) * 30% repasse
+                    fatura.repasse = (dados['liquido'] * 0.81) * 0.30 if dados['liquido'] > 0 else 0.0
                     fatura.status = 'aguardando_pagamento'
                     db.session.commit()
-                    flash('Nota de Corretagem processada com sucesso!', 'success')
-                else:
-                    flash('Fatura não encontrada.')
-            else:
-                flash('Erro ao ler valores. Use o PDF original.')
-        else:
-            flash('Envie um arquivo PDF válido.')
+                    flash('Nota processada!')
         return redirect(url_for('client.faturas'))
-
-    faturas_db = Fatura.query.filter_by(user_id=current_user.id).order_by(Fatura.id.desc()).all()
-    return render_template('client/faturas.html', user=current_user, faturas=faturas_db)
-
-@client_bp.route('/perfil', methods=['GET', 'POST'])
-@login_required
-def perfil():
-    if request.method == 'POST':
-        current_user.nome = request.form.get('nome')
-        current_user.corretora = request.form.get('corretora')
-        current_user.perfil_risco = request.form.get('perfil_risco')
-        db.session.commit()
-        flash('Dados atualizados!', 'success')
-        return redirect(url_for('client.perfil'))
-    return render_template('client/perfil.html', user=current_user)
+    
+    faturas = Fatura.query.filter_by(user_id=current_user.id).order_by(Fatura.id.desc()).all()
+    return render_template('client/faturas.html', user=current_user, faturas=faturas)
 

@@ -5,17 +5,13 @@ from datetime import datetime
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     cpf = db.Column(db.String(11), unique=True, nullable=False)
-    password_hash = db.Column(db.String(255), nullable=True)
-    nome = db.Column(db.String(100), nullable=True)
-    foto_perfil = db.Column(db.String(255), default='default.png')
-    role = db.Column(db.String(10), default='cliente') # 'admin' ou 'cliente'
+    password_hash = db.Column(db.String(255))
+    nome = db.Column(db.String(100))
+    role = db.Column(db.String(10), default='cliente')
     status_acesso = db.Column(db.String(20), default='pendente_cadastro')
-    
-    # Dados Daytrade
     corretora = db.Column(db.String(50))
     capital_alocado = db.Column(db.Float)
     perfil_risco = db.Column(db.String(20))
-    
     faturas = db.relationship('Fatura', backref='cliente', lazy=True)
 
 class Fatura(db.Model):
@@ -26,11 +22,9 @@ class Fatura(db.Model):
     bruto = db.Column(db.Float, default=0.0)
     liquido = db.Column(db.Float, default=0.0)
     repasse = db.Column(db.Float, default=0.0)
-    status = db.Column(db.String(20), default='pendente') # 'pendente', 'aguardando_pagamento', 'quitado', 'inadimplente'
-    arquivo_url = db.Column(db.String(255))
+    status = db.Column(db.String(20), default='pendente')
     data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
 
-# Função obrigatória do Flask-Login para carregar o usuário na sessão
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))

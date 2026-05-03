@@ -7,18 +7,11 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        royal: '#4169E1', /* Azul Royal tradicional */
-                        'royal-dark': '#27408B' /* Tom mais escuro para botões em hover */
-                    }
-                }
-            }
+            theme: { extend: { colors: { royal: '#4169E1', 'royal-dark': '#27408B' } } }
         }
     </script>
 </head>
-<body class="bg-gray-100 min-h-screen font-sans">
+<body class="bg-gray-100 min-h-screen">
     {% block content %}{% endblock %}
 </body>
 </html>

@@ -1,12 +1,6 @@
-# Ambiente virtual e cache
 __pycache__/
 *.pyc
-venv/
-env/
-
-# Variáveis de ambiente (MUITO IMPORTANTE)
 .env
-
-# Arquivos do sistema
-.DS_Store
+venv/
+/tmp/
 
