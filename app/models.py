@@ -19,12 +19,12 @@ class Fatura(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     data_inicio = db.Column(db.Date, nullable=False)
     data_fim = db.Column(db.Date, nullable=False)
-    # Campos do Holerite
-    bruto = db.Column(db.Float, default=0.0)      # Ajuste Day Trade
-    irrf_1 = db.Column(db.Float, default=0.0)     # Dedo duro
-    taxas_b3 = db.Column(db.Float, default=0.0)   # Emolumentos + Registro
-    liquido = db.Column(db.Float, default=0.0)    # Líquido da Nota
-    repasse = db.Column(db.Float, default=0.0)    # 30% da DW
+    # Campos do Extrato Detalhado
+    bruto = db.Column(db.Float, default=0.0)      
+    irrf_1 = db.Column(db.Float, default=0.0)     
+    taxas_b3 = db.Column(db.Float, default=0.0)   
+    liquido = db.Column(db.Float, default=0.0)    
+    repasse = db.Column(db.Float, default=0.0)    
     
     status = db.Column(db.String(20), default='pendente')
     data_criacao = db.Column(db.DateTime, default=datetime.utcnow)

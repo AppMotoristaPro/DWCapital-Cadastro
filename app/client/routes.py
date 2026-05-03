@@ -6,7 +6,6 @@ from app import db
 from app.models import Fatura
 from app.utils.pdf_parser import extrair_dados_nota_corretagem
 
-# Nomeamos o blueprint como 'client'
 client_bp = Blueprint('client', __name__)
 
 @client_bp.route('/')
@@ -36,20 +35,20 @@ def faturas():
                 if fatura and fatura.user_id == current_user.id:
                     fatura.bruto = dados['bruto']
                     fatura.liquido = dados['liquido']
-                    fatura.irrf_1 = dados['irrf_1']
+                    fatura.irrf_1 = dados['irrf_1'] # Agora a chave existe!
                     fatura.taxas_b3 = dados['taxas_b3']
                     
                     if dados['liquido'] > 0:
-                        # Regra: Líquido - 19% (Provisão IRRF) -> 30% DW
+                        # Regra DW: 30% sobre 81% do líquido (descontando os 19% do IRRF restante)
                         fatura.repasse = (dados['liquido'] * 0.81) * 0.30
                     else:
                         fatura.repasse = 0.0
                         
                     fatura.status = 'aguardando_pagamento'
                     db.session.commit()
-                    flash('Nota processada com sucesso!', 'success')
+                    flash('Faturamento apurado com sucesso!', 'success')
             else:
-                flash('Não foi possível ler os dados do PDF.', 'error')
+                flash('Não foi possível processar este PDF.', 'error')
         return redirect(url_for('client.faturas'))
 
     faturas_db = Fatura.query.filter_by(user_id=current_user.id).order_by(Fatura.id.desc()).all()
@@ -67,7 +66,7 @@ def excluir_fatura(id):
         fatura.repasse = 0
         fatura.status = 'pendente'
         db.session.commit()
-        flash('Declaração excluída. Você pode reenviar o arquivo.', 'info')
+        flash('Declaração removida. Você pode reenviar o PDF.', 'info')
     return redirect(url_for('client.faturas'))
 
 @client_bp.route('/perfil', methods=['GET', 'POST'])
@@ -78,7 +77,7 @@ def perfil():
         current_user.corretora = request.form.get('corretora')
         current_user.perfil_risco = request.form.get('perfil_risco')
         db.session.commit()
-        flash('Perfil atualizado com sucesso!', 'success')
+        flash('Perfil atualizado!', 'success')
         return redirect(url_for('client.perfil'))
     return render_template('client/perfil.html', user=current_user)
 
