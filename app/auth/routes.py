@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy import text  # <--- Nova importação para comandos SQL brutos
 from app.models import User
 from app import db
 
@@ -69,11 +70,14 @@ def logout():
 @auth_bp.route('/setup_secreto_dw')
 def setup_secreto():
     try:
-        # 1. Apaga e recria tudo com a estrutura nova
-        db.drop_all()
+        # 1. Limpeza Profunda: Apaga o schema inteiro com CASCADE (trazendo junto tabelas antigas) e recria
+        db.session.execute(text('DROP SCHEMA public CASCADE; CREATE SCHEMA public;'))
+        db.session.commit()
+        
+        # 2. Cria apenas as tabelas da DW Capital
         db.create_all()
         
-        # 2. Cria o usuário Admin
+        # 3. Cria o usuário Admin
         admin = User(
             cpf='00000000000',
             password_hash=generate_password_hash('admin123'),
@@ -84,7 +88,8 @@ def setup_secreto():
         db.session.add(admin)
         db.session.commit()
         
-        return "<h1>✅ Mágica Feita! Banco sincronizado e Admin injetado com sucesso. Volte para a tela inicial e faça seu login.</h1>"
+        return "<h1>✅ Mágica Feita! Banco limpo com CASCADE e Admin injetado com sucesso. Volte para a tela inicial e faça seu login.</h1>"
     except Exception as e:
+        db.session.rollback() # Previne travamento do banco em caso de erro
         return f"<h1>❌ Erro ao resetar o banco: {str(e)}</h1>"
 
