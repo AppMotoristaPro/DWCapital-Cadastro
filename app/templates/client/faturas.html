@@ -11,9 +11,9 @@
 
     <div class="space-y-8">
         {% for fatura in faturas %}
-        <div class="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
+        <div class="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
             <div class="bg-gray-50 px-8 py-4 border-b border-gray-100 flex justify-between items-center">
-                <span class="text-xs font-black text-gray-400 uppercase tracking-widest">Competência: {{ fatura.data_inicio.strftime('%m/%Y') }}</span>
+                <span class="text-xs font-black text-gray-400 uppercase tracking-widest">Semana: {{ fatura.data_inicio.strftime('%d/%m/%Y') }}</span>
                 <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase {{ 'bg-yellow-100 text-yellow-700' if fatura.status == 'pendente' else 'bg-green-100 text-green-700' }}">
                     {{ fatura.status.replace('_', ' ') }}
                 </span>
@@ -21,27 +21,25 @@
 
             <div class="p-8">
                 {% if fatura.status == 'pendente' %}
-                    <div class="text-center py-10 border-2 border-dashed border-gray-200 rounded-3xl">
-                        <p class="text-gray-500 font-medium mb-4">Anexe sua Nota de Corretagem (PDF)</p>
-                        <form action="{{ url_for('client.faturas') }}" method="POST" enctype="multipart/form-data" class="flex flex-col items-center gap-4">
-                            <input type="hidden" name="fatura_id" value="{{ fatura.id }}">
-                            <input type="file" name="relatorio_pdf" accept=".pdf" required class="text-sm text-gray-500 file:mr-4 file:py-2 file:px-6 file:rounded-full file:border-0 file:bg-royal file:text-white font-bold cursor-pointer">
-                            <button type="submit" class="bg-gray-900 text-white px-10 py-3 rounded-full font-bold shadow-lg hover:bg-black transition">Processar Nota</button>
-                        </form>
-                    </div>
+                    <form action="{{ url_for('client.faturas') }}" method="POST" enctype="multipart/form-data" class="flex flex-col items-center py-10 border-2 border-dashed border-gray-200 rounded-3xl gap-4">
+                        <input type="hidden" name="fatura_id" value="{{ fatura.id }}">
+                        <p class="text-gray-500 font-medium">Arraste ou selecione sua Nota de Corretagem (PDF)</p>
+                        <input type="file" name="relatorio_pdf" accept=".pdf" required class="text-sm text-gray-500 file:mr-4 file:py-2 file:px-6 file:rounded-full file:border-0 file:bg-royal file:text-white font-bold cursor-pointer">
+                        <button type="submit" class="bg-gray-900 text-white px-10 py-3 rounded-full font-bold shadow-lg">Processar Nota</button>
+                    </form>
                 {% else %}
                     <div class="border border-gray-200 rounded-2xl overflow-hidden">
                         <table class="w-full text-sm">
                             <thead class="bg-gray-50 text-gray-500 uppercase text-[10px] font-black">
                                 <tr>
-                                    <th class="px-6 py-3 text-left">Descrição</th>
-                                    <th class="px-6 py-3 text-right">Proventos</th>
-                                    <th class="px-6 py-3 text-right">Descontos</th>
+                                    <th class="px-6 py-3 text-left">Descrição dos Itens</th>
+                                    <th class="px-6 py-3 text-right">Proventos (R$)</th>
+                                    <th class="px-6 py-3 text-right">Descontos (R$)</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100 text-gray-700">
                                 <tr>
-                                    <td class="px-6 py-4 font-bold">Faturamento Bruto (Ajuste Day Trade)</td>
+                                    <td class="px-6 py-4 font-bold text-gray-900">Ajuste Day Trade (Faturamento Bruto)</td>
                                     <td class="px-6 py-4 text-right text-green-600">R$ {{ "%.2f"|format(fatura.bruto) }}</td>
                                     <td class="px-6 py-4 text-right">-</td>
                                 </tr>
@@ -55,9 +53,9 @@
                                     <td class="px-6 py-4 text-right">-</td>
                                     <td class="px-6 py-4 text-right text-red-500">R$ {{ "%.2f"|format(fatura.taxas_b3) }}</td>
                                 </tr>
-                                <tr class="bg-gray-50/50">
-                                    <td class="px-6 py-4 font-black text-gray-900">Total Líquido da Nota</td>
-                                    <td class="px-6 py-4 text-right font-black text-gray-900">R$ {{ "%.2f"|format(fatura.liquido) }}</td>
+                                <tr class="bg-gray-50">
+                                    <td class="px-6 py-4 font-black">Total Líquido da Nota</td>
+                                    <td class="px-6 py-4 text-right font-black">R$ {{ "%.2f"|format(fatura.liquido) }}</td>
                                     <td class="px-6 py-4 text-right">-</td>
                                 </tr>
                                 <tr>
@@ -67,20 +65,20 @@
                                 </tr>
                             </tbody>
                         </table>
-                        <div class="bg-royal p-6 flex justify-between items-center text-white">
+                        <div class="bg-royal p-8 flex justify-between items-center text-white">
                             <div>
-                                <p class="text-[10px] font-bold uppercase opacity-70">Repasse DW Capital (30%)</p>
-                                <p class="text-3xl font-black">R$ {{ "%.2f"|format(fatura.repasse) }}</p>
+                                <p class="text-[10px] font-bold uppercase opacity-70 mb-1">Valor Final de Repasse (30%)</p>
+                                <p class="text-4xl font-black">R$ {{ "%.2f"|format(fatura.repasse) }}</p>
                             </div>
-                            <button onclick="alert('PIX: seu-pix-aqui')" class="bg-white text-royal px-6 py-3 rounded-xl font-black text-sm shadow-xl hover:scale-105 transition">PAGAR AGORA</button>
+                            <button onclick="alert('Chave PIX: dw-capital-pix')" class="bg-white text-royal px-8 py-4 rounded-2xl font-black shadow-2xl hover:scale-105 transition">COPIAR PIX</button>
                         </div>
                     </div>
 
                     <div class="mt-6 flex justify-end">
-                        <form action="{{ url_for('client.excluir_fatura', id=fatura.id) }}" method="POST" onsubmit="return confirm('Deseja realmente excluir esta declaração e enviar um novo PDF?')">
-                            <button type="submit" class="text-xs font-bold text-red-400 hover:text-red-600 flex items-center gap-1 transition">
+                        <form action="{{ url_for('client.excluir_fatura', id=fatura.id) }}" method="POST" onsubmit="return confirm('Isso apagará os dados atuais. Deseja reenviar o PDF?')">
+                            <button type="submit" class="text-xs font-bold text-red-400 hover:text-red-600 flex items-center gap-1">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                Excluir declaração e reenviar PDF
+                                Excluir e Reenviar PDF
                             </button>
                         </form>
                     </div>

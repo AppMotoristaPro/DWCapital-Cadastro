@@ -6,11 +6,17 @@ from app import db
 from app.models import Fatura
 from app.utils.pdf_parser import extrair_dados_nota_corretagem
 
+# Nomeamos o blueprint como 'client'
 client_bp = Blueprint('client', __name__)
 
 @client_bp.route('/')
 def index():
     return redirect(url_for('auth.login'))
+
+@client_bp.route('/dashboard')
+@login_required
+def dashboard():
+    return render_template('client/index.html', user=current_user)
 
 @client_bp.route('/faturas', methods=['GET', 'POST'])
 @login_required
@@ -34,17 +40,16 @@ def faturas():
                     fatura.taxas_b3 = dados['taxas_b3']
                     
                     if dados['liquido'] > 0:
-                        # Regra: Líquido da nota - 19% (IRRF restante) -> 30% DW
-                        base_dw = dados['liquido'] * 0.81
-                        fatura.repasse = base_dw * 0.30
+                        # Regra: Líquido - 19% (Provisão IRRF) -> 30% DW
+                        fatura.repasse = (dados['liquido'] * 0.81) * 0.30
                     else:
                         fatura.repasse = 0.0
                         
                     fatura.status = 'aguardando_pagamento'
                     db.session.commit()
-                    flash('Declaração processada com sucesso!', 'success')
+                    flash('Nota processada com sucesso!', 'success')
             else:
-                flash('Erro ao ler PDF. Tente novamente.', 'error')
+                flash('Não foi possível ler os dados do PDF.', 'error')
         return redirect(url_for('client.faturas'))
 
     faturas_db = Fatura.query.filter_by(user_id=current_user.id).order_by(Fatura.id.desc()).all()
@@ -55,7 +60,6 @@ def faturas():
 def excluir_fatura(id):
     fatura = Fatura.query.get_or_404(id)
     if fatura.user_id == current_user.id:
-        # Resetamos os valores e voltamos o status para pendente
         fatura.bruto = 0
         fatura.liquido = 0
         fatura.irrf_1 = 0
@@ -63,6 +67,6 @@ def excluir_fatura(id):
         fatura.repasse = 0
         fatura.status = 'pendente'
         db.session.commit()
-        flash('Declaração excluída. Você pode enviar o arquivo novamente.', 'info')
+        flash('Declaração excluída. Você pode reenviar o arquivo.', 'info')
     return redirect(url_for('client.faturas'))
 
