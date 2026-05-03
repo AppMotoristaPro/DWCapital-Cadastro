@@ -1,0 +1,81 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_content %}
+<div class="max-w-6xl mx-auto">
+    
+    <div class="flex justify-between items-end mb-8">
+        <div>
+            <h1 class="text-3xl font-extrabold text-gray-800">Gestão de Clientes</h1>
+            <p class="text-gray-500 mt-1">Libere acessos e gerencie a carteira da DW Capital.</p>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="bg-blue-100 border-l-4 border-royal text-blue-800 p-4 mb-8 rounded shadow-sm">
+            <p class="font-bold">{{ messages[0] }}</p>
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 h-fit">
+            <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-royal" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                Liberar Novo Cliente
+            </h2>
+            <form method="POST" action="{{ url_for('admin.liberar_cpf') }}" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">CPF do Cliente</label>
+                    <input type="text" name="cpf" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-royal focus:border-transparent outline-none" placeholder="Apenas números">
+                </div>
+                <button type="submit" class="w-full py-3 px-4 bg-gray-900 hover:bg-black text-white font-bold rounded-lg shadow transition duration-200">
+                    Liberar Acesso
+                </button>
+            </form>
+        </div>
+
+        <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="p-6 border-b border-gray-100 bg-gray-50">
+                <h2 class="text-lg font-bold text-gray-800">Clientes na Base</h2>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
+                            <th class="px-6 py-4 font-semibold">CPF</th>
+                            <th class="px-6 py-4 font-semibold">Nome</th>
+                            <th class="px-6 py-4 font-semibold">Corretora</th>
+                            <th class="px-6 py-4 font-semibold text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        {% for cliente in clientes %}
+                        <tr class="hover:bg-gray-50 transition">
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ cliente.cpf }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-600">{{ cliente.nome or '-' }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-600">{{ cliente.corretora or '-' }}</td>
+                            <td class="px-6 py-4 text-center">
+                                {% if cliente.status_acesso == 'ativo' %}
+                                    <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-bold">Ativo</span>
+                                {% else %}
+                                    <span class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-bold">Pendente</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="px-6 py-8 text-center text-gray-500 text-sm">Nenhum cliente liberado ainda.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+

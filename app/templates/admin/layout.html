@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex h-screen bg-gray-100 overflow-hidden">
+    
+    <aside class="w-72 bg-gray-900 text-white flex flex-col shadow-2xl">
+        <div class="p-8 flex flex-col items-center border-b border-gray-800">
+            <div class="w-20 h-20 bg-royal rounded-xl flex items-center justify-center shadow-lg mb-4 transform rotate-3">
+                <span class="text-2xl font-extrabold text-white">DW</span>
+            </div>
+            <h2 class="text-xl font-bold text-center">Painel Admin</h2>
+            <span class="text-xs text-gray-400 uppercase tracking-widest mt-1">{{ user.nome }}</span>
+        </div>
+        
+        <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+            <a href="{{ url_for('admin.dashboard') }}" class="block px-4 py-3 rounded-xl hover:bg-gray-800 transition duration-200 {% if request.endpoint == 'admin.dashboard' %}bg-gray-800 font-bold border-l-4 border-royal{% endif %}">
+                Gestão de Clientes
+            </a>
+            </nav>
+        
+        <div class="p-6 border-t border-gray-800">
+            <a href="{{ url_for('auth.logout') }}" class="block w-full text-center px-4 py-3 bg-red-600 hover:bg-red-700 rounded-xl transition duration-300 font-bold text-sm shadow">
+                Sair do Sistema
+            </a>
+        </div>
+    </aside>
+
+    <main class="flex-1 p-10 overflow-y-auto">
+        {% block admin_content %}{% endblock %}
+    </main>
+
+</div>
+{% endblock %}
+

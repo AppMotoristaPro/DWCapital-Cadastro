@@ -14,9 +14,16 @@ def create_app():
 
     # Configurações via Variáveis de Ambiente
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'chave-secreta-padrao')
-    # Ajuste para garantir que a URL do Neon seja lida corretamente pelo SQLAlchemy
+    
+    # Busca a URL do banco
     database_url = os.getenv('DATABASE_URL')
-    if database_url and database_url.startswith("postgres://"):
+    
+    # Trava de segurança
+    if not database_url:
+        raise ValueError("⚠️ ERRO CRÍTICO: A variável DATABASE_URL não foi configurada.")
+
+    # Ajuste para o Neon
+    if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
     
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
@@ -29,8 +36,11 @@ def create_app():
     # Registro de Blueprints
     from app.client.routes import client_bp
     from app.auth.routes import auth_bp
+    from app.admin.routes import admin_bp  # <--- Nova importação do Admin
+    
     app.register_blueprint(client_bp)
     app.register_blueprint(auth_bp)
+    app.register_blueprint(admin_bp)       # <--- Novo registro do Admin
 
     return app
 
