@@ -8,8 +8,9 @@ auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
-    # Se o usuário já estiver logado, redireciona para o dashboard
     if current_user.is_authenticated:
+        if current_user.role == 'admin':
+            return redirect(url_for('admin.dashboard'))
         return redirect(url_for('client.dashboard'))
 
     if request.method == 'POST':
@@ -18,9 +19,10 @@ def login():
 
         user = User.query.filter_by(cpf=cpf).first()
 
-        # Verifica se o usuário existe, tem senha e se a senha está correta
         if user and user.password_hash and check_password_hash(user.password_hash, senha):
             login_user(user)
+            if user.role == 'admin':
+                return redirect(url_for('admin.dashboard'))
             return redirect(url_for('client.dashboard'))
         else:
             flash('CPF ou senha inválidos, ou cadastro pendente.')
@@ -33,7 +35,6 @@ def primeiro_acesso():
         cpf = request.form.get('cpf')
         user = User.query.filter_by(cpf=cpf).first()
 
-        # Verifica se o CPF foi liberado pelo admin e se ainda está pendente
         if user and user.status_acesso == 'pendente_cadastro':
             senha = request.form.get('senha')
             nome = request.form.get('nome')
@@ -41,7 +42,6 @@ def primeiro_acesso():
             capital = request.form.get('capital')
             perfil = request.form.get('perfil')
 
-            # Atualiza os dados do cliente
             user.nome = nome
             user.password_hash = generate_password_hash(senha)
             user.corretora = corretora
@@ -62,4 +62,29 @@ def primeiro_acesso():
 def logout():
     logout_user()
     return redirect(url_for('auth.login'))
+
+# ==========================================
+# ROTA SECRETA DE EMERGÊNCIA (DEVOPS)
+# ==========================================
+@auth_bp.route('/setup_secreto_dw')
+def setup_secreto():
+    try:
+        # 1. Apaga e recria tudo com a estrutura nova
+        db.drop_all()
+        db.create_all()
+        
+        # 2. Cria o usuário Admin
+        admin = User(
+            cpf='00000000000',
+            password_hash=generate_password_hash('admin123'),
+            nome='Admin DW Capital',
+            role='admin',
+            status_acesso='ativo'
+        )
+        db.session.add(admin)
+        db.session.commit()
+        
+        return "<h1>✅ Mágica Feita! Banco sincronizado e Admin injetado com sucesso. Volte para a tela inicial e faça seu login.</h1>"
+    except Exception as e:
+        return f"<h1>❌ Erro ao resetar o banco: {str(e)}</h1>"
 
