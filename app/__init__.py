@@ -11,23 +11,21 @@ def create_app():
     app = Flask(__name__)
     load_dotenv()
 
-    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dw-secret-prod-2026')
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dw-secret-2026')
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL').replace("postgres://", "postgresql://", 1)
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
+    
     db.init_app(app)
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
 
-    # Importação e Registro dos Blueprints
+    # IMPORTANTE: Registrando com os nomes corretos para o url_for funcionar
     from app.client.routes import client_bp
     from app.auth.routes import auth_bp
     from app.admin.routes import admin_bp
     
-    # Verifique se esta linha existe e se o nome da variável é client_bp
-    app.register_blueprint(client_bp)
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(admin_bp)
+    app.register_blueprint(client_bp, name='client') # Força o nome 'client'
+    app.register_blueprint(auth_bp, name='auth')
+    app.register_blueprint(admin_bp, name='admin')
 
     return app
 
