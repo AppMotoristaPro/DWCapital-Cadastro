@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center bg-gray-100">
+    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md mx-4 border-t-8 border-royal">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-extrabold text-royal">DW Capital</h1>
+            <p class="text-sm text-gray-500 font-semibold uppercase tracking-wider mt-1">Acesso à Plataforma</p>
+        </div>
+
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded" role="alert">
+                <p>{{ messages[0] }}</p>
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('auth.login') }}" class="space-y-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700">CPF</label>
+                <input type="text" name="cpf" required class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-royal focus:border-royal transition duration-200" placeholder="Apenas números">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Senha</label>
+                <input type="password" name="senha" required class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-royal focus:border-royal transition duration-200" placeholder="••••••••">
+            </div>
+
+            <button type="submit" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-sm font-bold text-white bg-royal hover:bg-royal-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-royal transition duration-300">
+                Entrar
+            </button>
+        </form>
+
+        <div class="mt-8 text-center border-t pt-6">
+            <p class="text-sm text-gray-600">Cliente novo?</p>
+            <a href="{{ url_for('auth.primeiro_acesso') }}" class="font-bold text-royal hover:text-royal-dark transition duration-200">
+                Realizar Primeiro Acesso
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
