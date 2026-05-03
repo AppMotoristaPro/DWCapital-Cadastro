@@ -16,7 +16,7 @@ def login():
         if user and user.password_hash and check_password_hash(user.password_hash, request.form.get('senha')):
             login_user(user)
             return redirect(url_for('admin.dashboard' if user.role == 'admin' else 'client.dashboard'))
-        flash('Credenciais inválidas.')
+        flash('Credenciais incorretas.')
     return render_template('auth/login.html')
 
 @auth_bp.route('/primeiro_acesso', methods=['GET', 'POST'])
@@ -45,7 +45,7 @@ def setup_secreto():
         admin = User(cpf='00000000000', password_hash=generate_password_hash('admin123'), role='admin', status_acesso='ativo', nome='Admin DW')
         db.session.add(admin)
         db.session.commit()
-        return "✅ Banco Resetado!"
+        return "✅ Mágica Feita!"
     except Exception as e:
         return f"❌ Erro: {e}"
 

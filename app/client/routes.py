@@ -8,6 +8,11 @@ from app.utils.pdf_parser import extrair_dados_nota_corretagem
 
 client_bp = Blueprint('client', __name__)
 
+@client_bp.route('/')
+def index():
+    # Fix: Redireciona a raiz para o login
+    return redirect(url_for('auth.login'))
+
 @client_bp.route('/dashboard')
 @login_required
 def dashboard():
@@ -23,7 +28,7 @@ def faturas():
             path = os.path.join('/tmp', secure_filename(pdf.filename))
             pdf.save(path)
             dados = extrair_dados_nota_corretagem(path)
-            os.remove(path) if os.path.exists(path) else None
+            if os.path.exists(path): os.remove(path)
             
             if dados:
                 fatura = Fatura.query.get(f_id)
@@ -34,9 +39,22 @@ def faturas():
                     fatura.repasse = (dados['liquido'] * 0.81) * 0.30 if dados['liquido'] > 0 else 0.0
                     fatura.status = 'aguardando_pagamento'
                     db.session.commit()
-                    flash('Nota processada!')
+                    flash('Nota processada com sucesso!', 'success')
+            else:
+                flash('Não foi possível ler os dados do PDF.', 'error')
         return redirect(url_for('client.faturas'))
     
     faturas = Fatura.query.filter_by(user_id=current_user.id).order_by(Fatura.id.desc()).all()
     return render_template('client/faturas.html', user=current_user, faturas=faturas)
+
+@client_bp.route('/perfil', methods=['GET', 'POST'])
+@login_required
+def perfil():
+    if request.method == 'POST':
+        current_user.nome = request.form.get('nome')
+        current_user.corretora = request.form.get('corretora')
+        current_user.perfil_risco = request.form.get('perfil_risco')
+        db.session.commit()
+        flash('Perfil atualizado!')
+    return render_template('client/perfil.html', user=current_user)
 
