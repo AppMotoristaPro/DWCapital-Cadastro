@@ -6,17 +6,11 @@ from app import db
 from app.models import Fatura
 from app.utils.pdf_parser import extrair_dados_nota_corretagem
 
-# O primeiro argumento DEVE ser 'client' para o url_for('client.dashboard') funcionar
 client_bp = Blueprint('client', __name__)
 
 @client_bp.route('/')
 def index():
     return redirect(url_for('auth.login'))
-
-@client_bp.route('/dashboard')
-@login_required
-def dashboard(): # O nome da função deve ser 'dashboard'
-    return render_template('client/index.html', user=current_user)
 
 @client_bp.route('/faturas', methods=['GET', 'POST'])
 @login_required
@@ -28,8 +22,6 @@ def faturas():
         if pdf and pdf.filename.lower().endswith('.pdf'):
             path = os.path.join('/tmp', secure_filename(pdf.filename))
             pdf.save(path)
-            
-            # Chama o parser com logs
             dados = extrair_dados_nota_corretagem(path)
             if os.path.exists(path): os.remove(path)
             
@@ -38,27 +30,39 @@ def faturas():
                 if fatura and fatura.user_id == current_user.id:
                     fatura.bruto = dados['bruto']
                     fatura.liquido = dados['liquido']
-                    # Regra DW: (Líquido * 0.81) * 0.30
-                    fatura.repasse = (dados['liquido'] * 0.81) * 0.30 if dados['liquido'] > 0 else 0.0
+                    fatura.irrf_1 = dados['irrf_1']
+                    fatura.taxas_b3 = dados['taxas_b3']
+                    
+                    if dados['liquido'] > 0:
+                        # Regra: Líquido da nota - 19% (IRRF restante) -> 30% DW
+                        base_dw = dados['liquido'] * 0.81
+                        fatura.repasse = base_dw * 0.30
+                    else:
+                        fatura.repasse = 0.0
+                        
                     fatura.status = 'aguardando_pagamento'
                     db.session.commit()
-                    flash('Nota processada com sucesso!', 'success')
+                    flash('Declaração processada com sucesso!', 'success')
             else:
-                flash('Erro na leitura do PDF. Verifique os logs no Render.', 'error')
-                
+                flash('Erro ao ler PDF. Tente novamente.', 'error')
         return redirect(url_for('client.faturas'))
 
     faturas_db = Fatura.query.filter_by(user_id=current_user.id).order_by(Fatura.id.desc()).all()
     return render_template('client/faturas.html', user=current_user, faturas=faturas_db)
 
-@client_bp.route('/perfil', methods=['GET', 'POST'])
+@client_bp.route('/faturas/excluir/<int:id>', methods=['POST'])
 @login_required
-def perfil():
-    if request.method == 'POST':
-        current_user.nome = request.form.get('nome')
-        current_user.corretora = request.form.get('corretora')
-        current_user.perfil_risco = request.form.get('perfil_risco')
+def excluir_fatura(id):
+    fatura = Fatura.query.get_or_404(id)
+    if fatura.user_id == current_user.id:
+        # Resetamos os valores e voltamos o status para pendente
+        fatura.bruto = 0
+        fatura.liquido = 0
+        fatura.irrf_1 = 0
+        fatura.taxas_b3 = 0
+        fatura.repasse = 0
+        fatura.status = 'pendente'
         db.session.commit()
-        flash('Perfil atualizado!', 'success')
-    return render_template('client/perfil.html', user=current_user)
+        flash('Declaração excluída. Você pode enviar o arquivo novamente.', 'info')
+    return redirect(url_for('client.faturas'))
 

@@ -1,83 +1,93 @@
 {% extends "client/layout.html" %}
-
 {% block client_content %}
-<div class="max-w-5xl mx-auto">
-    <h1 class="text-3xl font-extrabold text-gray-800 mb-8">Semanas Operacionais</h1>
-    
+<div class="max-w-5xl mx-auto pb-20">
+    <h1 class="text-3xl font-black text-gray-800 mb-8">Extrato de Faturamento</h1>
+
     {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, message in messages %}
-        <div class="p-4 mb-8 rounded shadow-sm font-bold {% if category == 'error' %}bg-red-100 text-red-800 border-l-4 border-red-500{% else %}bg-blue-100 text-blue-800 border-l-4 border-royal{% endif %}">
-            <p>{{ message }}</p>
-        </div>
-        {% endfor %}
-      {% endif %}
+      {% if messages %}{% for category, message in messages %}
+        <div class="p-4 mb-6 rounded-2xl font-bold bg-blue-50 text-royal border border-royal/20">{{ message }}</div>
+      {% endfor %}{% endif %}
     {% endwith %}
 
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-            <div>
-                <h2 class="text-lg font-bold text-royal">Declaração via Nota de Corretagem</h2>
-                <p class="text-sm text-gray-500 mt-1">Anexe a Nota de Corretagem oficial em PDF para apuração.</p>
+    <div class="space-y-8">
+        {% for fatura in faturas %}
+        <div class="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
+            <div class="bg-gray-50 px-8 py-4 border-b border-gray-100 flex justify-between items-center">
+                <span class="text-xs font-black text-gray-400 uppercase tracking-widest">Competência: {{ fatura.data_inicio.strftime('%m/%Y') }}</span>
+                <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase {{ 'bg-yellow-100 text-yellow-700' if fatura.status == 'pendente' else 'bg-green-100 text-green-700' }}">
+                    {{ fatura.status.replace('_', ' ') }}
+                </span>
+            </div>
+
+            <div class="p-8">
+                {% if fatura.status == 'pendente' %}
+                    <div class="text-center py-10 border-2 border-dashed border-gray-200 rounded-3xl">
+                        <p class="text-gray-500 font-medium mb-4">Anexe sua Nota de Corretagem (PDF)</p>
+                        <form action="{{ url_for('client.faturas') }}" method="POST" enctype="multipart/form-data" class="flex flex-col items-center gap-4">
+                            <input type="hidden" name="fatura_id" value="{{ fatura.id }}">
+                            <input type="file" name="relatorio_pdf" accept=".pdf" required class="text-sm text-gray-500 file:mr-4 file:py-2 file:px-6 file:rounded-full file:border-0 file:bg-royal file:text-white font-bold cursor-pointer">
+                            <button type="submit" class="bg-gray-900 text-white px-10 py-3 rounded-full font-bold shadow-lg hover:bg-black transition">Processar Nota</button>
+                        </form>
+                    </div>
+                {% else %}
+                    <div class="border border-gray-200 rounded-2xl overflow-hidden">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50 text-gray-500 uppercase text-[10px] font-black">
+                                <tr>
+                                    <th class="px-6 py-3 text-left">Descrição</th>
+                                    <th class="px-6 py-3 text-right">Proventos</th>
+                                    <th class="px-6 py-3 text-right">Descontos</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 text-gray-700">
+                                <tr>
+                                    <td class="px-6 py-4 font-bold">Faturamento Bruto (Ajuste Day Trade)</td>
+                                    <td class="px-6 py-4 text-right text-green-600">R$ {{ "%.2f"|format(fatura.bruto) }}</td>
+                                    <td class="px-6 py-4 text-right">-</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4">IRRF Dedo-Duro (1%)</td>
+                                    <td class="px-6 py-4 text-right">-</td>
+                                    <td class="px-6 py-4 text-right text-red-500">R$ {{ "%.2f"|format(fatura.irrf_1) }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4">Taxas B3 (Registro + Emolumentos)</td>
+                                    <td class="px-6 py-4 text-right">-</td>
+                                    <td class="px-6 py-4 text-right text-red-500">R$ {{ "%.2f"|format(fatura.taxas_b3) }}</td>
+                                </tr>
+                                <tr class="bg-gray-50/50">
+                                    <td class="px-6 py-4 font-black text-gray-900">Total Líquido da Nota</td>
+                                    <td class="px-6 py-4 text-right font-black text-gray-900">R$ {{ "%.2f"|format(fatura.liquido) }}</td>
+                                    <td class="px-6 py-4 text-right">-</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 text-gray-400 italic">Provisão IRRF Restante (19%)</td>
+                                    <td class="px-6 py-4 text-right">-</td>
+                                    <td class="px-6 py-4 text-right text-gray-400">R$ {{ "%.2f"|format(fatura.liquido * 0.19) if fatura.liquido > 0 else "0.00" }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="bg-royal p-6 flex justify-between items-center text-white">
+                            <div>
+                                <p class="text-[10px] font-bold uppercase opacity-70">Repasse DW Capital (30%)</p>
+                                <p class="text-3xl font-black">R$ {{ "%.2f"|format(fatura.repasse) }}</p>
+                            </div>
+                            <button onclick="alert('PIX: seu-pix-aqui')" class="bg-white text-royal px-6 py-3 rounded-xl font-black text-sm shadow-xl hover:scale-105 transition">PAGAR AGORA</button>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 flex justify-end">
+                        <form action="{{ url_for('client.excluir_fatura', id=fatura.id) }}" method="POST" onsubmit="return confirm('Deseja realmente excluir esta declaração e enviar um novo PDF?')">
+                            <button type="submit" class="text-xs font-bold text-red-400 hover:text-red-600 flex items-center gap-1 transition">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                Excluir declaração e reenviar PDF
+                            </button>
+                        </form>
+                    </div>
+                {% endif %}
             </div>
         </div>
-        
-        <ul class="divide-y divide-gray-100">
-            {% for fatura in faturas %}
-            <li class="p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:bg-gray-50 transition duration-200">
-                <div>
-                    <p class="text-md font-bold text-gray-800">Período: {{ fatura.data_inicio.strftime('%d/%m/%Y') }} a {{ fatura.data_fim.strftime('%d/%m/%Y') }}</p>
-                    
-                    {% if fatura.status != 'pendente' %}
-                        <div class="mt-3 text-sm text-gray-600 bg-gray-100 p-4 rounded-xl border border-gray-200 shadow-inner">
-                            <p>Faturamento Bruto: <strong class="{% if fatura.bruto < 0 %}text-red-600{% else %}text-green-600{% endif %}">R$ {{ "%.2f"|format(fatura.bruto) }}</strong></p>
-                            <p>Lucro Líquido: <strong class="{% if fatura.liquido < 0 %}text-red-600{% else %}text-green-600{% endif %}">R$ {{ "%.2f"|format(fatura.liquido) }}</strong></p>
-                            
-                            {% if fatura.liquido > 0 %}
-                                <div class="mt-2 pt-2 border-t border-gray-300">
-                                    <p class="text-gray-800 font-bold">Repasse DW Capital (30%):</p>
-                                    <p class="text-royal text-2xl font-extrabold">R$ {{ "%.2f"|format(fatura.repasse) }}</p>
-                                </div>
-                            {% else %}
-                                <div class="mt-2 pt-2 border-t border-gray-300">
-                                    <p class="text-gray-500 font-bold">Sem lucro no período. Repasse isento.</p>
-                                </div>
-                            {% endif %}
-                        </div>
-                    {% endif %}
-                </div>
-                
-                <div class="flex flex-col items-end gap-2 w-full md:w-auto">
-                    {% if fatura.status == 'pendente' %}
-                        <span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full bg-yellow-100 text-yellow-800 uppercase tracking-wide mb-2">Pendente</span>
-                        
-                        <form action="{{ url_for('client.faturas') }}" method="POST" enctype="multipart/form-data" class="flex items-center gap-2">
-                            <input type="hidden" name="fatura_id" value="{{ fatura.id }}">
-                            <input type="file" name="relatorio_pdf" accept=".pdf" required class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-royal hover:file:bg-blue-100 cursor-pointer transition">
-                            <button type="submit" class="bg-gray-900 hover:bg-black text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition">Processar</button>
-                        </form>
-
-                    {% elif fatura.status == 'aguardando_pagamento' %}
-                        <span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full bg-blue-100 text-royal uppercase tracking-wide mb-2">Aguardando Pagamento</span>
-                        
-                        {% if fatura.repasse > 0 %}
-                            <button onclick="alert('Chave PIX: cnpj-dw-capital-aqui')" class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-xl font-bold shadow-md transition w-full md:w-auto flex items-center justify-center gap-2">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                Copiar PIX
-                            </button>
-                        {% endif %}
-
-                    {% elif fatura.status == 'quitado' %}
-                        <span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full bg-green-100 text-green-800 uppercase tracking-wide">Quitado</span>
-                    {% endif %}
-                </div>
-            </li>
-            {% else %}
-            <li class="p-8 text-center text-gray-500">
-                Nenhuma semana operacional pendente no momento.
-            </li>
-            {% endfor %}
-        </ul>
+        {% endfor %}
     </div>
 </div>
 {% endblock %}
