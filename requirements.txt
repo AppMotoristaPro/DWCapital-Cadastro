@@ -6,4 +6,5 @@ psycopg2-binary==2.9.9
 python-dotenv==1.0.1
 Flask-Login==0.6.3
 pypdf==4.2.0
+pytz==2024.1
 
