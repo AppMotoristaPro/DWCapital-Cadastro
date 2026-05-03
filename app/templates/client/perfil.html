@@ -1,0 +1,48 @@
+{% extends "client/layout.html" %}
+
+{% block client_content %}
+<div class="max-w-2xl">
+    <h1 class="text-3xl font-extrabold text-gray-800 mb-8">Dados Pessoais</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+        <div class="bg-green-100 border-l-4 border-green-500 text-green-800 p-4 mb-8 rounded-lg shadow-sm">
+            <p class="font-medium">{{ message }}</p>
+        </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+        <form method="POST" action="{{ url_for('client.perfil') }}" class="space-y-6">
+            
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Nome Completo</label>
+                <input type="text" name="nome" value="{{ user.nome }}" required class="block w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-royal focus:border-transparent transition duration-200">
+            </div>
+            
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Corretora Utilizada</label>
+                <input type="text" name="corretora" value="{{ user.corretora }}" class="block w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-royal focus:border-transparent transition duration-200">
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Perfil de Risco Atual</label>
+                <select name="perfil_risco" class="block w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-royal focus:border-transparent transition duration-200">
+                    <option value="Conservador" {% if user.perfil_risco == 'Conservador' %}selected{% endif %}>Conservador (Baixo Drawdown)</option>
+                    <option value="Moderado" {% if user.perfil_risco == 'Moderado' %}selected{% endif %}>Moderado</option>
+                    <option value="Arrojado" {% if user.perfil_risco == 'Arrojado' %}selected{% endif %}>Arrojado (Maior Exposição)</option>
+                </select>
+            </div>
+
+            <div class="pt-4">
+                <button type="submit" class="w-full py-4 px-4 rounded-xl shadow-md text-sm font-bold text-white bg-royal hover:bg-royal-dark focus:ring-4 focus:ring-blue-300 transition duration-300">
+                    Salvar Alterações
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+

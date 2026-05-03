@@ -1,0 +1,31 @@
+{% extends "client/layout.html" %}
+
+{% block client_content %}
+<div class="max-w-4xl">
+    <h1 class="text-3xl font-extrabold text-gray-800 mb-8">Semanas Operacionais</h1>
+    
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="p-6 border-b border-gray-100 bg-gray-50">
+            <h2 class="text-lg font-bold text-royal">Declarar Faturamento</h2>
+            <p class="text-sm text-gray-500 mt-1">Selecione uma semana pendente para anexar o relatório do robô.</p>
+        </div>
+        
+        <ul class="divide-y divide-gray-100">
+            {% for fatura in faturas %}
+            <li class="p-6 hover:bg-blue-50 transition duration-200 cursor-pointer flex justify-between items-center group">
+                <div>
+                    <p class="text-md font-bold text-gray-800 group-hover:text-royal transition">Declarar faturamento semana</p>
+                    <p class="text-sm text-gray-500 mt-1">{{ fatura.semana }}</p>
+                </div>
+                <div>
+                    {% if fatura.status == 'pendente' %}
+                        <span class="px-4 py-2 inline-flex text-xs leading-5 font-bold rounded-lg bg-yellow-100 text-yellow-800 uppercase tracking-wide">Pendente</span>
+                    {% endif %}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endblock %}
+

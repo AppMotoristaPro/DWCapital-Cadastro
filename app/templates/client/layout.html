@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex h-screen bg-gray-100 overflow-hidden">
+    
+    <aside class="w-72 bg-royal text-white flex flex-col shadow-2xl">
+        <div class="p-8 flex flex-col items-center border-b border-royal-dark/50">
+            <img src="https://ui-avatars.com/api/?name={{ user.nome or 'User' }}&background=ffffff&color=4169E1&size=128" alt="Foto de Perfil" class="w-24 h-24 rounded-full border-4 border-white mb-4 shadow-lg">
+            <h2 class="text-xl font-bold text-center">{{ user.nome }}</h2>
+            <span class="text-xs text-blue-200 uppercase tracking-widest mt-1">DW Capital</span>
+        </div>
+        
+        <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+            <a href="{{ url_for('client.dashboard') }}" class="block px-4 py-3 rounded-xl hover:bg-royal-dark transition duration-200 {% if request.endpoint == 'client.dashboard' %}bg-royal-dark font-bold shadow-inner{% endif %}">
+                Visão Geral
+            </a>
+            <a href="{{ url_for('client.faturas') }}" class="block px-4 py-3 rounded-xl hover:bg-royal-dark transition duration-200 {% if request.endpoint == 'client.faturas' %}bg-royal-dark font-bold shadow-inner{% endif %}">
+                Faturas
+            </a>
+            <a href="{{ url_for('client.perfil') }}" class="block px-4 py-3 rounded-xl hover:bg-royal-dark transition duration-200 {% if request.endpoint == 'client.perfil' %}bg-royal-dark font-bold shadow-inner{% endif %}">
+                Dados Pessoais
+            </a>
+        </nav>
+        
+        <div class="p-6 border-t border-royal-dark/50">
+            <a href="{{ url_for('auth.logout') }}" class="block w-full text-center px-4 py-3 bg-red-500 hover:bg-red-600 rounded-xl transition duration-300 font-bold text-sm shadow">
+                Sair do Sistema
+            </a>
+        </div>
+    </aside>
+
+    <main class="flex-1 p-10 overflow-y-auto">
+        {% block client_content %}{% endblock %}
+    </main>
+
+</div>
+{% endblock %}
+

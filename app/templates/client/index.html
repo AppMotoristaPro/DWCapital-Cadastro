@@ -1,18 +1,12 @@
-{% extends "base.html" %}
+{% extends "client/layout.html" %}
 
-{% block content %}
-<div class="min-h-screen flex items-center justify-center bg-royal">
-    <div class="bg-white p-10 rounded-2xl shadow-2xl text-center max-w-sm w-full mx-4">
-        <h1 class="text-4xl font-extrabold text-royal mb-2">DW Capital</h1>
-        <p class="text-sm font-semibold text-gray-500 mb-8 uppercase tracking-widest">Daytrade</p>
-        
-        <p class="text-gray-700 mb-6 font-medium">Plataforma em construção. Sistema operacional no ar!</p>
-        
-        <div class="animate-pulse flex space-x-3 justify-center">
-            <div class="rounded-full bg-royal h-3 w-3"></div>
-            <div class="rounded-full bg-royal h-3 w-3"></div>
-            <div class="rounded-full bg-royal h-3 w-3"></div>
-        </div>
+{% block client_content %}
+<div class="max-w-4xl">
+    <h1 class="text-3xl font-extrabold text-gray-800 mb-8">Dashboard</h1>
+    
+    <div class="bg-white p-8 rounded-2xl shadow-sm border-l-4 border-royal">
+        <h2 class="text-2xl font-bold text-gray-800">Olá, {{ user.nome.split(' ')[0] if user.nome else 'Investidor' }}!</h2>
+        <p class="text-gray-500 mt-2 text-lg">Bem-vindo à área do cliente da DW Capital. Utilize o menu lateral para gerenciar os repasses do seu robô de Daytrade e manter seus dados atualizados.</p>
     </div>
 </div>
 {% endblock %}
