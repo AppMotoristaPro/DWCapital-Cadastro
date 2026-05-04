@@ -7,7 +7,6 @@ AUTENTIQUE_TOKEN = os.getenv('AUTENTIQUE_TOKEN', '').strip()
 URL = "https://api.autentique.com.br/v2/graphql"
 
 def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
-    # CORREÇÃO AQUI: Mudamos de 'signers' para 'signatures' no retorno
     query = """
     mutation CreateDocumentMutation(
         $document: DocumentInput!,
@@ -39,7 +38,9 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
             {
                 "name": nome_signer,
                 "email": email_signer,
-                "action": "SIGN"
+                "action": "SIGN",
+                # CORREÇÃO: Impede o envio de email e obriga a API a cuspir o link para a tela!
+                "delivery_method": "DELIVERY_METHOD_NONE" 
             }
         ]
     }
@@ -73,9 +74,21 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
         if "errors" in data:
             raise Exception(f"{data['errors'][0]['message']}")
         
-        doc_id = data['data']['createDocument']['id']
-        # CORREÇÃO AQUI: Acessando o caminho correto do link mágico
-        link_assinatura = data['data']['createDocument']['signatures'][0]['link']['short_link']
+        # CORREÇÃO: Extração "Crash-Proof" usando .get() para não quebrar a tela
+        create_doc = data.get('data', {}).get('createDocument', {})
+        doc_id = create_doc.get('id')
+        
+        link_assinatura = None
+        signatures = create_doc.get('signatures', [])
+        
+        if signatures:
+            sig = signatures[0]
+            link_obj = sig.get('link')
+            if link_obj:
+                link_assinatura = link_obj.get('short_link')
+                
+        if not link_assinatura:
+            raise Exception("O documento foi gerado, mas a Autentique não liberou o link direto.")
         
         return doc_id, link_assinatura
     else:
