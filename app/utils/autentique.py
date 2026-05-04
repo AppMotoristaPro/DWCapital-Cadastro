@@ -7,6 +7,7 @@ AUTENTIQUE_TOKEN = os.getenv('AUTENTIQUE_TOKEN', '').strip()
 URL = "https://api.autentique.com.br/v2/graphql"
 
 def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
+    # CORREÇÃO AQUI: Mudamos de 'signers' para 'signatures' no retorno
     query = """
     mutation CreateDocumentMutation(
         $document: DocumentInput!,
@@ -21,10 +22,10 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
         ) {
             id
             name
-            signers {
-                id
-                name
-                action_url
+            signatures {
+                link {
+                    short_link
+                }
             }
         }
     }
@@ -68,11 +69,13 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
 
     if response.status_code == 200:
         data = response.json()
+        
         if "errors" in data:
-            raise Exception(f"Erro na Autentique: {data['errors'][0]['message']}")
+            raise Exception(f"{data['errors'][0]['message']}")
         
         doc_id = data['data']['createDocument']['id']
-        link_assinatura = data['data']['createDocument']['signers'][0]['action_url']
+        # CORREÇÃO AQUI: Acessando o caminho correto do link mágico
+        link_assinatura = data['data']['createDocument']['signatures'][0]['link']['short_link']
         
         return doc_id, link_assinatura
     else:
