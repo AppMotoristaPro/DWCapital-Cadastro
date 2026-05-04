@@ -6,15 +6,64 @@ from werkzeug.utils import secure_filename
 from app import db
 from app.models import Fatura, FaturaDiaria
 from app.utils.pdf_parser import extrair_dados_nota_corretagem
+from app.utils.docusign import criar_envelope_embedded, gerar_url_assinatura
 
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
+
+# O PEDÁGIO DE ASSINATURA
+@client_bp.before_request
+def check_assinatura():
+    if not current_user.is_authenticated or current_user.role == 'admin':
+        return
+    
+    rotas_livres = ['client.assinar_termo', 'client.retorno_assinatura', 'auth.logout', 'static']
+    if request.endpoint not in rotas_livres and not current_user.termo_assinado:
+        return redirect(url_for('client.assinar_termo'))
+
+# NOVA ROTA: Tela de Bloqueio e Geração da Assinatura
+@client_bp.route('/assinar', methods=['GET', 'POST'])
+@login_required
+def assinar_termo():
+    if current_user.termo_assinado:
+        return redirect(url_for('client.dashboard'))
+        
+    if request.method == 'POST':
+        try:
+            email_valido = current_user.email if current_user.email else "suporte@dwcapital.com"
+            envelope_id = criar_envelope_embedded(current_user.nome, email_valido, str(current_user.id))
+            
+            current_user.docusign_envelope_id = envelope_id
+            db.session.commit()
+            
+            return_url = url_for('client.retorno_assinatura', _external=True)
+            url_docusign = gerar_url_assinatura(envelope_id, current_user.nome, email_valido, str(current_user.id), return_url)
+            
+            return redirect(url_docusign)
+        except Exception as e:
+            flash(f'Falha ao conectar com o serviço de contratos: {str(e)}', 'error')
+            return redirect(url_for('client.assinar_termo'))
+
+    return render_template('client/assinar_termo.html', user=current_user)
+
+# NOVA ROTA: O Retorno após o cliente assinar o contrato na DocuSign
+@client_bp.route('/retorno_assinatura')
+@login_required
+def retorno_assinatura():
+    event = request.args.get('event')
+    if event == 'signing_complete':
+        current_user.termo_assinado = True
+        db.session.commit()
+        flash('Contrato assinado com sucesso! Painel liberado.', 'success')
+        return redirect(url_for('client.dashboard'))
+    else:
+        flash('Assinatura não concluída ou cancelada. O painel continua bloqueado.', 'error')
+        return redirect(url_for('client.assinar_termo'))
 
 @client_bp.route('/dashboard')
 @login_required
 def dashboard():
     return render_template('client/index.html', user=current_user)
 
-# NOVO: Rota para Visualizar Dados Pessoais
 @client_bp.route('/dados')
 @login_required
 def dados_pessoais():

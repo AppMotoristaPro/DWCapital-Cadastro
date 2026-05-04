@@ -20,7 +20,11 @@ class User(db.Model, UserMixin):
     capital_alocado = db.Column(db.Float, default=0.0)
     perfil_risco = db.Column(db.String(20))
     data_cadastro = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
-    matricula = db.Column(db.String(20), unique=True, nullable=True) # NOVO CAMPO
+    matricula = db.Column(db.String(20), unique=True, nullable=True)
+    
+    # NOVOS CAMPOS DOCUSIGN
+    termo_assinado = db.Column(db.Boolean, default=False)
+    docusign_envelope_id = db.Column(db.String(100), nullable=True)
     
     faturas = db.relationship('Fatura', backref='cliente', lazy=True, cascade="all, delete-orphan")
 
