@@ -14,7 +14,6 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
         $file: Upload!
     ) {
         createDocument(
-            sandbox: true,
             document: $document,
             signers: $signers,
             file: $file
