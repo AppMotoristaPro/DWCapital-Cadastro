@@ -58,11 +58,21 @@ def primeiro_acesso():
         user = User.query.filter_by(cpf=cpf, status_acesso='pendente_cadastro').first()
 
         if user:
-            # Recebe todas as informações do fluxo multi-passo (App de Banco)
             user.nome = request.form.get('nome')
             user.email = request.form.get('email')
             user.celular = request.form.get('celular')
-            user.endereco = request.form.get('endereco')
+            
+            # Montagem do endereço a partir dos campos separados
+            rua = request.form.get('rua', '')
+            numero = request.form.get('numero', '')
+            bairro = request.form.get('bairro', '')
+            cidade = request.form.get('cidade', '')
+            estado = request.form.get('estado', '')
+            cep = request.form.get('cep', '')
+            
+            endereco_completo = f"{rua}, {numero} - {bairro}, {cidade}/{estado} - CEP: {cep}"
+            user.endereco = endereco_completo
+            
             user.corretora = request.form.get('corretora')
             user.capital_alocado = float(request.form.get('capital') or 0.0)
             user.password_hash = generate_password_hash(request.form.get('senha'))

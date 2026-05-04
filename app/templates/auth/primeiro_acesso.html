@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="min-h-screen flex items-center justify-center bg-navy p-4 overflow-hidden relative selection:bg-royal selection:text-white">
+<div class="min-h-screen flex items-center justify-center bg-navy p-4 overflow-x-hidden overflow-y-auto relative selection:bg-royal selection:text-white py-12">
     <div class="absolute top-[-10%] left-[-10%] w-[30rem] h-[30rem] bg-royal rounded-full mix-blend-multiply filter blur-[128px] opacity-40"></div>
     <div class="absolute bottom-[-20%] right-[-10%] w-[30rem] h-[30rem] bg-royal-dark rounded-full mix-blend-multiply filter blur-[128px] opacity-60"></div>
 
-    <div class="max-w-md w-full bg-navy-light/40 backdrop-blur-xl rounded-[2.5rem] shadow-2xl p-10 relative z-10 border border-white/10">
+    <div class="max-w-md w-full bg-navy-light/40 backdrop-blur-xl rounded-[2.5rem] shadow-2xl p-10 relative z-10 border border-white/10 my-auto">
         <div class="mx-auto h-20 flex items-center justify-center mb-6">
             <img src="{{ url_for('static', filename='img/logo.png') }}" alt="DW Capital Logo" class="max-w-full max-h-full object-contain drop-shadow-2xl">
         </div>
@@ -20,50 +20,73 @@
                 <p class="text-blue-200 text-sm mb-8 font-medium">Digite seu CPF para verificarmos sua liberação no sistema.</p>
                 
                 <div class="relative">
-                    <input type="text" name="cpf" id="cpf-input" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-lg font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer" placeholder=" " />
+                    <input type="text" name="cpf" id="cpf-input" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-lg font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer transition-colors" placeholder=" " />
                     <label for="cpf" class="absolute text-sm text-blue-300 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-5 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 font-bold uppercase tracking-widest pointer-events-none">CPF (Apenas Números)</label>
                 </div>
                 
                 <p id="cpf-error" class="hidden text-xs font-bold text-red-200 mt-3 p-3 bg-red-500/20 rounded-xl border border-red-500/30 backdrop-blur-sm"></p>
 
-                <button type="button" id="btn-step-1" onclick="validarCpfStep1()" class="w-full mt-8 py-4 bg-gradient-to-r from-royal to-royal-dark text-white rounded-2xl font-black uppercase tracking-widest text-sm shadow-[0_0_20px_rgba(65,105,225,0.4)] hover:shadow-[0_0_30px_rgba(65,105,225,0.6)] transition-all transform hover:-translate-y-1">Verificar Acesso</button>
+                <button type="button" id="btn-step-1" onclick="validarCpfStep1()" class="w-full mt-8 py-4 bg-gradient-to-r from-royal to-royal-dark text-white rounded-2xl font-black uppercase tracking-widest text-sm shadow-[0_0_20px_rgba(65,105,225,0.4)] transition-all transform hover:-translate-y-1">Verificar Acesso</button>
                 <a href="{{ url_for('auth.login') }}" class="block text-center mt-6 text-sm font-bold text-blue-300 hover:text-white transition">Já tenho conta</a>
             </div>
 
             <div class="step hidden transition-all duration-300" id="step-2">
-                <h2 class="text-3xl font-black text-white mb-8 tracking-tight">Seus Dados</h2>
+                <h2 class="text-3xl font-black text-white mb-6 tracking-tight">Seus Dados</h2>
+                
                 <div class="space-y-4">
                     <div class="relative">
-                        <input type="text" name="nome" id="nome" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-base font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer" placeholder=" " />
-                        <label for="nome" class="absolute text-sm text-blue-300 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-5 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 font-bold uppercase tracking-widest pointer-events-none">Nome Completo</label>
+                        <input type="text" name="nome" id="nome" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-sm font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer transition-colors" placeholder=" " />
+                        <label for="nome" class="absolute text-xs text-blue-300 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-5 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 font-bold uppercase tracking-widest pointer-events-none">Nome Completo</label>
                     </div>
                     <div class="relative">
-                        <input type="email" name="email" id="email" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-base font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer" placeholder=" " />
-                        <label for="email" class="absolute text-sm text-blue-300 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-5 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 font-bold uppercase tracking-widest pointer-events-none">E-mail Principal</label>
+                        <input type="email" name="email" id="email" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-sm font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer transition-colors" placeholder=" " />
+                        <label for="email" class="absolute text-xs text-blue-300 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-5 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 font-bold uppercase tracking-widest pointer-events-none">E-mail Principal</label>
                     </div>
                     <div class="relative">
-                        <input type="text" name="celular" id="celular" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-base font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer" placeholder=" " />
-                        <label for="celular" class="absolute text-sm text-blue-300 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-5 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 font-bold uppercase tracking-widest pointer-events-none">Celular (com DDD)</label>
+                        <input type="text" name="celular" id="celular" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-sm font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer transition-colors" placeholder=" " />
+                        <label for="celular" class="absolute text-xs text-blue-300 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-5 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 font-bold uppercase tracking-widest pointer-events-none">Celular (com DDD)</label>
+                    </div>
+
+                    <div class="border-t border-white/10 pt-4 mt-2">
+                        <p class="text-xs text-blue-300 font-bold uppercase tracking-widest mb-4">Endereço de Correspondência</p>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="relative col-span-2">
+                                <input type="text" id="cep" name="cep" maxlength="9" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-sm font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer transition-colors" placeholder=" " />
+                                <label for="cep" class="absolute text-xs text-blue-300 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-5 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 font-bold uppercase tracking-widest pointer-events-none">CEP</label>
+                            </div>
+                            <div class="relative col-span-2">
+                                <input type="text" id="rua" name="rua" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-sm font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer transition-colors" placeholder=" " />
+                                <label for="rua" class="absolute text-xs text-blue-300 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-5 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 font-bold uppercase tracking-widest pointer-events-none">Rua</label>
+                            </div>
+                            <div class="relative">
+                                <input type="text" id="numero" name="numero" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-sm font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer transition-colors" placeholder=" " />
+                                <label for="numero" class="absolute text-xs text-blue-300 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-5 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 font-bold uppercase tracking-widest pointer-events-none">Número</label>
+                            </div>
+                            <div class="relative">
+                                <input type="text" id="bairro" name="bairro" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-sm font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer transition-colors" placeholder=" " />
+                                <label for="bairro" class="absolute text-xs text-blue-300 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-5 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 font-bold uppercase tracking-widest pointer-events-none">Bairro</label>
+                            </div>
+                            <div class="relative">
+                                <input type="text" id="cidade" name="cidade" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-sm font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer transition-colors" placeholder=" " />
+                                <label for="cidade" class="absolute text-xs text-blue-300 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-5 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 font-bold uppercase tracking-widest pointer-events-none">Cidade</label>
+                            </div>
+                            <div class="relative">
+                                <input type="text" id="estado" name="estado" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-sm font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer transition-colors" placeholder=" " />
+                                <label for="estado" class="absolute text-xs text-blue-300 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-5 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 font-bold uppercase tracking-widest pointer-events-none">UF</label>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <button type="button" onclick="avancarPara(3)" class="w-full mt-8 py-4 bg-white/10 text-white border border-white/20 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-white/20 transition-colors">Avançar</button>
+                
+                <p id="error-step-2" class="hidden text-xs font-bold text-red-200 mt-3 p-3 bg-red-500/20 rounded-xl border border-red-500/30 backdrop-blur-sm">Preencha todos os campos corretamente.</p>
+                <button type="button" onclick="validarEAvançar(2, 3)" class="w-full mt-6 py-4 bg-white/10 text-white border border-white/20 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-white/20 transition-colors">Próximo Passo</button>
             </div>
 
             <div class="step hidden transition-all duration-300" id="step-3">
                 <h2 class="text-3xl font-black text-white mb-8 tracking-tight">Investimento</h2>
                 <div class="space-y-4">
                     <div class="relative">
-                        <input type="text" id="cep" maxlength="9" class="block rounded-2xl px-5 pb-3 pt-6 w-full text-base font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer" placeholder=" " />
-                        <label for="cep" class="absolute text-sm text-blue-300 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-5 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 font-bold uppercase tracking-widest pointer-events-none">CEP (Busca Automática)</label>
-                    </div>
-
-                    <div class="relative">
-                        <textarea name="endereco" id="endereco" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-base font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer resize-none h-24" placeholder=" "></textarea>
-                        <label for="endereco" class="absolute text-sm text-blue-300 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-5 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 font-bold uppercase tracking-widest pointer-events-none">Endereço Completo</label>
-                    </div>
-                    
-                    <div class="relative">
-                        <select name="corretora" id="corretora" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-base font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer">
+                        <select name="corretora" id="corretora" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-base font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer transition-colors">
                             <option value="" disabled selected></option>
                             <option value="GENIAL" class="text-navy">GENIAL INVESTIMENTOS</option>
                             <option value="BTG" class="text-navy">BTG PACTUAL</option>
@@ -73,41 +96,98 @@
                     </div>
 
                     <div class="relative">
-                        <input type="number" step="0.01" name="capital" id="capital" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-xl font-black text-green-400 bg-green-500/10 border border-green-500/30 appearance-none focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 peer" placeholder=" " />
+                        <input type="number" step="0.01" name="capital" id="capital" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-xl font-black text-green-400 bg-green-500/10 border border-green-500/30 appearance-none focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 peer transition-colors" placeholder=" " />
                         <label for="capital" class="absolute text-sm text-green-400/80 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-5 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 font-bold uppercase tracking-widest pointer-events-none">Capital Alocado (R$)</label>
                     </div>
                 </div>
-                <button type="button" onclick="avancarPara(4)" class="w-full mt-8 py-4 bg-white/10 text-white border border-white/20 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-white/20 transition-colors">Próximo Passo</button>
+                
+                <p id="error-step-3" class="hidden text-xs font-bold text-red-200 mt-3 p-3 bg-red-500/20 rounded-xl border border-red-500/30 backdrop-blur-sm">Selecione a corretora e informe o capital.</p>
+                <button type="button" onclick="validarEAvançar(3, 4)" class="w-full mt-8 py-4 bg-white/10 text-white border border-white/20 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-white/20 transition-colors">Próximo Passo</button>
             </div>
 
             <div class="step hidden transition-all duration-300" id="step-4">
                 <h2 class="text-3xl font-black text-white mb-2 tracking-tight">Sua Segurança</h2>
-                <p class="text-blue-200 text-sm mb-8 font-medium">Crie uma senha forte para proteger seus rendimentos.</p>
+                <p class="text-blue-200 text-sm mb-6 font-medium">Crie e confirme uma senha forte para proteger seus rendimentos.</p>
                 
-                <div class="relative">
-                    <input type="password" name="senha" id="password" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-xl font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer" placeholder=" " />
-                    <label for="password" class="absolute text-sm text-blue-300 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-5 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 font-bold uppercase tracking-widest pointer-events-none">Senha de Acesso</label>
+                <div class="space-y-4">
+                    <div class="relative">
+                        <input type="password" name="senha" id="password" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-xl font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer transition-colors" placeholder=" " />
+                        <label for="password" class="absolute text-sm text-blue-300 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-5 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 font-bold uppercase tracking-widest pointer-events-none">Senha de Acesso</label>
+                        <button type="button" onclick="togglePassword('password', 'eye-icon-1')" class="absolute right-4 top-4 text-blue-300 hover:text-white transition-colors outline-none">
+                            <svg id="eye-icon-1" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                        </button>
+                    </div>
+
+                    <div class="relative">
+                        <input type="password" id="confirm_password" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-xl font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer transition-colors" placeholder=" " />
+                        <label for="confirm_password" class="absolute text-sm text-blue-300 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-5 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 font-bold uppercase tracking-widest pointer-events-none">Confirme a Senha</label>
+                        <button type="button" onclick="togglePassword('confirm_password', 'eye-icon-2')" class="absolute right-4 top-4 text-blue-300 hover:text-white transition-colors outline-none">
+                            <svg id="eye-icon-2" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                        </button>
+                    </div>
                 </div>
                 
-                <div class="mt-6 bg-navy/30 p-5 rounded-2xl border border-white/5">
-                    <ul class="space-y-2">
+                <div class="mt-4 bg-navy/30 p-4 rounded-2xl border border-white/5">
+                    <ul class="space-y-1.5">
                         <li id="req-len" class="text-xs font-bold text-gray-500 transition-colors">✖ Mínimo de 8 caracteres</li>
                         <li id="req-up" class="text-xs font-bold text-gray-500 transition-colors">✖ Letra maiúscula e minúscula</li>
                         <li id="req-num" class="text-xs font-bold text-gray-500 transition-colors">✖ Número e Símbolo especial</li>
+                        <li id="req-match" class="text-xs font-bold text-gray-500 transition-colors">✖ As senhas conferem</li>
                     </ul>
                 </div>
 
-                <button type="submit" id="btn-finish" disabled class="w-full mt-8 py-4 bg-green-500 text-white rounded-2xl font-black uppercase tracking-widest text-sm opacity-30 cursor-not-allowed transition-all shadow-[0_0_20px_rgba(34,197,94,0.2)]">Abrir Conta</button>
+                <button type="submit" id="btn-finish" disabled class="w-full mt-6 py-4 bg-green-500 text-white rounded-2xl font-black uppercase tracking-widest text-sm opacity-30 cursor-not-allowed transition-all shadow-[0_0_20px_rgba(34,197,94,0.2)]">Abrir Conta</button>
             </div>
         </form>
     </div>
 </div>
 
 <script>
+// Exibir / Ocultar Senha
+function togglePassword(inputId, iconId) {
+    const input = document.getElementById(inputId);
+    const icon = document.getElementById(iconId);
+    if (input.type === "password") {
+        input.type = "text";
+        icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>';
+    } else {
+        input.type = "password";
+        icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>';
+    }
+}
+
+// VALIDAR E AVANÇAR PASSO (IMPEDE AVANÇO SE VAZIO)
+function validarEAvançar(passoAtual, proximoPasso) {
+    const container = document.getElementById(`step-${passoAtual}`);
+    const inputs = container.querySelectorAll('input[required], select[required]');
+    let valido = true;
+
+    inputs.forEach(input => {
+        if (!input.value.trim()) {
+            valido = false;
+            input.classList.add('border-red-500', 'bg-red-500/10');
+            input.classList.remove('border-white/10', 'bg-navy/50');
+        } else {
+            input.classList.remove('border-red-500', 'bg-red-500/10');
+            input.classList.add('border-white/10', 'bg-navy/50');
+        }
+    });
+
+    const errorMsg = document.getElementById(`error-step-${passoAtual}`);
+    if (!valido) {
+        errorMsg.classList.remove('hidden');
+        return;
+    } else {
+        errorMsg.classList.add('hidden');
+    }
+
+    avancarPara(proximoPasso);
+}
+
 // INTEGRAÇÃO COM A API PARA VALIDAR CPF
 async function validarCpfStep1() {
     const cpfInputText = document.getElementById('cpf-input').value;
-    const cpfInput = cpfInputText.replace(/\D/g, ''); // Limpa qualquer pontuação antes de enviar
+    const cpfInput = cpfInputText.replace(/\D/g, '');
     const errorMsg = document.getElementById('cpf-error');
     const btn = document.getElementById('btn-step-1');
     
@@ -129,10 +209,7 @@ async function validarCpfStep1() {
             body: JSON.stringify({ cpf: cpfInput })
         });
         
-        if (!response.ok) {
-            throw new Error("Erro na resposta do servidor.");
-        }
-        
+        if (!response.ok) throw new Error("Erro na resposta do servidor.");
         const data = await response.json();
         
         if (data.valido) {
@@ -143,7 +220,6 @@ async function validarCpfStep1() {
             errorMsg.classList.remove('hidden');
         }
     } catch (error) {
-        console.error(error);
         errorMsg.innerText = 'Erro de comunicação com o servidor. Tente novamente.';
         errorMsg.classList.remove('hidden');
     } finally {
@@ -168,11 +244,15 @@ document.getElementById('cep').addEventListener('input', async function(e) {
             const data = await response.json();
             
             if (!data.erro) {
-                const enderecoInput = document.getElementById('endereco');
-                enderecoInput.value = `${data.logradouro}, Número: \nBairro: ${data.bairro}\n${data.localidade} - ${data.uf}`;
-                enderecoInput.focus();
-                enderecoInput.classList.add('ring-2', 'ring-green-400');
-                setTimeout(() => enderecoInput.classList.remove('ring-2', 'ring-green-400'), 1500);
+                document.getElementById('rua').value = data.logradouro;
+                document.getElementById('bairro').value = data.bairro;
+                document.getElementById('cidade').value = data.localidade;
+                document.getElementById('estado').value = data.uf;
+                
+                const numeroInput = document.getElementById('numero');
+                numeroInput.focus();
+                numeroInput.classList.add('ring-2', 'ring-green-400');
+                setTimeout(() => numeroInput.classList.remove('ring-2', 'ring-green-400'), 1500);
             }
         } catch (error) {
             console.error('Erro ao buscar CEP:', error);
@@ -195,19 +275,24 @@ function avancarPara(step) {
         nextStep.classList.remove('opacity-0');
     }, 50);
 
+    // Ajustado para 4 passos totais (3 avanços = 33% cada um)
     document.getElementById('progress-inner').style.width = ((step - 1) * 33.33) + '%';
 }
 
-// VALIDAÇÃO RIGOROSA DE SENHA
+// VALIDAÇÃO RIGOROSA E DUPLA DE SENHA
 const password = document.getElementById('password');
+const confirmPassword = document.getElementById('confirm_password');
 const btnFinish = document.getElementById('btn-finish');
 
-password.addEventListener('input', () => {
+function validarSenha() {
     const val = password.value;
+    const confirmVal = confirmPassword.value;
+    
     const rules = {
         len: val.length >= 8,
         up: /[A-Z]/.test(val) && /[a-z]/.test(val),
-        num: /[0-9]/.test(val) && /[^A-Za-z0-9]/.test(val)
+        num: /[0-9]/.test(val) && /[^A-Za-z0-9]/.test(val),
+        match: val === confirmVal && val.length > 0
     };
 
     const checkIcon = '✔ ';
@@ -222,7 +307,10 @@ password.addEventListener('input', () => {
     document.getElementById('req-num').className = rules.num ? 'text-xs font-bold text-green-400' : 'text-xs font-bold text-gray-500';
     document.getElementById('req-num').innerText = (rules.num ? checkIcon : crossIcon) + 'Número e Símbolo especial';
 
-    if(rules.len && rules.up && rules.num) {
+    document.getElementById('req-match').className = rules.match ? 'text-xs font-bold text-green-400' : 'text-xs font-bold text-gray-500';
+    document.getElementById('req-match').innerText = (rules.match ? checkIcon : crossIcon) + 'As senhas conferem';
+
+    if(rules.len && rules.up && rules.num && rules.match) {
         btnFinish.disabled = false;
         btnFinish.classList.remove('opacity-30', 'cursor-not-allowed');
         btnFinish.classList.add('hover:scale-[1.02]');
@@ -231,7 +319,10 @@ password.addEventListener('input', () => {
         btnFinish.classList.add('opacity-30', 'cursor-not-allowed');
         btnFinish.classList.remove('hover:scale-[1.02]');
     }
-});
+}
+
+password.addEventListener('input', validarSenha);
+confirmPassword.addEventListener('input', validarSenha);
 </script>
 {% endblock %}
 
