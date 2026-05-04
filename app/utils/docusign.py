@@ -1,27 +1,20 @@
 import os
-import re
 from docusign_esign import ApiClient, EnvelopesApi, EnvelopeDefinition, TemplateRole, RecipientViewRequest
 
-# Variáveis do Render
+# Variáveis que ainda vêm do Render
 DOCUSIGN_CLIENT_ID = os.getenv('DOCUSIGN_CLIENT_ID')
 DOCUSIGN_USER_ID = os.getenv('DOCUSIGN_USER_ID')
 DOCUSIGN_ACCOUNT_ID = os.getenv('DOCUSIGN_ACCOUNT_ID')
 DOCUSIGN_TEMPLATE_ID = os.getenv('DOCUSIGN_TEMPLATE_ID')
 
-def limpar_chave_rsa(key):
-    """
-    Limpa a chave RSA de aspas, espaços extras e garante que as quebras 
-    de linha sejam interpretadas corretamente pelo Python.
-    """
-    if not key:
-        return ""
-    # Remove aspas duplas ou simples que podem ter vindo do Render
-    key = key.strip().strip('"').strip("'")
-    # Se a chave foi colada com \n literais, converte para quebras reais
-    key = key.replace('\\n', '\n')
-    return key
-
-DOCUSIGN_PRIVATE_KEY = limpar_chave_rsa(os.getenv('DOCUSIGN_PRIVATE_KEY', ''))
+# Lendo a chave diretamente do arquivo físico que criamos na raiz
+try:
+    # Este caminho volta 3 pastas para chegar na raiz do projeto onde está o .pem
+    caminho_chave = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'docusign_key.pem')
+    with open(caminho_chave, 'r') as key_file:
+        DOCUSIGN_PRIVATE_KEY = key_file.read().strip()
+except FileNotFoundError:
+    raise Exception("Arquivo docusign_key.pem não encontrado na raiz do projeto.")
 
 BASE_PATH = "https://demo.docusign.net/restapi"
 OAUTH_HOST = "account-d.docusign.com"
@@ -43,7 +36,6 @@ def get_docusign_client():
         api_client.default_headers["Authorization"] = "Bearer " + token_response.access_token
         return api_client
     except Exception as e:
-        # Repassa o erro detalhado para o Flash do Flask
         raise Exception(f"Erro na Autenticação JWT: {str(e)}")
 
 def criar_envelope_embedded(signer_name, signer_email, client_user_id):
