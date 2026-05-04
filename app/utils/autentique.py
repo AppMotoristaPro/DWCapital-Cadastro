@@ -14,7 +14,6 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
         $file: Upload!
     ) {
         createDocument(
-            sandbox: true,
             document: $document,
             signers: $signers,
             file: $file
@@ -79,9 +78,6 @@ def verificar_status_autentique(doc_id):
     """
     Verifica na API da Autentique se o documento já possui data de assinatura.
     """
-    # CORREÇÕES DE SINTAXE GRAPHQL APLICADAS AQUI:
-    # 1. Trocamos $id: ID! por $id: UUID! 
-    # 2. Simplificamos os campos para pedir apenas o 'signed'
     query = """
     query CheckStatus($id: UUID!) {
         document(id: $id) {
@@ -110,16 +106,10 @@ def verificar_status_autentique(doc_id):
         if response.status_code == 200:
             data = response.json()
             
-            # ======== LOG DE DEPURAÇÃO PARA O RENDER ========
-            print("\n=== RESPOSTA DA AUTENTIQUE (STATUS DE ASSINATURA) ===")
-            print(json.dumps(data, indent=2))
-            print("=====================================================\n")
-            
             if "errors" in data:
                 print(f"Erro na API da Autentique: {data['errors']}")
                 return False
                 
-            # Proteção robusta contra "NoneType" (Valores Vazios)
             document_data = data.get('data', {}).get('document')
             
             if not document_data:
@@ -128,7 +118,6 @@ def verificar_status_autentique(doc_id):
             signatures = document_data.get('signatures', [])
             
             for sig in signatures:
-                # Verifica se o bloco 'signed' existe e tem informações de data
                 if sig.get('signed'):
                     return True
                     
