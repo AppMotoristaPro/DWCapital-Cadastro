@@ -30,34 +30,52 @@
                     </svg>
                 </div>
                 
-                <h3 class="text-2xl font-black text-navy mb-3">Enviamos o contrato para o seu e-mail!</h3>
+                <h3 class="text-2xl font-black text-navy mb-3">Aguardando a sua assinatura...</h3>
                 <p class="text-gray-500 mb-8 font-medium px-4">
-                    Um termo de adesão seguro foi enviado para <strong class="text-navy">{{ email }}</strong>. 
-                    Por favor, abra a sua caixa de entrada, conclua a assinatura digitalmente e depois clique no botão abaixo.
+                    O termo de adesão seguro já está na caixa de entrada de <strong class="text-navy">{{ email }}</strong>.<br>
+                    Abra o seu e-mail pelo celular ou em uma nova aba e conclua a assinatura digital.<br>
+                    <span class="text-royal font-bold mt-2 inline-block">Esta tela será atualizada sozinha.</span>
                 </p>
                 
-                <a href="{{ url_for('client.retorno_assinatura') }}" class="block w-full py-5 bg-green-500 text-white rounded-2xl font-black uppercase tracking-widest text-sm shadow-[0_0_20px_rgba(34,197,94,0.3)] transition-all transform hover:-translate-y-1 hover:bg-green-600 hover:shadow-[0_0_25px_rgba(34,197,94,0.5)]">
-                    Já assinei o documento
-                </a>
+                <div class="flex items-center justify-center space-x-3 bg-royal/10 text-royal font-black uppercase tracking-widest text-xs p-5 rounded-2xl shadow-inner">
+                    <svg class="animate-spin h-5 w-5 text-royal" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Verificando Autentique...</span>
+                </div>
+
+                <script>
+                    setInterval(async () => {
+                        try {
+                            const response = await fetch("{{ url_for('client.api_status_assinatura') }}");
+                            const data = await response.json();
+                            if (data.assinado) {
+                                // Redireciona magicamente para a home assim que assinar
+                                window.location.href = "{{ url_for('client.dashboard') }}";
+                            }
+                        } catch (e) {
+                            console.error("Aguardando sincronização com a Autentique...");
+                        }
+                    }, 5000); // 5000 = Verifica a cada 5 segundos
+                </script>
                 
             {% else %}
-                <div class="flex justify-center mb-6 text-yellow-500">
+                <div class="flex justify-center mb-6 text-red-500">
                     <svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" fill="currentColor" viewBox="0 0 16 16">
-                        <path d="M10 7v1.076c.54.166 1 .597 1 1.224v2.4c0 .816-.781 1.3-1.5 1.3h-3c-.719 0-1.5-.484-1.5-1.3V9.3c0-.627.46-1.058 1-1.224V7a2 2 0 1 1 4 0zM7 7v1h2V7a1 1 0 0 0-2 0z"/>
-                        <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/>
+                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                        <path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/>
                     </svg>
                 </div>
 
-                <h3 class="text-2xl font-black text-navy mb-3">Conclua o seu cadastro</h3>
+                <h3 class="text-2xl font-black text-navy mb-3">Falha na comunicação</h3>
                 <p class="text-gray-500 mb-8 font-medium px-4">
-                    Para garantir a sua segurança e liberar o acesso total ao seu Dashboard de investimentos, precisamos que você assine o nosso <strong>Termo de Adesão</strong>.
+                    Ocorreu um erro interno ao tentar gerar o seu contrato. Por favor, atualize a página para tentar o envio automático novamente.
                 </p>
                 
-                <form method="POST">
-                    <button type="submit" class="w-full py-5 bg-gradient-to-r from-royal to-royal-dark text-white rounded-2xl font-black uppercase tracking-widest text-sm shadow-[0_0_20px_rgba(65,105,225,0.4)] transition-all transform hover:-translate-y-1 hover:shadow-[0_0_25px_rgba(65,105,225,0.6)]">
-                        Enviar contrato para o meu e-mail
-                    </button>
-                </form>
+                <a href="{{ url_for('client.assinar_termo') }}" class="block w-full py-5 bg-navy text-white rounded-2xl font-black uppercase tracking-widest text-sm shadow-[0_0_20px_rgba(10,25,47,0.3)] transition-all transform hover:-translate-y-1 hover:shadow-[0_0_25px_rgba(10,25,47,0.5)]">
+                    Tentar Novamente
+                </a>
             {% endif %}
             
         </div>
