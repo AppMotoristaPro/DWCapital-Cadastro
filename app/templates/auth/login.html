@@ -6,8 +6,8 @@
 
     <div class="max-w-md w-full relative z-10 space-y-8 bg-white/10 backdrop-blur-xl p-10 rounded-3xl shadow-2xl border border-white/10">
         <div class="text-center">
-            <div class="mx-auto w-20 h-20 bg-gradient-to-br from-royal to-royal-dark rounded-2xl flex items-center justify-center shadow-[0_0_20px_rgba(65,105,225,0.4)] mb-6 border border-white/20">
-                <span class="text-3xl font-black text-white tracking-tighter">DW</span>
+            <div class="mx-auto h-24 flex items-center justify-center mb-6">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="DW Capital Logo" class="max-w-full max-h-full object-contain drop-shadow-2xl transition-transform hover:scale-105">
             </div>
             <h2 class="text-3xl font-black text-white tracking-tight">DW Capital</h2>
             <p class="mt-2 text-sm text-blue-200 font-medium tracking-wide">Portal Exclusivo</p>
@@ -27,16 +27,16 @@
             <div class="space-y-4">
                 <div>
                     <label class="text-xs font-bold text-blue-200 uppercase tracking-wider mb-1 block">CPF ou Usuário</label>
-                    <input name="login" type="text" required class="w-full px-5 py-4 bg-navy/50 border border-white/10 rounded-xl focus:ring-2 focus:ring-royal focus:border-transparent text-white placeholder-gray-400 font-medium outline-none">
+                    <input name="login" type="text" required class="w-full px-5 py-4 bg-navy/50 border border-white/10 rounded-xl focus:ring-2 focus:ring-royal focus:border-transparent text-white placeholder-gray-400 font-medium transition duration-200 outline-none">
                 </div>
                 <div>
                     <label class="text-xs font-bold text-blue-200 uppercase tracking-wider mb-1 block">Senha</label>
-                    <input name="senha" type="password" required class="w-full px-5 py-4 bg-navy/50 border border-white/10 rounded-xl focus:ring-2 focus:ring-royal focus:border-transparent text-white placeholder-gray-400 font-medium outline-none">
+                    <input name="senha" type="password" required class="w-full px-5 py-4 bg-navy/50 border border-white/10 rounded-xl focus:ring-2 focus:ring-royal focus:border-transparent text-white placeholder-gray-400 font-medium transition duration-200 outline-none">
                 </div>
             </div>
 
             <div>
-                <button type="submit" class="w-full py-4 px-4 text-sm font-black tracking-widest uppercase rounded-xl text-white bg-gradient-to-r from-royal to-royal-dark hover:from-royal-dark hover:to-navy transition-all duration-300 shadow-[0_0_20px_rgba(65,105,225,0.3)]">
+                <button type="submit" class="w-full py-4 px-4 text-sm font-black tracking-widest uppercase rounded-xl text-white bg-gradient-to-r from-royal to-royal-dark hover:from-royal-dark hover:to-navy transition-all duration-300 shadow-[0_0_20px_rgba(65,105,225,0.3)] hover:shadow-[0_0_25px_rgba(65,105,225,0.5)] transform hover:-translate-y-1">
                     Acessar Sistema
                 </button>
             </div>
