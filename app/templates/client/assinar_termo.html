@@ -1,77 +1,69 @@
-{% extends "base.html" %}
+{% extends "client/layout.html" %}
 
-{% block content %}
-<div class="container py-5">
-    <div class="row justify-content-center">
-        <div class="col-lg-7 col-md-10">
-            
-            <div class="card border-0 shadow-lg" style="border-radius: 15px; overflow: hidden;">
-                <div class="bg-primary text-white text-center py-4">
-                    <h3 class="mb-0 fw-bold">Liberação de Acesso</h3>
+{% block client_content %}
+<div class="max-w-3xl mx-auto pb-20">
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-6 space-y-3">
+        {% for category, message in messages %}
+          <div class="p-4 rounded-2xl font-bold shadow-sm {% if category == 'danger' %}bg-red-50 text-red-700 border border-red-100{% else %}bg-green-50 text-green-700 border border-green-100{% endif %}">
+            {{ message }}
+          </div>
+        {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
+        <div class="bg-gradient-to-r from-royal to-navy p-8 text-white text-center">
+            <p class="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1">Segurança DW Capital</p>
+            <h2 class="text-3xl font-black tracking-tight">Liberação de Acesso</h2>
+        </div>
+
+        <div class="p-10 text-center">
+            {% if documento_enviado %}
+                <div class="flex justify-center mb-6 text-royal">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M2 2a2 2 0 0 0-2 2v8.01A2 2 0 0 0 2 14h5.5a.5.5 0 0 0 0-1H2a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3.5a.5.5 0 0 0 1 0V4a2 2 0 0 0-2-2H2Zm3.434 4.132L8 9.283l2.566-3.151C10.156 5.86 9.096 5.5 8 5.5c-1.096 0-2.156.36-2.566.632Z"/>
+                        <path d="M16 12.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Zm-1.993-1.679a.5.5 0 0 0-.686.172l-1.17 1.95-.547-.547a.5.5 0 0 0-.708.708l.774.773a.75.75 0 0 0 1.174-.144l1.335-2.226a.5.5 0 0 0-.172-.686Z"/>
+                    </svg>
+                </div>
+                
+                <h3 class="text-2xl font-black text-navy mb-3">Enviamos o contrato para o seu e-mail!</h3>
+                <p class="text-gray-500 mb-8 font-medium px-4">
+                    Um termo de adesão seguro foi enviado para <strong class="text-navy">{{ email }}</strong>. 
+                    Por favor, abra a sua caixa de entrada, conclua a assinatura digitalmente e depois clique no botão abaixo.
+                </p>
+                
+                <a href="{{ url_for('client.retorno_assinatura') }}" class="block w-full py-5 bg-green-500 text-white rounded-2xl font-black uppercase tracking-widest text-sm shadow-[0_0_20px_rgba(34,197,94,0.3)] transition-all transform hover:-translate-y-1 hover:bg-green-600 hover:shadow-[0_0_25px_rgba(34,197,94,0.5)]">
+                    Já assinei o documento
+                </a>
+                
+            {% else %}
+                <div class="flex justify-center mb-6 text-yellow-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M10 7v1.076c.54.166 1 .597 1 1.224v2.4c0 .816-.781 1.3-1.5 1.3h-3c-.719 0-1.5-.484-1.5-1.3V9.3c0-.627.46-1.058 1-1.224V7a2 2 0 1 1 4 0zM7 7v1h2V7a1 1 0 0 0-2 0z"/>
+                        <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/>
+                    </svg>
                 </div>
 
-                <div class="card-body p-5 text-center">
-                    
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                      {% if messages %}
-                        {% for category, message in messages %}
-                          <div class="alert alert-{{ category }} alert-dismissible fade show text-start" role="alert">
-                            {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                          </div>
-                        {% endfor %}
-                      {% endif %}
-                    {% endwith %}
-
-                    {% if documento_enviado %}
-                        <div class="mb-4 text-primary">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" fill="currentColor" class="bi bi-envelope-check" viewBox="0 0 16 16">
-                              <path d="M2 2a2 2 0 0 0-2 2v8.01A2 2 0 0 0 2 14h5.5a.5.5 0 0 0 0-1H2a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3.5a.5.5 0 0 0 1 0V4a2 2 0 0 0-2-2H2Zm3.434 4.132L8 9.283l2.566-3.151C10.156 5.86 9.096 5.5 8 5.5c-1.096 0-2.156.36-2.566.632Z"/>
-                              <path d="M16 12.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Zm-1.993-1.679a.5.5 0 0 0-.686.172l-1.17 1.95-.547-.547a.5.5 0 0 0-.708.708l.774.773a.75.75 0 0 0 1.174-.144l1.335-2.226a.5.5 0 0 0-.172-.686Z"/>
-                            </svg>
-                        </div>
-                        
-                        <h4 class="fw-bold mb-3">Enviamos o contrato para o seu e-mail!</h4>
-                        <p class="text-muted mb-4 px-3">
-                            Um termo de adesão seguro foi enviado para <strong>{{ email }}</strong>. 
-                            Por favor, abra a sua caixa de entrada, conclua a assinatura digitalmente e depois volte aqui para liberar o seu acesso.
-                        </p>
-                        
-                        <div class="d-grid mt-4">
-                            <a href="{{ url_for('client.retorno_assinatura') }}" class="btn btn-success btn-lg fw-bold rounded-pill py-3 shadow-sm">
-                                Já assinei o documento
-                            </a>
-                        </div>
-                        
-                    {% else %}
-                        <div class="mb-4 text-warning">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" fill="currentColor" class="bi bi-file-earmark-lock2" viewBox="0 0 16 16">
-                              <path d="M10 7v1.076c.54.166 1 .597 1 1.224v2.4c0 .816-.781 1.3-1.5 1.3h-3c-.719 0-1.5-.484-1.5-1.3V9.3c0-.627.46-1.058 1-1.224V7a2 2 0 1 1 4 0zM7 7v1h2V7a1 1 0 0 0-2 0z"/>
-                              <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/>
-                            </svg>
-                        </div>
-
-                        <h4 class="fw-bold mb-3">Conclua o seu cadastro</h4>
-                        <p class="text-muted mb-4 px-3">
-                            Para garantir a sua segurança e liberar o acesso total ao seu Dashboard de investimentos, precisamos que você assine o nosso <strong>Termo de Adesão</strong>.
-                        </p>
-                        
-                        <form method="POST">
-                            <div class="d-grid mt-4">
-                                <button type="submit" class="btn btn-primary btn-lg fw-bold rounded-pill py-3 shadow-sm">
-                                    Enviar contrato para o meu e-mail
-                                </button>
-                            </div>
-                        </form>
-                    {% endif %}
-                    
-                </div>
-            </div>
+                <h3 class="text-2xl font-black text-navy mb-3">Conclua o seu cadastro</h3>
+                <p class="text-gray-500 mb-8 font-medium px-4">
+                    Para garantir a sua segurança e liberar o acesso total ao seu Dashboard de investimentos, precisamos que você assine o nosso <strong>Termo de Adesão</strong>.
+                </p>
+                
+                <form method="POST">
+                    <button type="submit" class="w-full py-5 bg-gradient-to-r from-royal to-royal-dark text-white rounded-2xl font-black uppercase tracking-widest text-sm shadow-[0_0_20px_rgba(65,105,225,0.4)] transition-all transform hover:-translate-y-1 hover:shadow-[0_0_25px_rgba(65,105,225,0.6)]">
+                        Enviar contrato para o meu e-mail
+                    </button>
+                </form>
+            {% endif %}
             
-            <div class="text-center mt-4">
-                <p class="text-muted small">Precisa de ajuda? <a href="#" class="text-decoration-none">Contacte o suporte</a></p>
-            </div>
-
+        </div>
+        
+        <div class="bg-gray-50 p-6 text-center border-t border-gray-100">
+            <p class="text-xs text-gray-500 font-medium">Precisa de ajuda? <a href="#" class="font-bold text-royal hover:underline">Contacte o suporte</a></p>
         </div>
     </div>
 </div>
