@@ -33,9 +33,11 @@ def faturas():
                     fatura.irrf_1 = dados['irrf_1']
                     fatura.taxas_b3 = dados['taxas_b3']
                     fatura.repasse = (dados['liquido'] * 0.81) * 0.30 if dados['liquido'] > 0 else 0.0
-                    fatura.status = 'aguardando_pagamento'
+                    
+                    # NOVO STATUS CONFORME SOLICITADO
+                    fatura.status = 'relatorio_enviado'
                     db.session.commit()
-                    flash('PDF processado!')
+                    flash('PDF processado com sucesso!', 'success')
         return redirect(url_for('client.faturas'))
     
     faturas = Fatura.query.filter_by(user_id=current_user.id).order_by(Fatura.id.desc()).all()

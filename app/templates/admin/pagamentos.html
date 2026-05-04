@@ -1,0 +1,27 @@
+{% extends "admin/layout.html" %}
+{% block admin_content %}
+<div class="max-w-6xl mx-auto">
+    <h1 class="text-4xl font-black text-navy mb-8">Gestão de Pagamentos</h1>
+    <div class="bg-white rounded-3xl shadow-lg border border-gray-100 overflow-hidden">
+        <table class="w-full text-left">
+            <thead class="bg-ice text-gray-400 text-[10px] font-black uppercase tracking-wider">
+                <tr>
+                    <th class="px-6 py-4">Cliente Ativo</th>
+                    <th class="px-6 py-4 text-right">Ação</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for cliente in clientes %}
+                <tr class="hover:bg-gray-50 transition">
+                    <td class="px-6 py-5 font-bold text-navy text-sm">{{ cliente.nome }}</td>
+                    <td class="px-6 py-5 text-right">
+                        <a href="{{ url_for('admin.pagamentos_cliente', id=cliente.id) }}" class="text-xs font-bold text-royal hover:underline">Ver Semanas Faturadas -></a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+

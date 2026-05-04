@@ -1,76 +1,113 @@
 {% extends "admin/layout.html" %}
+
 {% block admin_content %}
-<div class="max-w-6xl mx-auto">
+<div class="max-w-7xl mx-auto">
+    
     <div class="flex justify-between items-end mb-8">
         <div>
             <h1 class="text-4xl font-black text-navy tracking-tight">Gestão de Clientes</h1>
             <p class="text-gray-500 mt-2 font-medium">Controle total da base de investidores DW Capital.</p>
         </div>
+        <button onclick="document.getElementById('modal-novo-acesso').classList.remove('hidden')" class="px-6 py-3 bg-royal hover:bg-royal-dark text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg transition duration-200">
+            Liberar Novo Acesso
+        </button>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div class="bg-white p-8 rounded-3xl shadow-lg border border-blue-50/50 h-fit">
-            <h2 class="text-lg font-black text-navy mb-6 flex items-center gap-2">
-                <span class="p-2 bg-royal/10 rounded-lg text-royal">🔓</span>
-                Liberar Novo Acesso
-            </h2>
-            <form method="POST" action="{{ url_for('admin.liberar_cliente') }}" class="space-y-4">
-                <div>
-                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Nome de Identificação</label>
-                    <input type="text" name="nome_temp" required class="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-royal outline-none font-medium" placeholder="Ex: João Silva">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-8 space-y-2">
+            {% for category, message in messages %}
+                <div class="p-4 rounded-2xl font-bold shadow-sm {% if category == 'error' %}bg-red-50 text-red-700{% else %}bg-green-50 text-green-700{% endif %}">
+                    {{ message }}
                 </div>
-                <div>
-                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">CPF do Cliente</label>
-                    <input type="text" name="cpf" required class="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-royal outline-none font-medium" placeholder="Apenas números">
-                </div>
-                <button type="submit" class="w-full py-4 bg-royal text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg hover:bg-royal-dark transition transform hover:-translate-y-0.5">
-                    Liberar CPF
-                </button>
-            </form>
+            {% endfor %}
         </div>
+      {% endif %}
+    {% endwith %}
 
-        <div class="lg:col-span-2 bg-white rounded-3xl shadow-lg border border-blue-50/50 overflow-hidden">
-            <div class="overflow-x-auto">
-                <table class="w-full text-left">
-                    <thead>
-                        <tr class="bg-ice text-gray-400 text-[10px] font-black uppercase tracking-wider">
-                            <th class="px-6 py-4">Investidor</th>
-                            <th class="px-6 py-4">Corretora / Capital</th>
-                            <th class="px-6 py-4 text-center">Status</th>
-                            <th class="px-6 py-4 text-right">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100">
-                        {% for cliente in clientes %}
-                        <tr class="hover:bg-blue-50/30 transition">
-                            <td class="px-6 py-4">
-                                <div class="font-bold text-navy text-sm">{{ cliente.nome }}</div>
-                                <div class="text-[10px] text-gray-400 font-medium">{{ cliente.cpf }}</div>
-                            </td>
-                            <td class="px-6 py-4">
-                                <div class="text-xs font-bold text-gray-600">{{ cliente.corretora or 'Pendente' }}</div>
-                                <div class="text-xs font-black text-green-600">R$ {{ "%.2f"|format(cliente.capital_alocado) }}</div>
-                            </td>
-                            <td class="px-6 py-4 text-center">
-                                <form action="{{ url_for('admin.toggle_status', id=cliente.id) }}" method="POST">
-                                    <button type="submit" class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter border transition
-                                        {{ 'bg-green-100 text-green-700 border-green-200' if cliente.status_acesso == 'ativo' 
-                                           else 'bg-yellow-100 text-yellow-700 border-yellow-200' }}">
-                                        {{ cliente.status_acesso }}
-                                    </button>
-                                </form>
-                            </td>
-                            <td class="px-6 py-4 text-right">
-                                <form action="{{ url_for('admin.excluir_cliente', id=cliente.id) }}" method="POST" class="inline" onsubmit="return confirm('Excluir este investidor?')">
-                                    <button type="submit" class="p-2 text-red-400 hover:text-red-600 transition">🗑️</button>
-                                </form>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+    <div class="bg-white rounded-3xl shadow-lg border border-blue-50/50 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-ice text-gray-400 text-[10px] font-black uppercase tracking-wider border-b border-gray-100">
+                        <th class="px-6 py-4">Investidor</th>
+                        <th class="px-6 py-4">Corretora</th>
+                        <th class="px-6 py-4">Capital</th>
+                        <th class="px-6 py-4 text-center">Status</th>
+                        <th class="px-6 py-4 text-right">Ações</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for cliente in clientes %}
+                    <tr class="hover:bg-blue-50/30 transition">
+                        <td class="px-6 py-5">
+                            <div class="font-bold text-navy text-sm">{{ cliente.nome }}</div>
+                            <div class="text-[10px] text-gray-400 font-medium">{{ cliente.cpf }}</div>
+                        </td>
+                        <td class="px-6 py-5 text-sm font-bold text-gray-600">{{ cliente.corretora or 'Pendente' }}</td>
+                        <td class="px-6 py-5 text-sm font-black text-green-600">R$ {{ "%.2f"|format(cliente.capital_alocado) }}</td>
+                        <td class="px-6 py-5 text-center">
+                            <form action="{{ url_for('admin.toggle_status', id=cliente.id) }}" method="POST">
+                                <button type="submit" class="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-tighter border transition {{ 'bg-green-100 text-green-700 border-green-200' if cliente.status_acesso == 'ativo' else 'bg-yellow-100 text-yellow-700 border-yellow-200' }}">
+                                    {{ cliente.status_acesso }}
+                                </button>
+                            </form>
+                        </td>
+                        <td class="px-6 py-5 text-right space-x-3">
+                            <button onclick="document.getElementById('modal-visualizar-{{ cliente.id }}').classList.remove('hidden')" class="text-xs font-bold text-royal hover:text-royal-dark transition">Visualizar</button>
+                            <a href="{{ url_for('admin.editar_cliente', id=cliente.id) }}" class="text-xs font-bold text-gray-500 hover:text-gray-900 transition">Editar</a>
+                            <form action="{{ url_for('admin.excluir_cliente', id=cliente.id) }}" method="POST" class="inline" onsubmit="return confirm('ATENÇÃO: Confirma a exclusão permanente deste cliente?')">
+                                <button type="submit" class="text-xs font-bold text-red-400 hover:text-red-600 transition">Excluir</button>
+                            </form>
+                        </td>
+                    </tr>
+
+                    <div id="modal-visualizar-{{ cliente.id }}" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-navy/50 backdrop-blur-sm p-4">
+                        <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-8 relative">
+                            <button onclick="document.getElementById('modal-visualizar-{{ cliente.id }}').classList.add('hidden')" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black">X</button>
+                            <h2 class="text-2xl font-black text-navy mb-6">Ficha do Cliente</h2>
+                            <div class="space-y-4 text-sm font-medium text-gray-600">
+                                <p><span class="font-bold text-gray-900">Nome:</span> {{ cliente.nome }}</p>
+                                <p><span class="font-bold text-gray-900">CPF:</span> {{ cliente.cpf }}</p>
+                                <p><span class="font-bold text-gray-900">Email:</span> {{ cliente.email or 'Não informado' }}</p>
+                                <p><span class="font-bold text-gray-900">Celular:</span> {{ cliente.celular or 'Não informado' }}</p>
+                                <p><span class="font-bold text-gray-900">Endereço:</span> {{ cliente.endereco or 'Não informado' }}</p>
+                                <p><span class="font-bold text-gray-900">Corretora:</span> {{ cliente.corretora or 'Não informada' }}</p>
+                                <p><span class="font-bold text-gray-900">Capital Alocado:</span> R$ {{ "%.2f"|format(cliente.capital_alocado) }}</p>
+                                <div class="pt-4 border-t border-gray-100">
+                                    <p class="text-xs text-gray-400 font-bold uppercase">Data de Cadastro: {{ cliente.data_cadastro.strftime('%d/%m/%Y às %H:%M') }} (Brasília)</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-10 text-center text-gray-400 font-medium">Nenhum cliente liberado ainda.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
+    </div>
+</div>
+
+<div id="modal-novo-acesso" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-navy/50 backdrop-blur-sm p-4">
+    <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 relative">
+        <button onclick="document.getElementById('modal-novo-acesso').classList.add('hidden')" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black">X</button>
+        <h2 class="text-xl font-black text-navy mb-6">Liberar Novo Acesso</h2>
+        <form method="POST" action="{{ url_for('admin.liberar_cliente') }}" class="space-y-4">
+            <div>
+                <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Nome de Identificação (Temp)</label>
+                <input type="text" name="nome_temp" required class="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-royal outline-none font-medium">
+            </div>
+            <div>
+                <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">CPF do Cliente</label>
+                <input type="text" name="cpf" required class="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-royal outline-none font-medium" placeholder="Apenas números">
+            </div>
+            <button type="submit" class="w-full py-4 bg-royal text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg hover:bg-royal-dark transition mt-4">
+                Liberar CPF
+            </button>
+        </form>
     </div>
 </div>
 {% endblock %}
