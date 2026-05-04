@@ -24,16 +24,16 @@ def create_app():
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
 
-    # Registro dos Novos Blueprints
+    # IMPORTANTE: Apenas as rotas do modelo Híbrido
     from app.auth.routes import auth_bp
-    from app.clientes.routes import clientes_bp
-    from app.pagamentos.routes import pagamentos_bp
+    from app.client.routes import client_bp
+    from app.admin.routes import admin_bp
     
     app.register_blueprint(auth_bp)
-    app.register_blueprint(clientes_bp)
-    app.register_blueprint(pagamentos_bp)
+    app.register_blueprint(client_bp, name='client') # Nome 'client' para o url_for funcionar
+    app.register_blueprint(admin_bp)
 
-    # Rota raiz redireciona para o login (e consequentemente para Clientes)
+    # Rota raiz redireciona para o login
     @app.route('/')
     def root():
         return redirect(url_for('auth.login'))
