@@ -89,14 +89,27 @@ def primeiro_acesso():
 
 @auth_bp.route('/setup_secreto_dw')
 def setup_secreto():
+    """
+    MODIFICADO: Agora esta rota NÃO reseta mais o banco.
+    Ela apenas garante a existência do Admin. Use 'flask db' para migrações.
+    """
     try:
-        db.session.execute(text('DROP SCHEMA public CASCADE; CREATE SCHEMA public;'))
-        db.session.commit()
-        db.create_all()
-        admin = User(username='dwcapital', password_hash=generate_password_hash('dwadmin2026'), role='admin', status_acesso='ativo', nome='Admin DW')
-        db.session.add(admin)
-        db.session.commit()
-        return "✅ Sistema Resetado para Modelo Híbrido (Admin + Cliente)!"
+        # Removido o DROP SCHEMA para proteção de dados
+        db.create_all() # Garante que as tabelas básicas existam se o banco estiver vazio
+        
+        admin = User.query.filter_by(username='dwcapital').first()
+        if not admin:
+            admin = User(
+                username='dwcapital', 
+                password_hash=generate_password_hash('dwadmin2026'), 
+                role='admin', 
+                status_acesso='ativo', 
+                nome='Admin DW'
+            )
+            db.session.add(admin)
+            db.session.commit()
+            return "✅ Admin injetado com sucesso! (Banco preservado)"
+        return "ℹ️ O Admin já existe. Nenhuma alteração foi necessária."
     except Exception as e:
         return f"❌ Erro: {e}"
 

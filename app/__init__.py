@@ -1,10 +1,12 @@
 from flask import Flask, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 from flask_login import LoginManager
 import os
 from dotenv import load_dotenv
 
 db = SQLAlchemy()
+migrate = Migrate()
 login_manager = LoginManager()
 
 # NOVO FILTRO JINJA: Formatação Moeda Brasileira
@@ -30,6 +32,7 @@ def create_app():
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
 
     db.init_app(app)
+    migrate.init_app(app, db) # Inicializa o Flask-Migrate
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
     
