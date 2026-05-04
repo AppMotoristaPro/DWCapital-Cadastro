@@ -1,11 +1,11 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash
+from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import text
 from app.models import User
 from app import db
 
-# Criação do Blueprint (que estava faltando e causando o NameError)
+# Criação do Blueprint
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -29,6 +29,27 @@ def login():
             flash('Credenciais inválidas.')
             
     return render_template('auth/login.html')
+
+# ==========================================
+# ROTA API: Validação Silenciosa do CPF
+# ==========================================
+@auth_bp.route('/api/verificar_cpf', methods=['POST'])
+def verificar_cpf():
+    data = request.get_json()
+    if not data or 'cpf' not in data:
+        return jsonify({'valido': False, 'mensagem': 'CPF não informado.'}), 400
+
+    cpf_limpo = ''.join(filter(str.isdigit, data['cpf']))
+    user = User.query.filter_by(cpf=cpf_limpo).first()
+
+    if not user:
+        return jsonify({'valido': False, 'mensagem': 'CPF não liberado. Entre em contato com a DW Capital.'})
+    
+    if user.status_acesso != 'pendente_cadastro':
+        return jsonify({'valido': False, 'mensagem': 'Este CPF já possui uma senha ativa.'})
+
+    return jsonify({'valido': True, 'mensagem': 'CPF liberado!'})
+
 
 @auth_bp.route('/primeiro_acesso', methods=['GET', 'POST'])
 def primeiro_acesso():
