@@ -9,11 +9,13 @@
         </div>
         
         <form method="GET" action="{{ url_for('admin.dashboard') }}" class="flex gap-2">
-            <select name="periodo" onchange="this.form.submit()" class="px-4 py-3 bg-white border border-gray-200 rounded-xl font-bold text-navy text-sm shadow-sm outline-none focus:ring-2 focus:ring-royal">
-                <option value="dia" {% if periodo == 'dia' %}selected{% endif %}>Hoje</option>
-                <option value="semana" {% if periodo == 'semana' %}selected{% endif %}>Esta Semana</option>
-                <option value="mes" {% if periodo == 'mes' %}selected{% endif %}>Este Mês</option>
-            </select>
+            <div class="flex bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden text-sm font-bold text-navy">
+                <input type="date" name="dia" class="px-4 py-3 outline-none hover:bg-gray-50 border-r border-gray-100" title="Escolha o Dia">
+                <input type="week" name="semana" class="px-4 py-3 outline-none hover:bg-gray-50 border-r border-gray-100" title="Escolha a Semana">
+                <input type="month" name="mes" class="px-4 py-3 outline-none hover:bg-gray-50" title="Escolha o Mês">
+            </div>
+            <button type="submit" class="px-6 py-3 bg-navy text-white rounded-xl font-black uppercase tracking-widest text-xs hover:bg-gray-900 transition">Filtrar</button>
+            <a href="{{ url_for('admin.dashboard') }}" class="px-4 py-3 text-gray-400 hover:text-red-500 font-bold text-xs flex items-center">Limpar</a>
         </form>
     </div>
 
@@ -31,15 +33,15 @@
         </div>
 
         <div class="bg-gradient-to-br from-royal to-royal-dark p-6 rounded-3xl shadow-lg shadow-royal/30">
-            <p class="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-2">Faturamento DW ({{ periodo|capitalize }})</p>
+            <p class="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-2">Faturamento DW</p>
             <p class="text-3xl font-black text-white mt-1">R$ {{ "%.2f"|format(faturamento_total) }}</p>
-            <p class="text-xs text-blue-200 font-bold mt-2">Soma dos 30% apurados</p>
+            <p class="text-xs text-blue-200 font-bold mt-2">{{ label_periodo }}</p>
         </div>
 
         <div class="bg-white p-6 rounded-3xl shadow-lg border border-blue-50/50">
             <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Média por Cliente</p>
             <p class="text-3xl font-black text-green-600 mt-1">R$ {{ "%.2f"|format(media_cliente) }}</p>
-            <p class="text-xs text-gray-400 font-bold mt-2">Repasse médio apurado</p>
+            <p class="text-xs text-gray-400 font-bold mt-2">No período selecionado</p>
         </div>
     </div>
 </div>

@@ -5,7 +5,7 @@
     <a href="{{ url_for('admin.pagamentos') }}" class="text-sm font-bold text-gray-400 mb-6 inline-block hover:text-navy transition duration-200"><- Voltar para a lista</a>
     
     <div class="mb-8">
-        <h1 class="text-3xl font-black text-navy tracking-tight">Semanas Faturadas</h1>
+        <h1 class="text-3xl font-black text-navy tracking-tight">Gestão Semanal</h1>
         <p class="text-gray-500 mt-1 font-medium">Investidor: <span class="font-bold text-royal">{{ cliente.nome }}</span></p>
     </div>
 
@@ -23,46 +23,63 @@
     
     <div class="space-y-6">
         {% for fatura in faturas %}
-        <div class="bg-white p-8 rounded-3xl shadow-lg border border-blue-50/50 flex justify-between items-center transition duration-200 hover:shadow-xl">
-            <div>
-                <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Ciclo: Sexta a Quinta</p>
-                <p class="text-xl font-bold text-navy">{{ fatura.data_inicio.strftime('%d/%m/%Y') }} até {{ fatura.data_fim.strftime('%d/%m/%Y') }}</p>
-                
-                <div class="mt-4 flex items-center gap-4">
-                    {% if fatura.status == 'pendente' %}
-                        <span class="px-4 py-1.5 bg-gray-100 text-gray-500 border border-gray-200 rounded-full text-[10px] font-black uppercase tracking-wider">Aguardando PDF</span>
-                    {% elif fatura.status == 'relatorio_enviado' %}
-                        <span class="px-4 py-1.5 bg-blue-100 text-blue-700 border border-blue-200 rounded-full text-[10px] font-black uppercase tracking-wider">Relatório Analisado</span>
-                    {% elif fatura.status == 'pago' %}
-                        <span class="px-4 py-1.5 bg-green-100 text-green-700 border border-green-200 rounded-full text-[10px] font-black uppercase tracking-wider">Pago</span>
-                    {% elif fatura.status == 'inadimplente' %}
-                        <span class="px-4 py-1.5 bg-red-100 text-red-700 border border-red-200 rounded-full text-[10px] font-black uppercase tracking-wider">Inadimplente</span>
-                    {% endif %}
+        <details class="bg-white rounded-3xl shadow-lg border border-blue-50/50 overflow-hidden group">
+            <summary class="cursor-pointer p-8 flex justify-between items-center list-none outline-none group-open:bg-gray-50 transition-colors">
+                <div>
+                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Ciclo Faturado</p>
+                    <p class="text-xl font-bold text-navy">{{ fatura.data_inicio.strftime('%d/%m/%Y') }} até {{ fatura.data_fim.strftime('%d/%m/%Y') }}</p>
+                    <div class="mt-3 flex items-center gap-3">
+                        <span class="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border {{ 'bg-yellow-100 text-yellow-700 border-yellow-200' if fatura.status in ['pendente', 'parcial'] else 'bg-green-100 text-green-700 border-green-200' }}">
+                            {{ fatura.status.replace('_', ' ') }}
+                        </span>
+                        <span class="text-xs text-gray-400 font-bold">Clique para expandir as diárias</span>
+                    </div>
+                </div>
+
+                <div class="text-right">
+                    <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Repasse Total Consolidado</p>
+                    <p class="text-3xl font-black text-green-600 mb-4">R$ {{ "%.2f"|format(fatura.repasse) }}</p>
                     
-                    {% if fatura.arquivo_pdf %}
-                    <a href="{{ url_for('static', filename='uploads/' ~ fatura.arquivo_pdf) }}" target="_blank" class="text-xs font-bold text-royal hover:underline flex items-center gap-1">
-                        📄 Ver PDF da Corretora
-                    </a>
-                    {% endif %}
+                    <form action="{{ url_for('admin.status_pagamento', fatura_id=fatura.id) }}" method="POST" class="flex gap-2 justify-end">
+                        <button type="submit" name="status" value="pago" class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition shadow-md">Marcar Pago</button>
+                        <button type="submit" name="status" value="inadimplente" class="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 font-black text-[10px] uppercase tracking-widest rounded-xl transition border border-red-100">Inadimplente</button>
+                    </form>
+                </div>
+            </summary>
+
+            <div class="p-8 border-t border-gray-100 bg-white">
+                <h3 class="text-sm font-black text-navy uppercase tracking-widest mb-6">Relatórios Diários do Cliente</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {% for dia in fatura.dias %}
+                    <div class="p-5 rounded-2xl border {{ 'border-green-200 bg-green-50' if dia.status == 'relatorio_enviado' else 'border-dashed border-gray-200 bg-gray-50' }}">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <p class="text-xs font-black text-navy uppercase">{{ ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'][dia.data_pregao.weekday()] }}</p>
+                                <p class="text-[10px] text-gray-500 font-bold tracking-widest">{{ dia.data_pregao.strftime('%d/%m/%Y') }}</p>
+                            </div>
+                            <span class="text-[10px] font-bold uppercase {{ 'text-green-600' if dia.status == 'relatorio_enviado' else 'text-gray-400' }}">
+                                {{ 'Recebido' if dia.status == 'relatorio_enviado' else 'Pendente' }}
+                            </span>
+                        </div>
+                        
+                        {% if dia.status == 'relatorio_enviado' %}
+                        <div class="space-y-1 mb-4 border-t border-green-100 pt-3 mt-3">
+                            <div class="flex justify-between text-xs font-bold text-gray-600"><p>Bruto:</p> <p>R$ {{ "%.2f"|format(dia.bruto) }}</p></div>
+                            <div class="flex justify-between text-xs font-bold text-gray-600"><p>Líquido:</p> <p>R$ {{ "%.2f"|format(dia.liquido) }}</p></div>
+                            <div class="flex justify-between text-sm font-black text-green-700 mt-2 pt-2 border-t border-green-100"><p>Repasse:</p> <p>R$ {{ "%.2f"|format(dia.repasse) }}</p></div>
+                        </div>
+                        <a href="{{ url_for('static', filename='uploads/' ~ dia.arquivo_pdf) }}" target="_blank" class="block text-center bg-white border border-green-200 text-green-700 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-green-600 hover:text-white transition">Abrir PDF da Corretora</a>
+                        {% else %}
+                        <div class="py-6 text-center text-gray-400">
+                            <svg class="w-6 h-6 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <p class="text-[10px] font-bold uppercase tracking-widest">Aguardando PDF</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
-
-            {% if fatura.status != 'pendente' %}
-            <div class="text-right">
-                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Repasse DW (30%)</p>
-                <p class="text-3xl font-black text-green-600 mb-5">R$ {{ "%.2f"|format(fatura.repasse) }}</p>
-                
-                <form action="{{ url_for('admin.status_pagamento', fatura_id=fatura.id) }}" method="POST" class="flex gap-3 justify-end">
-                    <button type="submit" name="status" value="pago" class="px-5 py-3 bg-green-500 hover:bg-green-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition shadow-md hover:-translate-y-0.5">Marcar Pago</button>
-                    <button type="submit" name="status" value="inadimplente" class="px-5 py-3 bg-red-50 hover:bg-red-100 text-red-600 font-black text-[10px] uppercase tracking-widest rounded-xl transition border border-red-100">Inadimplente</button>
-                </form>
-            </div>
-            {% else %}
-            <div class="text-right text-gray-400 text-sm font-bold bg-gray-50 px-6 py-5 rounded-2xl border border-gray-100">
-                Aguardando cliente<br>anexar o documento.
-            </div>
-            {% endif %}
-        </div>
+        </details>
         {% else %}
         <div class="bg-white p-12 rounded-3xl shadow-lg border border-blue-50/50 text-center">
             <p class="text-gray-400 font-medium">Nenhum ciclo gerado para este cliente.</p>

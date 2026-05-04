@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_required, current_user
-from app.models import User, Fatura
+from app.models import User, Fatura, FaturaDiaria
 from app import db
 from datetime import datetime, timedelta
 import pytz
@@ -13,31 +13,50 @@ admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 def dashboard():
     if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
     
-    periodo = request.args.get('periodo', 'mes')
-    hoje = datetime.now(tz_br).date()
+    filtro_dia = request.args.get('dia')
+    filtro_semana = request.args.get('semana')
+    filtro_mes = request.args.get('mes')
     
-    if periodo == 'dia':
-        data_inicio = hoje
-    elif periodo == 'semana':
-        data_inicio = hoje - timedelta(days=hoje.weekday()) # Segunda da semana atual
-    else: # mes
-        data_inicio = hoje.replace(day=1)
+    faturas_base = Fatura.query.filter(Fatura.status.in_(['parcial', 'relatorio_enviado', 'pago', 'inadimplente']))
+    faturas_diarias_base = FaturaDiaria.query.filter(FaturaDiaria.status == 'relatorio_enviado')
+    
+    label_periodo = "Todo o Período"
+    
+    if filtro_dia:
+        dt = datetime.strptime(filtro_dia, '%Y-%m-%d').date()
+        faturas_filtradas = faturas_diarias_base.filter(FaturaDiaria.data_pregao == dt).all()
+        faturamento_total = sum(f.repasse for f in faturas_filtradas)
+        qtd = len(faturas_filtradas)
+        label_periodo = f"Dia {dt.strftime('%d/%m/%Y')}"
+    elif filtro_semana:
+        dt_inicio = datetime.strptime(filtro_semana + '-1', '%G-W%V-%u').date()
+        dt_fim = dt_inicio + timedelta(days=6)
+        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio, Fatura.data_inicio <= dt_fim).all()
+        faturamento_total = sum(f.repasse for f in faturas_filtradas)
+        qtd = len(faturas_filtradas)
+        label_periodo = f"Semana de {dt_inicio.strftime('%d/%m')}"
+    elif filtro_mes:
+        dt_inicio = datetime.strptime(filtro_mes + '-01', '%Y-%m-%d').date()
+        prox_mes = dt_inicio.replace(day=28) + timedelta(days=4)
+        dt_fim = prox_mes - timedelta(days=prox_mes.day)
+        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio, Fatura.data_inicio <= dt_fim).all()
+        faturamento_total = sum(f.repasse for f in faturas_filtradas)
+        qtd = len(faturas_filtradas)
+        label_periodo = f"Mês {dt_inicio.strftime('%m/%Y')}"
+    else:
+        # Padrão: Mês atual
+        hoje = datetime.now(tz_br).date()
+        dt_inicio = hoje.replace(day=1)
+        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio).all()
+        faturamento_total = sum(f.repasse for f in faturas_filtradas)
+        qtd = len(faturas_filtradas)
+        label_periodo = f"Mês Atual ({dt_inicio.strftime('%m/%Y')})"
         
     clientes_ativos = User.query.filter_by(role='cliente', status_acesso='ativo').count()
     total_clientes = User.query.filter_by(role='cliente').count()
-    
-    # Soma de valor alocado
     alocado_row = db.session.query(db.func.sum(User.capital_alocado)).filter_by(role='cliente', status_acesso='ativo').first()
     capital_total = alocado_row[0] or 0.0
-    
-    # Faturamentos do período
-    faturas = Fatura.query.filter(Fatura.data_inicio >= data_inicio).all()
-    # Apenas faturas com repasse calculado (não pendentes vazias)
-    faturas_validas = [f for f in faturas if f.status in ['relatorio_enviado', 'pago', 'inadimplente']]
-    
-    faturamento_total = sum(f.repasse for f in faturas_validas)
-    qtd_faturas = len(faturas_validas)
-    media_cliente = faturamento_total / qtd_faturas if qtd_faturas > 0 else 0.0
+    media_cliente = faturamento_total / qtd if qtd > 0 else 0.0
     
     return render_template('admin/dashboard.html', 
                            clientes_ativos=clientes_ativos,
@@ -45,7 +64,7 @@ def dashboard():
                            capital_total=capital_total,
                            faturamento_total=faturamento_total,
                            media_cliente=media_cliente,
-                           periodo=periodo)
+                           label_periodo=label_periodo)
 
 @admin_bp.route('/clientes')
 @login_required
@@ -72,6 +91,7 @@ def liberar_cliente():
     db.session.add(novo)
     db.session.flush()
     
+    # Gera o bloco semanal e os diários (pulando sábado e domingo)
     hoje = datetime.now().date()
     dias_para_sexta = (hoje.weekday() - 4) % 7
     inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
@@ -79,8 +99,16 @@ def liberar_cliente():
     
     fatura = Fatura(user_id=novo.id, data_inicio=inicio_ciclo, data_fim=fim_ciclo)
     db.session.add(fatura)
+    db.session.flush()
+    
+    for i in range(7):
+        data_atual = inicio_ciclo + timedelta(days=i)
+        if data_atual.weekday() < 5: # 0=Segunda, 4=Sexta. Fim de semana (5,6) ignorado
+            fd = FaturaDiaria(fatura_id=fatura.id, data_pregao=data_atual)
+            db.session.add(fd)
+
     db.session.commit()
-    flash('Acesso liberado e primeira semana criada!', 'success')
+    flash('Acesso liberado e ciclos gerados (Seg a Sex)!', 'success')
     return redirect(url_for('admin.clientes_list'))
 
 @admin_bp.route('/editar/<int:id>', methods=['GET', 'POST'])
@@ -124,7 +152,6 @@ def pagamentos():
         query = query.filter(User.nome.ilike(f'%{busca}%'))
     ativos = query.all()
     
-    # Busca status da semana atual para exibir na lista diretamente
     hoje = datetime.now().date()
     dias_para_sexta = (hoje.weekday() - 4) % 7
     inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
@@ -150,6 +177,6 @@ def status_pagamento(fatura_id):
     fatura = Fatura.query.get_or_404(fatura_id)
     fatura.status = request.form.get('status')
     db.session.commit()
-    flash('Status da fatura atualizado.', 'success')
+    flash('Status da fatura geral da semana atualizado.', 'success')
     return redirect(url_for('admin.pagamentos_cliente', id=fatura.user_id))
 
