@@ -9,9 +9,10 @@ from app import db
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
+# ATUALIZADO: ID com apenas 4 números
 def gerar_matricula_unica():
     while True:
-        mat = 'DW-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
+        mat = ''.join(random.choices(string.digits, k=4))
         if not User.query.filter_by(matricula=mat).first():
             return mat
 
@@ -75,7 +76,7 @@ def primeiro_acesso():
             user.corretora = request.form.get('corretora')
             user.capital_alocado = float(request.form.get('capital') or 0.0)
             user.password_hash = generate_password_hash(request.form.get('senha'))
-            user.matricula = gerar_matricula_unica() # GERADOR DE MATRÍCULA
+            user.matricula = gerar_matricula_unica() 
             user.status_acesso = 'ativo'
             
             db.session.commit()

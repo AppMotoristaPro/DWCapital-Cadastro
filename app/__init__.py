@@ -7,6 +7,12 @@ from dotenv import load_dotenv
 db = SQLAlchemy()
 login_manager = LoginManager()
 
+# NOVO FILTRO JINJA: Formatação Moeda Brasileira
+def format_brl(value):
+    if value is None:
+        value = 0.0
+    return f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
 def create_app():
     app = Flask(__name__)
     load_dotenv()
@@ -23,17 +29,18 @@ def create_app():
     db.init_app(app)
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
+    
+    # Registra o filtro para usarmos no HTML
+    app.jinja_env.filters['format_brl'] = format_brl
 
-    # IMPORTANTE: Apenas as rotas do modelo Híbrido
     from app.auth.routes import auth_bp
     from app.client.routes import client_bp
     from app.admin.routes import admin_bp
     
     app.register_blueprint(auth_bp)
-    app.register_blueprint(client_bp, name='client') # Nome 'client' para o url_for funcionar
+    app.register_blueprint(client_bp, name='client')
     app.register_blueprint(admin_bp)
 
-    # Rota raiz redireciona para o login
     @app.route('/')
     def root():
         return redirect(url_for('auth.login'))

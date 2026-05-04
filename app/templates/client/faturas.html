@@ -15,7 +15,7 @@
             <summary class="cursor-pointer bg-gray-50 px-8 py-5 border-b border-gray-100 flex justify-between items-center list-none outline-none group-open:bg-royal/5 transition-colors">
                 <div>
                     <span class="text-xs font-black text-gray-500 uppercase tracking-widest">Semana: {{ fatura.data_inicio.strftime('%d/%m') }} a {{ fatura.data_fim.strftime('%d/%m') }}</span>
-                    <p class="text-lg font-bold text-navy mt-1">Repasse Parcial: <span class="text-green-600 font-black">R$ {{ "%.2f"|format(fatura.repasse) }}</span></p>
+                    <p class="text-lg font-bold text-navy mt-1">Repasse Parcial: <span class="text-green-600 font-black">R$ {{ fatura.repasse|format_brl }}</span></p>
                 </div>
                 <div class="flex items-center gap-4">
                     <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider {{ 'bg-yellow-100 text-yellow-700' if fatura.status in ['pendente','parcial'] else 'bg-green-100 text-green-700' }}">
@@ -44,15 +44,15 @@
                             <div class="flex justify-end items-center gap-6 bg-green-50 p-4 rounded-2xl border border-green-100">
                                 <div class="text-right">
                                     <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Bruto</p>
-                                    <p class="text-sm font-black text-navy">R$ {{ "%.2f"|format(dia.bruto) }}</p>
+                                    <p class="text-sm font-black text-navy">R$ {{ dia.bruto|format_brl }}</p>
                                 </div>
                                 <div class="text-right border-l border-green-200 pl-6">
                                     <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Líquido</p>
-                                    <p class="text-sm font-black text-navy">R$ {{ "%.2f"|format(dia.liquido) }}</p>
+                                    <p class="text-sm font-black text-navy">R$ {{ dia.liquido|format_brl }}</p>
                                 </div>
                                 <div class="text-right border-l border-green-200 pl-6">
                                     <p class="text-[10px] text-green-700 font-bold uppercase tracking-widest">Repasse Diário</p>
-                                    <p class="text-lg font-black text-green-600">R$ {{ "%.2f"|format(dia.repasse) }}</p>
+                                    <p class="text-lg font-black text-green-600">R$ {{ dia.repasse|format_brl }}</p>
                                 </div>
                             </div>
                         {% endif %}
@@ -63,7 +63,7 @@
                 <div class="bg-royal p-8 rounded-2xl flex justify-between items-center text-white mt-6">
                     <div>
                         <p class="text-[10px] font-bold uppercase tracking-widest opacity-80 mb-1">Repasse Geral da Semana Acumulado</p>
-                        <p class="text-3xl font-black">R$ {{ "%.2f"|format(fatura.repasse) }}</p>
+                        <p class="text-3xl font-black">R$ {{ fatura.repasse|format_brl }}</p>
                     </div>
                     <button onclick="alert('Chave PIX: dw-capital-pix')" class="bg-white text-royal px-8 py-3 rounded-xl font-black text-sm uppercase tracking-widest shadow-xl hover:scale-105 transition">PIX DW Capital</button>
                 </div>

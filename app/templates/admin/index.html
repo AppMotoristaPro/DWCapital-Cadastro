@@ -38,7 +38,7 @@
                 <thead>
                     <tr class="bg-ice text-gray-400 text-[10px] font-black uppercase tracking-wider border-b border-gray-100">
                         <th class="px-6 py-4">Investidor</th>
-                        <th class="px-6 py-4">Matrícula</th>
+                        <th class="px-6 py-4">ID</th>
                         <th class="px-6 py-4">Corretora</th>
                         <th class="px-6 py-4">Capital</th>
                         <th class="px-6 py-4 text-center">Status</th>
@@ -54,7 +54,7 @@
                         </td>
                         <td class="px-6 py-5 text-xs font-black text-royal tracking-widest">{{ cliente.matricula or 'PENDENTE' }}</td>
                         <td class="px-6 py-5 text-sm font-bold text-gray-600">{{ cliente.corretora or 'Pendente' }}</td>
-                        <td class="px-6 py-5 text-sm font-black text-green-600">R$ {{ "%.2f"|format(cliente.capital_alocado) }}</td>
+                        <td class="px-6 py-5 text-sm font-black text-green-600">R$ {{ cliente.capital_alocado|format_brl }}</td>
                         <td class="px-6 py-5 text-center">
                             <form action="{{ url_for('admin.toggle_status', id=cliente.id) }}" method="POST">
                                 <button type="submit" class="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-tighter border transition {{ 'bg-green-100 text-green-700 border-green-200' if cliente.status_acesso == 'ativo' else 'bg-yellow-100 text-yellow-700 border-yellow-200' }}">
@@ -77,15 +77,15 @@
                             <h2 class="text-2xl font-black text-navy mb-6">Ficha do Cliente</h2>
                             <div class="space-y-4 text-sm font-medium text-gray-600 text-left">
                                 <p><span class="font-bold text-gray-900">Nome:</span> {{ cliente.nome }}</p>
-                                <p><span class="font-bold text-gray-900">Matrícula:</span> {{ cliente.matricula or 'Não gerada' }}</p>
+                                <p><span class="font-bold text-gray-900">ID:</span> {{ cliente.matricula or 'Não gerado' }}</p>
                                 <p><span class="font-bold text-gray-900">CPF:</span> {{ cliente.cpf }}</p>
                                 <p><span class="font-bold text-gray-900">Email:</span> {{ cliente.email or 'Não informado' }}</p>
                                 <p><span class="font-bold text-gray-900">Celular:</span> {{ cliente.celular or 'Não informado' }}</p>
                                 <p><span class="font-bold text-gray-900">Endereço:</span> {{ cliente.endereco or 'Não informado' }}</p>
                                 <p><span class="font-bold text-gray-900">Corretora:</span> {{ cliente.corretora or 'Não informada' }}</p>
-                                <p><span class="font-bold text-gray-900">Capital Alocado:</span> R$ {{ "%.2f"|format(cliente.capital_alocado) }}</p>
+                                <p><span class="font-bold text-gray-900">Capital Alocado:</span> R$ {{ cliente.capital_alocado|format_brl }}</p>
                                 <div class="pt-4 border-t border-gray-100">
-                                    <p class="text-xs text-gray-400 font-bold uppercase">Cadastro original: {{ cliente.data_cadastro.strftime('%d/%m/%Y às %H:%M') }}</p>
+                                    <p class="text-xs text-gray-400 font-bold uppercase">Data de Cadastro: {{ cliente.data_cadastro.strftime('%d/%m/%Y às %H:%M') }}</p>
                                 </div>
                             </div>
                         </div>

@@ -28,19 +28,19 @@
         
         <div class="bg-white p-6 rounded-3xl shadow-lg border border-blue-50/50">
             <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Capital Total Alocado</p>
-            <p class="text-3xl font-black text-navy mt-1">R$ {{ "%.2f"|format(capital_total) }}</p>
+            <p class="text-3xl font-black text-navy mt-1">R$ {{ capital_total|format_brl }}</p>
             <p class="text-xs text-gray-400 font-bold mt-2">Somatória de contas ativas</p>
         </div>
 
         <div class="bg-gradient-to-br from-royal to-royal-dark p-6 rounded-3xl shadow-lg shadow-royal/30">
             <p class="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-2">Faturamento DW</p>
-            <p class="text-3xl font-black text-white mt-1">R$ {{ "%.2f"|format(faturamento_total) }}</p>
+            <p class="text-3xl font-black text-white mt-1">R$ {{ faturamento_total|format_brl }}</p>
             <p class="text-xs text-blue-200 font-bold mt-2">{{ label_periodo }}</p>
         </div>
 
         <div class="bg-white p-6 rounded-3xl shadow-lg border border-blue-50/50">
             <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Média por Cliente</p>
-            <p class="text-3xl font-black text-green-600 mt-1">R$ {{ "%.2f"|format(media_cliente) }}</p>
+            <p class="text-3xl font-black text-green-600 mt-1">R$ {{ media_cliente|format_brl }}</p>
             <p class="text-xs text-gray-400 font-bold mt-2">No período selecionado</p>
         </div>
     </div>

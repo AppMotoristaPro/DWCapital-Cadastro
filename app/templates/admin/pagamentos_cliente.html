@@ -38,7 +38,7 @@
 
                 <div class="text-right">
                     <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Repasse Total Consolidado</p>
-                    <p class="text-3xl font-black text-green-600 mb-4">R$ {{ "%.2f"|format(fatura.repasse) }}</p>
+                    <p class="text-3xl font-black text-green-600 mb-4">R$ {{ fatura.repasse|format_brl }}</p>
                     
                     <form action="{{ url_for('admin.status_pagamento', fatura_id=fatura.id) }}" method="POST" class="flex gap-2 justify-end">
                         <button type="submit" name="status" value="pago" class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition shadow-md">Marcar Pago</button>
@@ -64,9 +64,9 @@
                         
                         {% if dia.status == 'relatorio_enviado' %}
                         <div class="space-y-1 mb-4 border-t border-green-100 pt-3 mt-3">
-                            <div class="flex justify-between text-xs font-bold text-gray-600"><p>Bruto:</p> <p>R$ {{ "%.2f"|format(dia.bruto) }}</p></div>
-                            <div class="flex justify-between text-xs font-bold text-gray-600"><p>Líquido:</p> <p>R$ {{ "%.2f"|format(dia.liquido) }}</p></div>
-                            <div class="flex justify-between text-sm font-black text-green-700 mt-2 pt-2 border-t border-green-100"><p>Repasse:</p> <p>R$ {{ "%.2f"|format(dia.repasse) }}</p></div>
+                            <div class="flex justify-between text-xs font-bold text-gray-600"><p>Bruto:</p> <p>R$ {{ dia.bruto|format_brl }}</p></div>
+                            <div class="flex justify-between text-xs font-bold text-gray-600"><p>Líquido:</p> <p>R$ {{ dia.liquido|format_brl }}</p></div>
+                            <div class="flex justify-between text-sm font-black text-green-700 mt-2 pt-2 border-t border-green-100"><p>Repasse:</p> <p>R$ {{ dia.repasse|format_brl }}</p></div>
                         </div>
                         <a href="{{ url_for('static', filename='uploads/' ~ dia.arquivo_pdf) }}" target="_blank" class="block text-center bg-white border border-green-200 text-green-700 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-green-600 hover:text-white transition">Abrir PDF da Corretora</a>
                         {% else %}
