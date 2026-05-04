@@ -1,7 +1,7 @@
 import os
 from docusign_esign import ApiClient, EnvelopesApi, EnvelopeDefinition, TemplateRole, RecipientViewRequest
 
-# Variáveis que vamos colocar lá no painel do Render
+# Variáveis que estão no painel do Render
 DOCUSIGN_CLIENT_ID = os.getenv('DOCUSIGN_CLIENT_ID')
 DOCUSIGN_USER_ID = os.getenv('DOCUSIGN_USER_ID')
 DOCUSIGN_ACCOUNT_ID = os.getenv('DOCUSIGN_ACCOUNT_ID')
@@ -27,8 +27,8 @@ def get_docusign_client():
         scopes=["signature", "impersonation"]
     )
     
-    # CORREÇÃO AQUI: Usando o método correto para a versão 4.0.0
-    api_client.set_default_header("Authorization", "Bearer " + token_response.access_token)
+    # CORREÇÃO DEFINITIVA: Usando o dicionário correto no plural
+    api_client.default_headers["Authorization"] = "Bearer " + token_response.access_token
     return api_client
 
 def criar_envelope_embedded(signer_name, signer_email, client_user_id):
@@ -39,7 +39,7 @@ def criar_envelope_embedded(signer_name, signer_email, client_user_id):
     signer = TemplateRole(
         email=signer_email,
         name=signer_name,
-        role_name="Cliente", # O nome exato que daremos na configuração do template
+        role_name="Cliente", # O nome exato configurado no template da DocuSign
         client_user_id=client_user_id # Este campo ativa o modo Embedded (embutido)
     )
     
