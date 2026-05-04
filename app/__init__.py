@@ -25,6 +25,9 @@ def create_app():
         
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    
+    # CORREÇÃO: Previne o erro "SSL connection has been closed unexpectedly" no Render
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
 
     db.init_app(app)
     login_manager.init_app(app)
