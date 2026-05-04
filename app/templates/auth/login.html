@@ -1,16 +1,22 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
-    <div class="max-w-md w-full space-y-8 bg-white p-10 rounded-3xl shadow-xl border border-gray-100">
-        <div>
-            <h2 class="text-center text-3xl font-black text-gray-900">DW Capital</h2>
-            <p class="mt-2 text-center text-sm text-gray-500 font-bold">Portal de Acesso</p>
+<div class="min-h-screen flex items-center justify-center relative overflow-hidden bg-navy">
+    <div class="absolute top-[-10%] left-[-10%] w-[30rem] h-[30rem] bg-royal rounded-full mix-blend-multiply filter blur-[128px] opacity-40"></div>
+    <div class="absolute bottom-[-20%] right-[-10%] w-[30rem] h-[30rem] bg-royal-dark rounded-full mix-blend-multiply filter blur-[128px] opacity-60"></div>
+
+    <div class="max-w-md w-full relative z-10 space-y-8 bg-white/10 backdrop-blur-xl p-10 rounded-3xl shadow-2xl border border-white/10">
+        <div class="text-center">
+            <div class="mx-auto w-20 h-20 bg-gradient-to-br from-royal to-royal-dark rounded-2xl flex items-center justify-center shadow-[0_0_20px_rgba(65,105,225,0.4)] mb-6 transform transition hover:scale-105 border border-white/20">
+                <span class="text-3xl font-black text-white tracking-tighter">DW</span>
+            </div>
+            <h2 class="text-3xl font-black text-white tracking-tight">DW Capital</h2>
+            <p class="mt-2 text-sm text-blue-200 font-medium tracking-wide">Portal Exclusivo</p>
         </div>
         
         {% with messages = get_flashed_messages() %}
             {% if messages %}
                 {% for message in messages %}
-                    <div class="p-4 rounded-xl text-sm font-bold bg-blue-50 text-royal border border-blue-100 text-center">
+                    <div class="p-4 rounded-xl text-sm font-bold bg-red-500/20 text-red-100 border border-red-500/50 text-center">
                         {{ message }}
                     </div>
                 {% endfor %}
@@ -18,24 +24,24 @@
         {% endwith %}
 
         <form class="mt-8 space-y-6" action="{{ url_for('auth.login') }}" method="POST">
-            <div class="space-y-4 shadow-sm">
+            <div class="space-y-4">
                 <div>
-                    <label class="text-xs font-bold text-gray-500 uppercase">CPF ou Usuário</label>
-                    <input name="login" type="text" required class="mt-1 w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-royal focus:border-royal bg-gray-50 font-medium text-gray-900">
+                    <label class="text-xs font-bold text-blue-200 uppercase tracking-wider mb-1 block">CPF ou Usuário</label>
+                    <input name="login" type="text" required class="w-full px-5 py-4 bg-navy/50 border border-white/10 rounded-xl focus:ring-2 focus:ring-royal focus:border-transparent text-white placeholder-gray-400 font-medium transition duration-200 outline-none">
                 </div>
                 <div>
-                    <label class="text-xs font-bold text-gray-500 uppercase">Senha</label>
-                    <input name="senha" type="password" required class="mt-1 w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-royal focus:border-royal bg-gray-50 font-medium text-gray-900">
+                    <label class="text-xs font-bold text-blue-200 uppercase tracking-wider mb-1 block">Senha</label>
+                    <input name="senha" type="password" required class="w-full px-5 py-4 bg-navy/50 border border-white/10 rounded-xl focus:ring-2 focus:ring-royal focus:border-transparent text-white placeholder-gray-400 font-medium transition duration-200 outline-none">
                 </div>
             </div>
 
             <div>
-                <button type="submit" class="w-full py-3 px-4 text-sm font-bold rounded-xl text-white bg-royal hover:bg-royal-dark transition shadow-lg">
-                    Entrar
+                <button type="submit" class="w-full py-4 px-4 text-sm font-black tracking-widest uppercase rounded-xl text-white bg-gradient-to-r from-royal to-royal-dark hover:from-royal-dark hover:to-navy transition-all duration-300 shadow-[0_0_20px_rgba(65,105,225,0.3)] hover:shadow-[0_0_25px_rgba(65,105,225,0.5)] transform hover:-translate-y-1">
+                    Acessar Sistema
                 </button>
             </div>
-            <div class="text-center mt-4">
-                <a href="{{ url_for('auth.primeiro_acesso') }}" class="text-sm font-bold text-royal hover:underline">Primeiro Acesso? Crie sua senha</a>
+            <div class="text-center mt-6">
+                <a href="{{ url_for('auth.primeiro_acesso') }}" class="text-sm font-bold text-blue-300 hover:text-white transition duration-200">Primeiro Acesso? Cadastre sua senha</a>
             </div>
         </form>
     </div>
