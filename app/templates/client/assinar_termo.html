@@ -1,48 +1,57 @@
 {% extends "base.html" %}
+
 {% block content %}
-<div class="min-h-screen flex items-center justify-center bg-navy p-4 overflow-hidden relative">
-    <div class="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full bg-royal/10 blur-3xl pointer-events-none z-0"></div>
-    <div class="absolute bottom-[-20%] left-[-10%] w-[30rem] h-[30rem] bg-royal-dark rounded-full mix-blend-multiply filter blur-[128px] opacity-30"></div>
-    
-    <div class="max-w-md w-full bg-white/10 backdrop-blur-xl rounded-[2.5rem] shadow-2xl p-10 border border-white/10 text-center relative z-10">
-        <div class="mx-auto h-20 flex items-center justify-center mb-6">
-            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="DW Capital Logo" class="max-w-full max-h-full object-contain drop-shadow-2xl">
-        </div>
-        
-        <h2 class="text-3xl font-black text-white tracking-tight mb-4">Ação Requerida</h2>
-        <p class="text-blue-200 text-sm mb-8 font-medium leading-relaxed">
-            Para garantir sua segurança e validar sua conta, você precisa assinar eletronicamente o nosso <b class="text-white">Termo de Adesão</b>. O processo leva menos de um minuto.
-        </p>
-        
-        <div class="bg-navy/30 p-6 rounded-2xl border border-white/5 mb-8 text-left space-y-4">
-            <div class="flex items-center gap-3">
-                <svg class="w-6 h-6 text-green-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                <p class="text-xs font-bold text-gray-300 tracking-wide uppercase">Validade Jurídica via DocuSign</p>
-            </div>
-            <div class="flex items-center gap-3">
-                <svg class="w-6 h-6 text-royal shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                <p class="text-xs font-bold text-gray-300 tracking-wide uppercase">Proteção de Dados Garantida</p>
-            </div>
-        </div>
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 text-center">
+            
+            <div class="card shadow-sm">
+                <div class="card-body p-5">
+                    <h2 class="mb-4">Assinatura do Termo de Adesão</h2>
+                    
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                      {% if messages %}
+                        {% for category, message in messages %}
+                          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                          </div>
+                        {% endfor %}
+                      {% endif %}
+                    {% endwith %}
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            {% for category, message in messages %}
-                <div class="mb-6 p-4 rounded-xl text-xs font-bold bg-red-500/20 text-red-200 border border-red-500/50">
-                    {{ message }}
+                    {% if url_assinatura %}
+                        <div class="alert alert-info">
+                            <p class="mb-0"><strong>Tudo pronto!</strong> O seu contrato foi gerado com segurança. Siga os 2 passos abaixo:</p>
+                        </div>
+                        
+                        <div class="d-grid gap-3 col-10 mx-auto mt-4">
+                            <a href="{{ url_assinatura }}" target="_blank" class="btn btn-primary btn-lg">
+                                1. Abrir e Assinar Documento
+                            </a>
+                            
+                            <hr class="my-3">
+                            
+                            <p class="text-muted small mb-2">Após concluir a assinatura na nova aba, confirme abaixo para libertar o seu acesso:</p>
+                            
+                            <a href="{{ url_for('client.retorno_assinatura') }}" class="btn btn-success btn-lg">
+                                2. Já Assinei!
+                            </a>
+                        </div>
+                        
+                    {% else %}
+                        <p class="lead text-muted mb-5">Para ter acesso completo ao dashboard de investimentos da DW Capital e visualizar os seus aportes, é obrigatório assinar o nosso Termo de Adesão.</p>
+                        
+                        <form method="POST">
+                            <button type="submit" class="btn btn-primary btn-lg px-5">
+                                <i class="bi bi-file-earmark-pdf me-2"></i> Gerar Meu Contrato
+                            </button>
+                        </form>
+                    {% endif %}
+                    
                 </div>
-            {% endfor %}
-          {% endif %}
-        {% endwith %}
-
-        <form action="{{ url_for('client.assinar_termo') }}" method="POST">
-            <button type="submit" class="w-full py-4 bg-gradient-to-r from-royal to-royal-dark hover:from-royal-dark hover:to-navy text-white rounded-2xl font-black uppercase tracking-widest text-sm shadow-[0_0_20px_rgba(65,105,225,0.4)] transition-all transform hover:-translate-y-1" onclick="this.innerHTML='Redirecionando...'">
-                Assinar Documento Agora
-            </button>
-        </form>
-
-        <div class="mt-6">
-            <a href="{{ url_for('auth.logout') }}" class="text-[10px] font-bold text-red-400/80 hover:text-red-400 uppercase tracking-widest transition">Sair e assinar depois</a>
+            </div>
+            
         </div>
     </div>
 </div>
