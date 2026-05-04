@@ -1,20 +1,19 @@
 import os
 from docusign_esign import ApiClient, EnvelopesApi, EnvelopeDefinition, TemplateRole, RecipientViewRequest
 
-# Variáveis que ainda vêm do Render
-DOCUSIGN_CLIENT_ID = os.getenv('DOCUSIGN_CLIENT_ID')
-DOCUSIGN_USER_ID = os.getenv('DOCUSIGN_USER_ID')
-DOCUSIGN_ACCOUNT_ID = os.getenv('DOCUSIGN_ACCOUNT_ID')
-DOCUSIGN_TEMPLATE_ID = os.getenv('DOCUSIGN_TEMPLATE_ID')
+# O .strip() no final de cada linha remove automaticamente qualquer espaço invisível!
+DOCUSIGN_CLIENT_ID = os.getenv('DOCUSIGN_CLIENT_ID', '').strip()
+DOCUSIGN_USER_ID = os.getenv('DOCUSIGN_USER_ID', '').strip()
+DOCUSIGN_ACCOUNT_ID = os.getenv('DOCUSIGN_ACCOUNT_ID', '').strip()
+DOCUSIGN_TEMPLATE_ID = os.getenv('DOCUSIGN_TEMPLATE_ID', '').strip()
 
-# Lendo a chave diretamente do arquivo físico que criamos na raiz
 try:
-    # Este caminho volta 3 pastas para chegar na raiz do projeto onde está o .pem
     caminho_chave = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'docusign_key.pem')
-    with open(caminho_chave, 'r') as key_file:
-        DOCUSIGN_PRIVATE_KEY = key_file.read().strip()
+    with open(caminho_chave, 'r', encoding='utf-8') as key_file:
+        # Lê a chave, converte quebras de linha do Windows para padrão, e limpa as pontas
+        DOCUSIGN_PRIVATE_KEY = key_file.read().replace('\r\n', '\n').strip()
 except FileNotFoundError:
-    raise Exception("Arquivo docusign_key.pem não encontrado na raiz do projeto.")
+    raise Exception(f"Arquivo docusign_key.pem não encontrado no caminho: {caminho_chave}")
 
 BASE_PATH = "https://demo.docusign.net/restapi"
 OAUTH_HOST = "account-d.docusign.com"
@@ -36,6 +35,7 @@ def get_docusign_client():
         api_client.default_headers["Authorization"] = "Bearer " + token_response.access_token
         return api_client
     except Exception as e:
+        # Retorna o erro exato para sabermos o que falhou
         raise Exception(f"Erro na Autenticação JWT: {str(e)}")
 
 def criar_envelope_embedded(signer_name, signer_email, client_user_id):
