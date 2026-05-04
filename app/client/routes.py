@@ -9,10 +9,12 @@ client_bp = Blueprint('client', __name__, url_prefix='/portal')
 @client_bp.route('/dashboard')
 @login_required
 def dashboard():
+    # Pedágio: se não assinou, vai para a tela de assinatura
     if not current_user.termo_assinado:
         return redirect(url_for('client.assinar_termo'))
         
-    return render_template('client/dashboard.html', user=current_user)
+    # CORREÇÃO: Redireciona para a sua tela inicial verdadeira (index.html)
+    return render_template('client/index.html', user=current_user)
 
 @client_bp.route('/assinar', methods=['GET', 'POST'])
 @login_required
@@ -20,11 +22,9 @@ def assinar_termo():
     if current_user.termo_assinado:
         return redirect(url_for('client.dashboard'))
         
-    # Verifica se o cliente já tem um contrato pendente gerado
     documento_enviado = bool(current_user.docusign_envelope_id)
         
     if request.method == 'POST':
-        # Se ele ainda não tem contrato pendente, gera um novo
         if not documento_enviado:
             caminho_pdf = os.path.join(current_app.root_path, 'static', 'documentos', 'termo_adesao.pdf')
             
@@ -33,7 +33,6 @@ def assinar_termo():
                 return render_template('client/assinar_termo.html', documento_enviado=documento_enviado)
 
             try:
-                # Agora a função só retorna o ID, e o e-mail é disparado silenciosamente
                 doc_id = criar_documento_autentique(
                     nome_signer=current_user.nome,
                     email_signer=current_user.email,
@@ -44,7 +43,6 @@ def assinar_termo():
                 db.session.commit()
                 flash("Termo de adesão enviado para o seu e-mail com sucesso!", "success")
                 
-                # Atualiza a variável para a tela mudar de estado imediatamente
                 documento_enviado = True
                 
             except Exception as e:
@@ -62,7 +60,6 @@ def retorno_assinatura():
         return redirect(url_for('client.assinar_termo'))
         
     try:
-        # Consulta se ele realmente assinou lá no e-mail
         if verificar_status_autentique(doc_id):
             current_user.termo_assinado = True
             db.session.commit()
@@ -76,17 +73,22 @@ def retorno_assinatura():
         flash("Erro ao validar o seu status de assinatura.", "danger")
         return redirect(url_for('client.assinar_termo'))
 
-@client_bp.route('/perfil')
+# CORREÇÃO: Função ajustada para abrir "dados_pessoais.html"
+@client_bp.route('/dados_pessoais')
 @login_required
-def perfil():
+def dados_pessoais():
     if not current_user.termo_assinado:
         return redirect(url_for('client.assinar_termo'))
-    return render_template('client/perfil.html', user=current_user)
+    return render_template('client/dados_pessoais.html', user=current_user)
 
-@client_bp.route('/investimentos')
+# CORREÇÃO: Função ajustada para abrir "faturas.html" e passar os dados corretos
+@client_bp.route('/faturas')
 @login_required
-def historico_investimentos():
+def faturas():
     if not current_user.termo_assinado:
         return redirect(url_for('client.assinar_termo'))
-    return render_template('client/investimentos.html', user=current_user)
+    
+    # Busca as faturas do cliente para exibir na tela
+    faturas = current_user.faturas
+    return render_template('client/faturas.html', user=current_user, faturas=faturas)
 
