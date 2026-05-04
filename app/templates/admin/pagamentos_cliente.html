@@ -1,0 +1,69 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_content %}
+<div class="max-w-6xl mx-auto">
+    <a href="{{ url_for('admin.pagamentos') }}" class="text-sm font-bold text-gray-400 mb-6 inline-block hover:text-navy transition duration-200"><- Voltar para a lista de clientes</a>
+    
+    <div class="mb-8">
+        <h1 class="text-3xl font-black text-navy tracking-tight">Semanas Faturadas</h1>
+        <p class="text-gray-500 mt-1 font-medium">Investidor: <span class="font-bold text-royal">{{ cliente.nome }}</span></p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-8 space-y-2">
+            {% for category, message in messages %}
+                <div class="p-4 rounded-2xl font-bold shadow-sm bg-green-50 text-green-700 border border-green-100">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    
+    <div class="space-y-6">
+        {% for fatura in faturas %}
+        <div class="bg-white p-8 rounded-3xl shadow-lg border border-blue-50/50 flex justify-between items-center transition duration-200 hover:shadow-xl">
+            <div>
+                <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Ciclo: Sexta a Quinta</p>
+                <p class="text-xl font-bold text-navy">{{ fatura.data_inicio.strftime('%d/%m/%Y') }} até {{ fatura.data_fim.strftime('%d/%m/%Y') }}</p>
+                
+                <div class="mt-4">
+                    {% if fatura.status == 'pendente' %}
+                        <span class="px-4 py-1.5 bg-gray-100 text-gray-500 border border-gray-200 rounded-full text-[10px] font-black uppercase tracking-wider">Pendente (Sem Relatório)</span>
+                    {% elif fatura.status == 'relatorio_enviado' %}
+                        <span class="px-4 py-1.5 bg-blue-100 text-blue-700 border border-blue-200 rounded-full text-[10px] font-black uppercase tracking-wider">Relatório Enviado</span>
+                    {% elif fatura.status == 'pago' %}
+                        <span class="px-4 py-1.5 bg-green-100 text-green-700 border border-green-200 rounded-full text-[10px] font-black uppercase tracking-wider">Pago</span>
+                    {% elif fatura.status == 'inadimplente' %}
+                        <span class="px-4 py-1.5 bg-red-100 text-red-700 border border-red-200 rounded-full text-[10px] font-black uppercase tracking-wider">Inadimplente</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if fatura.status != 'pendente' %}
+            <div class="text-right">
+                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Repasse Calculado (30%)</p>
+                <p class="text-3xl font-black text-green-600 mb-5">R$ {{ "%.2f"|format(fatura.repasse) }}</p>
+                
+                <form action="{{ url_for('admin.status_pagamento', fatura_id=fatura.id) }}" method="POST" class="flex gap-3 justify-end">
+                    <button type="submit" name="status" value="pago" class="px-5 py-3 bg-green-500 hover:bg-green-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition shadow-md hover:-translate-y-0.5">Marcar Pago</button>
+                    <button type="submit" name="status" value="inadimplente" class="px-5 py-3 bg-red-50 hover:bg-red-100 text-red-600 font-black text-[10px] uppercase tracking-widest rounded-xl transition border border-red-100">Inadimplente</button>
+                </form>
+            </div>
+            {% else %}
+            <div class="text-right text-gray-400 text-sm font-bold bg-gray-50 px-6 py-5 rounded-2xl border border-gray-100 flex items-center gap-3">
+                <svg class="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                Aguardando cliente<br>anexar o PDF.
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="bg-white p-12 rounded-3xl shadow-lg border border-blue-50/50 text-center">
+            <p class="text-gray-400 font-medium">Nenhum ciclo de faturamento gerado para este cliente ainda.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
