@@ -13,6 +13,7 @@ class User(db.Model, UserMixin):
     nome = db.Column(db.String(100))
     role = db.Column(db.String(10), default='cliente') # 'admin' ou 'cliente'
     status_acesso = db.Column(db.String(20), default='pendente_cadastro')
+    endereco = db.Column(db.Text)
     
     # Campos do CRM
     email = db.Column(db.String(120))
