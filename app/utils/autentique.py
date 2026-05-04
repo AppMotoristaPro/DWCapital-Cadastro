@@ -2,6 +2,7 @@ import os
 import requests
 import json
 
+# Pega o token do Render e limpa espaços invisíveis
 AUTENTIQUE_TOKEN = os.getenv('AUTENTIQUE_TOKEN', '').strip()
 URL = "https://api.autentique.com.br/v2/graphql"
 
@@ -24,7 +25,6 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
     }
     """
 
-    # Omitimos o delivery_method, forçando a Autentique a fazer o envio padrão (e-mail)
     variables = {
         "document": {
             "name": f"Termo de Adesão - {nome_signer}"
@@ -65,7 +65,7 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
         if "errors" in data:
             raise Exception(f"{data['errors'][0]['message']}")
         
-        # Apenas pegamos o ID do documento, sem depender de links
+        # Apenas pegamos o ID do documento, forçando o envio nativo por e-mail da Autentique
         doc_id = data.get('data', {}).get('createDocument', {}).get('id')
         if not doc_id:
             raise Exception("Falha ao registrar o ID do documento.")
@@ -76,13 +76,18 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
 
 
 def verificar_status_autentique(doc_id):
+    """
+    Verifica na API da Autentique se o documento já possui data de assinatura.
+    """
     query = """
     query CheckStatus($id: ID!) {
         document(id: $id) {
             signatures {
-                signed {
-                    created_at
-                }
+                name
+                action
+                viewed { created_at }
+                signed { created_at }
+                rejected { created_at }
             }
         }
     }
@@ -90,7 +95,7 @@ def verificar_status_autentique(doc_id):
     
     payload = {
         "query": query,
-        "variables": {"id": doc_id}
+        "variables": {"id": str(doc_id)}
     }
     
     headers = {
@@ -98,17 +103,37 @@ def verificar_status_autentique(doc_id):
         "Content-Type": "application/json"
     }
     
-    response = requests.post(URL, headers=headers, json=payload)
-    if response.status_code == 200:
-        data = response.json()
+    try:
+        response = requests.post(URL, headers=headers, json=payload)
         
-        if "errors" in data:
-            return False
+        if response.status_code == 200:
+            data = response.json()
             
-        signatures = data.get('data', {}).get('document', {}).get('signatures', [])
-        for sig in signatures:
-            if sig.get('signed') and sig['signed'].get('created_at'):
-                return True
+            # ======== LOG DE DEPURAÇÃO PARA O RENDER ========
+            # Isso vai imprimir no Render exatamente o status atual do contrato!
+            print("\n=== RESPOSTA DA AUTENTIQUE (STATUS DE ASSINATURA) ===")
+            print(json.dumps(data, indent=2))
+            print("=====================================================\n")
+            
+            if "errors" in data:
+                print(f"Erro na API da Autentique: {data['errors']}")
+                return False
+                
+            # Proteção robusta contra "NoneType" (Valores Vazios)
+            document_data = data.get('data', {}).get('document')
+            
+            if not document_data:
+                return False
+                
+            signatures = document_data.get('signatures', [])
+            
+            for sig in signatures:
+                # Verifica se o bloco 'signed' existe e tem informações de data
+                if sig.get('signed'):
+                    return True
+                    
+    except Exception as e:
+        print(f"Erro interno na verificação com a Autentique: {e}")
         return False
         
     return False
