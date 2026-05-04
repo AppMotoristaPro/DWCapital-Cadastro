@@ -27,7 +27,8 @@ def get_docusign_client():
         scopes=["signature", "impersonation"]
     )
     
-    api_client.default_header["Authorization"] = "Bearer " + token_response.access_token
+    # CORREÇÃO AQUI: Usando o método correto para a versão 4.0.0
+    api_client.set_default_header("Authorization", "Bearer " + token_response.access_token)
     return api_client
 
 def criar_envelope_embedded(signer_name, signer_email, client_user_id):
