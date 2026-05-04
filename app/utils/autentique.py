@@ -2,7 +2,6 @@ import os
 import requests
 import json
 
-# Pega o token do Render e limpa espaços invisíveis
 AUTENTIQUE_TOKEN = os.getenv('AUTENTIQUE_TOKEN', '').strip()
 URL = "https://api.autentique.com.br/v2/graphql"
 
@@ -21,15 +20,11 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
         ) {
             id
             name
-            signatures {
-                link {
-                    short_link
-                }
-            }
         }
     }
     """
 
+    # Omitimos o delivery_method, forçando a Autentique a fazer o envio padrão (e-mail)
     variables = {
         "document": {
             "name": f"Termo de Adesão - {nome_signer}"
@@ -38,9 +33,7 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
             {
                 "name": nome_signer,
                 "email": email_signer,
-                "action": "SIGN",
-                # CORREÇÃO: O termo exato exigido pela API para gerar apenas o link
-                "delivery_method": "DELIVERY_METHOD_LINK" 
+                "action": "SIGN"
             }
         ]
     }
@@ -58,7 +51,6 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
         "Authorization": f"Bearer {AUTENTIQUE_TOKEN}"
     }
 
-    # Envio do arquivo PDF junto com as variáveis GraphQL
     with open(caminho_pdf, 'rb') as f:
         files = {
             'operations': (None, operations),
@@ -70,35 +62,20 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
 
     if response.status_code == 200:
         data = response.json()
-        
         if "errors" in data:
             raise Exception(f"{data['errors'][0]['message']}")
         
-        # Extração "Crash-Proof" usando .get() para não quebrar a tela
-        create_doc = data.get('data', {}).get('createDocument', {})
-        doc_id = create_doc.get('id')
-        
-        link_assinatura = None
-        signatures = create_doc.get('signatures', [])
-        
-        if signatures:
-            sig = signatures[0]
-            link_obj = sig.get('link')
-            if link_obj:
-                link_assinatura = link_obj.get('short_link')
-                
-        if not link_assinatura:
-            raise Exception("O documento foi gerado, mas a Autentique não liberou o link direto.")
-        
-        return doc_id, link_assinatura
+        # Apenas pegamos o ID do documento, sem depender de links
+        doc_id = data.get('data', {}).get('createDocument', {}).get('id')
+        if not doc_id:
+            raise Exception("Falha ao registrar o ID do documento.")
+            
+        return doc_id
     else:
         raise Exception(f"Falha de comunicação HTTP: {response.text}")
 
 
 def verificar_status_autentique(doc_id):
-    """
-    Verifica na API da Autentique se o documento já possui data de assinatura.
-    """
     query = """
     query CheckStatus($id: ID!) {
         document(id: $id) {
@@ -126,7 +103,6 @@ def verificar_status_autentique(doc_id):
         data = response.json()
         
         if "errors" in data:
-            print(f"Erro na verificação Autentique: {data['errors']}")
             return False
             
         signatures = data.get('data', {}).get('document', {}).get('signatures', [])
