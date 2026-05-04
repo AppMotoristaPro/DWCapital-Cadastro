@@ -56,3 +56,8 @@ class FaturaDiaria(db.Model):
     arquivo_pdf = db.Column(db.String(255), nullable=True)
     status = db.Column(db.String(20), default='pendente') # pendente, relatorio_enviado
 
+# CORREÇÃO: Função essencial para o funcionamento do Flask-Login
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
