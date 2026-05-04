@@ -1,0 +1,38 @@
+{% extends "admin/layout.html" %}
+{% block admin_content %}
+<div class="max-w-7xl mx-auto space-y-8">
+    <div>
+        <h1 class="text-4xl font-black text-navy tracking-tight">Visão Global</h1>
+        <p class="text-gray-500 mt-2 font-medium">Indicadores de performance e carteira da DW Capital.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white p-8 rounded-3xl shadow-lg border border-blue-50">
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Total de Clientes</p>
+            <p class="text-4xl font-black text-navy">{{ total_clientes }}</p>
+            <p class="text-xs font-bold text-green-500 mt-2">{{ ativos }} clientes com acesso ativo</p>
+        </div>
+        <div class="bg-white p-8 rounded-3xl shadow-lg border border-blue-50 md:col-span-2">
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Total de Capital Alocado (Ativos)</p>
+            <p class="text-4xl font-black text-green-600">R$ {{ "{:,.2f}".format(capital_total).replace(',','v').replace('.',',').replace('v','.') }}</p>
+        </div>
+    </div>
+
+    <h2 class="text-2xl font-black text-navy pt-4">Resultados de Faturamento (30%)</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-gradient-to-br from-royal to-royal-dark p-8 rounded-3xl shadow-xl text-white">
+            <p class="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-2">Semana Atual (Últimos 7 dias)</p>
+            <p class="text-3xl font-black">R$ {{ "{:,.2f}".format(fat_semana).replace(',','v').replace('.',',').replace('v','.') }}</p>
+        </div>
+        <div class="bg-white p-8 rounded-3xl shadow-lg border border-blue-50">
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Últimos 30 dias</p>
+            <p class="text-3xl font-black text-navy">R$ {{ "{:,.2f}".format(fat_mes).replace(',','v').replace('.',',').replace('v','.') }}</p>
+        </div>
+        <div class="bg-white p-8 rounded-3xl shadow-lg border border-blue-50">
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Média p/ Cliente (Histórico)</p>
+            <p class="text-3xl font-black text-navy">R$ {{ "{:,.2f}".format(media_cliente).replace(',','v').replace('.',',').replace('v','.') }}</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

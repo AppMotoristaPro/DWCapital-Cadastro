@@ -1,9 +1,7 @@
 {% extends "base.html" %}
-
 {% block content %}
 <div class="flex h-screen bg-ice overflow-hidden">
-    
-    <aside class="w-72 bg-navy text-slate-300 flex flex-col shadow-2xl z-20 border-r border-navy-light/50">
+    <aside class="w-72 bg-navy text-slate-300 flex flex-col shadow-2xl z-40 border-r border-navy-light/50 relative">
         <div class="p-8 flex flex-col items-center border-b border-navy-light">
             <div class="w-20 h-20 bg-gradient-to-br from-royal to-royal-dark rounded-2xl flex items-center justify-center shadow-[0_0_20px_rgba(65,105,225,0.3)] mb-4 border border-royal/30">
                 <span class="text-2xl font-black text-white tracking-tighter">DW</span>
@@ -14,9 +12,12 @@
         
         <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
             <a href="{{ url_for('admin.dashboard') }}" class="block px-4 py-3.5 rounded-xl transition duration-300 {% if request.endpoint == 'admin.dashboard' %}bg-royal text-white shadow-lg shadow-royal/30 font-bold{% else %}hover:bg-navy-light hover:text-white font-medium{% endif %}">
+                Visão Global
+            </a>
+            <a href="{{ url_for('admin.clientes') }}" class="block px-4 py-3.5 rounded-xl transition duration-300 {% if request.endpoint == 'admin.clientes' %}bg-royal text-white shadow-lg shadow-royal/30 font-bold{% else %}hover:bg-navy-light hover:text-white font-medium{% endif %}">
                 Gestão de Clientes
             </a>
-            <a href="{{ url_for('admin.pagamentos') }}" class="block px-4 py-3.5 rounded-xl transition duration-300 {% if request.endpoint.startswith('admin.pagamentos') %}bg-royal text-white shadow-lg shadow-royal/30 font-bold{% else %}hover:bg-navy-light hover:text-white font-medium{% endif %}">
+            <a href="{{ url_for('admin.pagamentos') }}" class="block px-4 py-3.5 rounded-xl transition duration-300 {% if request.endpoint and request.endpoint.startswith('admin.pagamentos') %}bg-royal text-white shadow-lg shadow-royal/30 font-bold{% else %}hover:bg-navy-light hover:text-white font-medium{% endif %}">
                 Gestão de Pagamentos
             </a>
         </nav>
@@ -28,7 +29,7 @@
         </div>
     </aside>
 
-    <main class="flex-1 p-10 overflow-y-auto relative">
+    <main class="flex-1 p-10 overflow-y-auto relative z-10">
         <div class="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full bg-royal/5 blur-3xl pointer-events-none"></div>
         <div class="relative z-10">
             {% block admin_content %}{% endblock %}

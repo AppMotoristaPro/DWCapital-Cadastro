@@ -1,12 +1,25 @@
 {% extends "admin/layout.html" %}
 {% block admin_content %}
 <div class="max-w-6xl mx-auto">
-    <h1 class="text-4xl font-black text-navy mb-8">Gestão de Pagamentos</h1>
-    <div class="bg-white rounded-3xl shadow-lg border border-gray-100 overflow-hidden">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+        <div>
+            <h1 class="text-4xl font-black text-navy mb-2 tracking-tight">Gestão de Pagamentos</h1>
+            <p class="text-gray-500 font-medium">Acompanhe os repasses e notas dos clientes ativos.</p>
+        </div>
+        <form method="GET" action="{{ url_for('admin.pagamentos') }}" class="relative w-full md:w-72">
+            <input type="text" name="q" value="{{ q }}" placeholder="Buscar cliente por nome..." class="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-royal outline-none font-medium text-sm shadow-sm">
+            {% if q %}
+            <a href="{{ url_for('admin.pagamentos') }}" class="absolute right-3 top-3 text-gray-400 hover:text-red-500 font-bold text-xs">X</a>
+            {% endif %}
+        </form>
+    </div>
+
+    <div class="bg-white rounded-3xl shadow-lg border border-gray-100 overflow-hidden relative z-10">
         <table class="w-full text-left">
             <thead class="bg-ice text-gray-400 text-[10px] font-black uppercase tracking-wider">
                 <tr>
                     <th class="px-6 py-4">Cliente Ativo</th>
+                    <th class="px-6 py-4">Status da Semana Atual</th>
                     <th class="px-6 py-4 text-right">Ação</th>
                 </tr>
             </thead>
@@ -14,9 +27,29 @@
                 {% for cliente in clientes %}
                 <tr class="hover:bg-gray-50 transition">
                     <td class="px-6 py-5 font-bold text-navy text-sm">{{ cliente.nome }}</td>
-                    <td class="px-6 py-5 text-right">
-                        <a href="{{ url_for('admin.pagamentos_cliente', id=cliente.id) }}" class="text-xs font-bold text-royal hover:underline">Ver Semanas Faturadas -></a>
+                    <td class="px-6 py-5">
+                        {% if cliente.fatura_atual %}
+                            {% if cliente.fatura_atual.status == 'pendente' %}
+                                <span class="text-xs font-bold text-gray-400">Pendente (Sem Relatório)</span>
+                            {% elif cliente.fatura_atual.status == 'relatorio_enviado' %}
+                                <span class="text-xs font-bold text-blue-600">Relatório Enviado</span>
+                            {% elif cliente.fatura_atual.status == 'pago' %}
+                                <span class="text-xs font-bold text-green-600">Pago</span>
+                            {% elif cliente.fatura_atual.status == 'inadimplente' %}
+                                <span class="text-xs font-bold text-red-600">Inadimplente</span>
+                            {% endif %}
+                            <span class="block text-[9px] text-gray-400 mt-1 uppercase font-bold">{{ cliente.fatura_atual.data_inicio.strftime('%d/%m') }} a {{ cliente.fatura_atual.data_fim.strftime('%d/%m') }}</span>
+                        {% else %}
+                            <span class="text-xs font-bold text-gray-400">Nenhum ciclo gerado</span>
+                        {% endif %}
                     </td>
+                    <td class="px-6 py-5 text-right">
+                        <a href="{{ url_for('admin.pagamentos_cliente', id=cliente.id) }}" class="text-xs font-bold text-royal hover:underline px-4 py-2 bg-blue-50 rounded-lg">Ver Faturas</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="3" class="px-6 py-10 text-center text-gray-400 font-medium">Nenhum cliente ativo encontrado.</td>
                 </tr>
                 {% endfor %}
             </tbody>
