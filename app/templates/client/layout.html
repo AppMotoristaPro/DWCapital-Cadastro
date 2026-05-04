@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex h-screen overflow-hidden">
+    <aside class="w-64 bg-royal text-white flex flex-col shadow-xl">
+        <div class="p-6 text-center border-b border-royal-dark/30">
+            <h1 class="text-2xl font-black">DW Capital</h1>
+            <p class="text-xs opacity-75 mt-1">{{ user.nome or 'Investidor' }}</p>
+        </div>
+        <nav class="flex-1 p-4 space-y-2 mt-4">
+            <a href="{{ url_for('client.dashboard') }}" class="block p-3 rounded-lg hover:bg-royal-dark transition text-sm font-bold">Visão Geral</a>
+            <a href="{{ url_for('client.faturas') }}" class="block p-3 rounded-lg hover:bg-royal-dark transition text-sm font-bold">Extrato de Faturamento</a>
+        </nav>
+        <div class="p-4 border-t border-royal-dark/30">
+            <a href="{{ url_for('auth.logout') }}" class="block w-full text-center p-3 bg-red-500 hover:bg-red-600 rounded-lg font-bold text-sm transition">Sair</a>
+        </div>
+    </aside>
+    <main class="flex-1 p-8 overflow-y-auto bg-gray-50">
+        {% block client_content %}{% endblock %}
+    </main>
+</div>
+{% endblock %}
+

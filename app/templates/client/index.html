@@ -1,0 +1,21 @@
+{% extends "client/layout.html" %}
+{% block client_content %}
+<div class="max-w-4xl mx-auto">
+    <h1 class="text-3xl font-black text-gray-800 mb-2">Olá, {{ user.nome.split()[0] if user.nome else 'Investidor' }}!</h1>
+    <p class="text-gray-500 font-medium mb-8">Bem-vindo(a) ao seu painel de resultados da DW Capital.</p>
+
+    <div class="bg-white p-8 rounded-3xl shadow-lg border border-gray-100">
+        <h2 class="text-xl font-bold text-gray-800 mb-4">Como declarar seus resultados</h2>
+        <ul class="list-disc pl-5 space-y-2 text-gray-600">
+            <li>Acesse o menu <strong>Extrato de Faturamento</strong>.</li>
+            <li>Localize a semana pendente correspondente aos seus pregões.</li>
+            <li>Baixe a Nota de Corretagem oficial em formato <strong>.pdf</strong> na sua corretora.</li>
+            <li>Anexe o arquivo no sistema para que nosso robô processe as taxas da B3, os descontos e calcule o repasse automaticamente.</li>
+        </ul>
+        <div class="mt-6 pt-6 border-t border-gray-100">
+            <a href="{{ url_for('client.faturas') }}" class="bg-royal text-white px-6 py-3 rounded-xl font-bold hover:bg-royal-dark transition">Ver Extratos</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
