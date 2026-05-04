@@ -2,18 +2,24 @@ import os
 import requests
 import json
 
-# Pega o token do Render e limpa espaços invisíveis
 AUTENTIQUE_TOKEN = os.getenv('AUTENTIQUE_TOKEN', '').strip()
+# Lógica para definir se é Sandbox ou Produção via Variável de Ambiente
+# Se não estiver configurado no Render, ele assume True (Sandbox) por segurança
+AUTENTIQUE_SANDBOX = os.getenv('AUTENTIQUE_SANDBOX', 'true').lower() == 'true'
+
 URL = "https://api.autentique.com.br/v2/graphql"
 
 def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
+    # Tornamos o campo 'sandbox' dinâmico através da variável $sandbox
     query = """
     mutation CreateDocumentMutation(
         $document: DocumentInput!,
         $signers: [SignerInput!]!,
-        $file: Upload!
+        $file: Upload!,
+        $sandbox: Boolean!
     ) {
         createDocument(
+            sandbox: $sandbox,
             document: $document,
             signers: $signers,
             file: $file
@@ -34,7 +40,8 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
                 "email": email_signer,
                 "action": "SIGN"
             }
-        ]
+        ],
+        "sandbox": AUTENTIQUE_SANDBOX  # Aqui a mágica acontece
     }
 
     operations = json.dumps({
@@ -64,20 +71,12 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
         if "errors" in data:
             raise Exception(f"{data['errors'][0]['message']}")
         
-        # Apenas pegamos o ID do documento, forçando o envio nativo por e-mail da Autentique
         doc_id = data.get('data', {}).get('createDocument', {}).get('id')
-        if not doc_id:
-            raise Exception("Falha ao registrar o ID do documento.")
-            
         return doc_id
     else:
         raise Exception(f"Falha de comunicação HTTP: {response.text}")
 
-
 def verificar_status_autentique(doc_id):
-    """
-    Verifica na API da Autentique se o documento já possui data de assinatura.
-    """
     query = """
     query CheckStatus($id: UUID!) {
         document(id: $id) {
@@ -102,28 +101,16 @@ def verificar_status_autentique(doc_id):
     
     try:
         response = requests.post(URL, headers=headers, json=payload)
-        
         if response.status_code == 200:
             data = response.json()
-            
-            if "errors" in data:
-                print(f"Erro na API da Autentique: {data['errors']}")
-                return False
-                
             document_data = data.get('data', {}).get('document')
-            
             if not document_data:
                 return False
-                
             signatures = document_data.get('signatures', [])
-            
             for sig in signatures:
                 if sig.get('signed'):
                     return True
-                    
-    except Exception as e:
-        print(f"Erro interno na verificação com a Autentique: {e}")
+    except Exception:
         return False
-        
     return False
 
