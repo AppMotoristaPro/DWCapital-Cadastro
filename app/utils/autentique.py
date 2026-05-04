@@ -39,8 +39,8 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
                 "name": nome_signer,
                 "email": email_signer,
                 "action": "SIGN",
-                # CORREÇÃO: Impede o envio de email e obriga a API a cuspir o link para a tela!
-                "delivery_method": "DELIVERY_METHOD_NONE" 
+                # CORREÇÃO: O termo exato exigido pela API para gerar apenas o link
+                "delivery_method": "DELIVERY_METHOD_LINK" 
             }
         ]
     }
@@ -74,7 +74,7 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
         if "errors" in data:
             raise Exception(f"{data['errors'][0]['message']}")
         
-        # CORREÇÃO: Extração "Crash-Proof" usando .get() para não quebrar a tela
+        # Extração "Crash-Proof" usando .get() para não quebrar a tela
         create_doc = data.get('data', {}).get('createDocument', {})
         doc_id = create_doc.get('id')
         
