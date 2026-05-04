@@ -79,15 +79,16 @@ def verificar_status_autentique(doc_id):
     """
     Verifica na API da Autentique se o documento já possui data de assinatura.
     """
+    # CORREÇÕES DE SINTAXE GRAPHQL APLICADAS AQUI:
+    # 1. Trocamos $id: ID! por $id: UUID! 
+    # 2. Simplificamos os campos para pedir apenas o 'signed'
     query = """
-    query CheckStatus($id: ID!) {
+    query CheckStatus($id: UUID!) {
         document(id: $id) {
             signatures {
-                name
-                action
-                viewed { created_at }
-                signed { created_at }
-                rejected { created_at }
+                signed {
+                    created_at
+                }
             }
         }
     }
@@ -110,7 +111,6 @@ def verificar_status_autentique(doc_id):
             data = response.json()
             
             # ======== LOG DE DEPURAÇÃO PARA O RENDER ========
-            # Isso vai imprimir no Render exatamente o status atual do contrato!
             print("\n=== RESPOSTA DA AUTENTIQUE (STATUS DE ASSINATURA) ===")
             print(json.dumps(data, indent=2))
             print("=====================================================\n")
