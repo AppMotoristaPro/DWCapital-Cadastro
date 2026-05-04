@@ -1,0 +1,60 @@
+{% extends "client/layout.html" %}
+{% block client_content %}
+<div class="max-w-4xl mx-auto pb-20">
+    <h1 class="text-3xl font-black text-gray-800 mb-8">Meus Dados Pessoais</h1>
+
+    <div class="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
+        <div class="bg-gradient-to-r from-royal to-navy p-8 text-white flex justify-between items-end">
+            <div>
+                <p class="text-xs font-black text-blue-200 uppercase tracking-widest mb-1">Investidor DW Capital</p>
+                <h2 class="text-2xl font-bold">{{ user.nome }}</h2>
+            </div>
+            <div class="text-right">
+                <p class="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1">Matrícula</p>
+                <p class="text-lg font-black tracking-widest bg-white/20 px-4 py-1 rounded-lg backdrop-blur-md border border-white/10">{{ user.matricula or 'PENDENTE' }}</p>
+            </div>
+        </div>
+
+        <div class="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">CPF</label>
+                    <p class="text-sm font-bold text-gray-800">{{ user.cpf }}</p>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">E-mail</label>
+                    <p class="text-sm font-bold text-gray-800">{{ user.email }}</p>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Celular</label>
+                    <p class="text-sm font-bold text-gray-800">{{ user.celular }}</p>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Data de Ingresso</label>
+                    <p class="text-sm font-bold text-gray-800">{{ user.data_cadastro.strftime('%d/%m/%Y') }}</p>
+                </div>
+            </div>
+
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Corretora Vinculada</label>
+                    <p class="text-sm font-bold text-royal">{{ user.corretora or 'Não vinculada' }}</p>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Capital Alocado (Mesa)</label>
+                    <p class="text-sm font-black text-green-600">R$ {{ "%.2f"|format(user.capital_alocado) }}</p>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Endereço Cadastrado</label>
+                    <p class="text-sm font-bold text-gray-800 leading-relaxed">{{ user.endereco }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-gray-50 p-6 text-center border-t border-gray-100">
+            <p class="text-xs text-gray-500 font-medium">Para solicitar alteração de e-mail, celular ou endereço, entre em contato com o suporte da DW Capital.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

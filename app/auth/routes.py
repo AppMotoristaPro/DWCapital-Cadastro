@@ -1,3 +1,5 @@
+import random
+import string
 from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -5,8 +7,13 @@ from sqlalchemy import text
 from app.models import User
 from app import db
 
-# Criação do Blueprint
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
+
+def gerar_matricula_unica():
+    while True:
+        mat = 'DW-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
+        if not User.query.filter_by(matricula=mat).first():
+            return mat
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
@@ -14,25 +21,21 @@ def login():
         return redirect(url_for('admin.dashboard' if current_user.role == 'admin' else 'client.dashboard'))
 
     if request.method == 'POST':
-        identificador = request.form.get('login') # Pode ser CPF ou Username
+        identificador = request.form.get('login')
         senha = request.form.get('senha')
         
-        # Busca por CPF (limpo) ou por Username
         user = User.query.filter((User.cpf == identificador) | (User.username == identificador)).first()
 
         if user and check_password_hash(user.password_hash, senha):
             if user.status_acesso == 'ativo':
                 login_user(user)
                 return redirect(url_for('admin.dashboard' if user.role == 'admin' else 'client.dashboard'))
-            flash('Cadastro pendente. Vá em Primeiro Acesso.')
+            flash('Cadastro pendente. Vá em Primeiro Acesso.', 'error')
         else:
-            flash('Credenciais inválidas.')
+            flash('Credenciais inválidas.', 'error')
             
     return render_template('auth/login.html')
 
-# ==========================================
-# ROTA API: Validação Silenciosa do CPF
-# ==========================================
 @auth_bp.route('/api/verificar_cpf', methods=['POST'])
 def verificar_cpf():
     data = request.get_json()
@@ -50,7 +53,6 @@ def verificar_cpf():
 
     return jsonify({'valido': True, 'mensagem': 'CPF liberado!'})
 
-
 @auth_bp.route('/primeiro_acesso', methods=['GET', 'POST'])
 def primeiro_acesso():
     if request.method == 'POST':
@@ -62,7 +64,6 @@ def primeiro_acesso():
             user.email = request.form.get('email')
             user.celular = request.form.get('celular')
             
-            # Montagem do endereço a partir dos campos separados
             rua = request.form.get('rua', '')
             numero = request.form.get('numero', '')
             bairro = request.form.get('bairro', '')
@@ -70,12 +71,11 @@ def primeiro_acesso():
             estado = request.form.get('estado', '')
             cep = request.form.get('cep', '')
             
-            endereco_completo = f"{rua}, {numero} - {bairro}, {cidade}/{estado} - CEP: {cep}"
-            user.endereco = endereco_completo
-            
+            user.endereco = f"{rua}, {numero} - {bairro}, {cidade}/{estado} - CEP: {cep}"
             user.corretora = request.form.get('corretora')
             user.capital_alocado = float(request.form.get('capital') or 0.0)
             user.password_hash = generate_password_hash(request.form.get('senha'))
+            user.matricula = gerar_matricula_unica() # GERADOR DE MATRÍCULA
             user.status_acesso = 'ativo'
             
             db.session.commit()

@@ -38,6 +38,7 @@
                 <thead>
                     <tr class="bg-ice text-gray-400 text-[10px] font-black uppercase tracking-wider border-b border-gray-100">
                         <th class="px-6 py-4">Investidor</th>
+                        <th class="px-6 py-4">Matrícula</th>
                         <th class="px-6 py-4">Corretora</th>
                         <th class="px-6 py-4">Capital</th>
                         <th class="px-6 py-4 text-center">Status</th>
@@ -51,6 +52,7 @@
                             <div class="font-bold text-navy text-sm">{{ cliente.nome }}</div>
                             <div class="text-[10px] text-gray-400 font-medium">{{ cliente.cpf }}</div>
                         </td>
+                        <td class="px-6 py-5 text-xs font-black text-royal tracking-widest">{{ cliente.matricula or 'PENDENTE' }}</td>
                         <td class="px-6 py-5 text-sm font-bold text-gray-600">{{ cliente.corretora or 'Pendente' }}</td>
                         <td class="px-6 py-5 text-sm font-black text-green-600">R$ {{ "%.2f"|format(cliente.capital_alocado) }}</td>
                         <td class="px-6 py-5 text-center">
@@ -75,6 +77,7 @@
                             <h2 class="text-2xl font-black text-navy mb-6">Ficha do Cliente</h2>
                             <div class="space-y-4 text-sm font-medium text-gray-600 text-left">
                                 <p><span class="font-bold text-gray-900">Nome:</span> {{ cliente.nome }}</p>
+                                <p><span class="font-bold text-gray-900">Matrícula:</span> {{ cliente.matricula or 'Não gerada' }}</p>
                                 <p><span class="font-bold text-gray-900">CPF:</span> {{ cliente.cpf }}</p>
                                 <p><span class="font-bold text-gray-900">Email:</span> {{ cliente.email or 'Não informado' }}</p>
                                 <p><span class="font-bold text-gray-900">Celular:</span> {{ cliente.celular or 'Não informado' }}</p>
@@ -82,14 +85,14 @@
                                 <p><span class="font-bold text-gray-900">Corretora:</span> {{ cliente.corretora or 'Não informada' }}</p>
                                 <p><span class="font-bold text-gray-900">Capital Alocado:</span> R$ {{ "%.2f"|format(cliente.capital_alocado) }}</p>
                                 <div class="pt-4 border-t border-gray-100">
-                                    <p class="text-xs text-gray-400 font-bold uppercase">Cadastro: {{ cliente.data_cadastro.strftime('%d/%m/%Y às %H:%M') }}</p>
+                                    <p class="text-xs text-gray-400 font-bold uppercase">Cadastro original: {{ cliente.data_cadastro.strftime('%d/%m/%Y às %H:%M') }}</p>
                                 </div>
                             </div>
                         </div>
                     </div>
                     {% else %}
                     <tr>
-                        <td colspan="5" class="px-6 py-10 text-center text-gray-400 font-medium">Nenhum cliente liberado ainda.</td>
+                        <td colspan="6" class="px-6 py-10 text-center text-gray-400 font-medium">Nenhum cliente liberado ainda.</td>
                     </tr>
                     {% endfor %}
                 </tbody>

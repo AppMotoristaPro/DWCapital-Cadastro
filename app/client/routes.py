@@ -14,6 +14,12 @@ client_bp = Blueprint('client', __name__, url_prefix='/portal')
 def dashboard():
     return render_template('client/index.html', user=current_user)
 
+# NOVO: Rota para Visualizar Dados Pessoais
+@client_bp.route('/dados')
+@login_required
+def dados_pessoais():
+    return render_template('client/dados_pessoais.html', user=current_user)
+
 @client_bp.route('/faturas', methods=['GET', 'POST'])
 @login_required
 def faturas():
@@ -36,7 +42,6 @@ def faturas():
             dados = extrair_dados_nota_corretagem(path)
             
             if dados:
-                # VALIDAÇÃO CRÍTICA DE DATA
                 data_esperada = dia.data_pregao.strftime('%d/%m/%Y')
                 if dados['data_pregao'] != data_esperada:
                     os.remove(path)
@@ -51,7 +56,6 @@ def faturas():
                 dia.arquivo_pdf = nome_arquivo
                 dia.status = 'relatorio_enviado'
                 
-                # Recalcula a fatura semanal somando todos os dias enviados
                 fatura_semanal = dia.fatura_semanal
                 fatura_semanal.bruto = sum(d.bruto for d in fatura_semanal.dias)
                 fatura_semanal.liquido = sum(d.liquido for d in fatura_semanal.dias)

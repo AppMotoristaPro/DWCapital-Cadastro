@@ -44,7 +44,6 @@ def dashboard():
         qtd = len(faturas_filtradas)
         label_periodo = f"Mês {dt_inicio.strftime('%m/%Y')}"
     else:
-        # Padrão: Mês atual
         hoje = datetime.now(tz_br).date()
         dt_inicio = hoje.replace(day=1)
         faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio).all()
@@ -91,7 +90,6 @@ def liberar_cliente():
     db.session.add(novo)
     db.session.flush()
     
-    # Gera o bloco semanal e os diários (pulando sábado e domingo)
     hoje = datetime.now().date()
     dias_para_sexta = (hoje.weekday() - 4) % 7
     inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
@@ -103,12 +101,12 @@ def liberar_cliente():
     
     for i in range(7):
         data_atual = inicio_ciclo + timedelta(days=i)
-        if data_atual.weekday() < 5: # 0=Segunda, 4=Sexta. Fim de semana (5,6) ignorado
+        if data_atual.weekday() < 5: 
             fd = FaturaDiaria(fatura_id=fatura.id, data_pregao=data_atual)
             db.session.add(fd)
 
     db.session.commit()
-    flash('Acesso liberado e ciclos gerados (Seg a Sex)!', 'success')
+    flash('Acesso liberado e ciclos gerados!', 'success')
     return redirect(url_for('admin.clientes_list'))
 
 @admin_bp.route('/editar/<int:id>', methods=['GET', 'POST'])
@@ -120,6 +118,16 @@ def editar_cliente(id):
         cliente.email = request.form.get('email')
         cliente.celular = request.form.get('celular')
         cliente.capital_alocado = float(request.form.get('capital') or 0.0)
+        
+        # Lógica para salvar a nova data de cadastro
+        nova_data_str = request.form.get('data_cadastro')
+        if nova_data_str:
+            try:
+                dt = datetime.strptime(nova_data_str, '%Y-%m-%dT%H:%M')
+                cliente.data_cadastro = tz_br.localize(dt)
+            except ValueError:
+                pass # Em caso de formato inválido, mantém a data atual
+
         db.session.commit()
         flash('Dados atualizados.', 'success')
         return redirect(url_for('admin.clientes_list'))
@@ -177,6 +185,6 @@ def status_pagamento(fatura_id):
     fatura = Fatura.query.get_or_404(fatura_id)
     fatura.status = request.form.get('status')
     db.session.commit()
-    flash('Status da fatura geral da semana atualizado.', 'success')
+    flash('Status da fatura atualizado.', 'success')
     return redirect(url_for('admin.pagamentos_cliente', id=fatura.user_id))
 

@@ -20,6 +20,7 @@ class User(db.Model, UserMixin):
     capital_alocado = db.Column(db.Float, default=0.0)
     perfil_risco = db.Column(db.String(20))
     data_cadastro = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
+    matricula = db.Column(db.String(20), unique=True, nullable=True) # NOVO CAMPO
     
     faturas = db.relationship('Fatura', backref='cliente', lazy=True, cascade="all, delete-orphan")
 
@@ -29,7 +30,6 @@ class Fatura(db.Model):
     data_inicio = db.Column(db.Date, nullable=False)
     data_fim = db.Column(db.Date, nullable=False)
     
-    # Totais da Semana
     bruto = db.Column(db.Float, default=0.0)
     irrf_1 = db.Column(db.Float, default=0.0)
     taxas_b3 = db.Column(db.Float, default=0.0)
@@ -38,8 +38,6 @@ class Fatura(db.Model):
     
     status = db.Column(db.String(20), default='pendente')
     data_criacao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
-    
-    # Relacionamento com os dias
     dias = db.relationship('FaturaDiaria', backref='fatura_semanal', lazy=True, cascade="all, delete-orphan", order_by="FaturaDiaria.data_pregao")
 
 class FaturaDiaria(db.Model):
@@ -54,9 +52,8 @@ class FaturaDiaria(db.Model):
     repasse = db.Column(db.Float, default=0.0)
     
     arquivo_pdf = db.Column(db.String(255), nullable=True)
-    status = db.Column(db.String(20), default='pendente') # pendente, relatorio_enviado
+    status = db.Column(db.String(20), default='pendente')
 
-# CORREÇÃO: Função essencial para o funcionamento do Flask-Login
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
