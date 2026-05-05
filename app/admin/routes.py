@@ -18,7 +18,6 @@ def dashboard():
     if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
     
     filtro_mes = request.args.get('mes')
-    # ATUALIZADO: Busca também por 'completo' ao invés de apenas 'relatorio_enviado'
     faturas_base = Fatura.query.filter(Fatura.status.in_(['parcial', 'completo', 'pago', 'inadimplente']))
     
     label_periodo = "Todo o Período"
@@ -152,7 +151,6 @@ def status_pagamento(fatura_id):
 def rejeitar_relatorio(dia_id):
     dia = FaturaDiaria.query.get_or_404(dia_id)
     
-    # 1. Zera todos os valores do dia para não contar na soma
     dia.arquivo_pdf = None
     dia.status = 'pendente'
     dia.bruto = 0.0
@@ -163,7 +161,6 @@ def rejeitar_relatorio(dia_id):
     dia.liquido = 0.0
     dia.repasse = 0.0
     
-    # 2. Recalcula a fatura semanal
     fatura = dia.fatura_semanal
     fatura.bruto = sum(d.bruto for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.taxas_b3 = sum(d.taxas_b3 for d in fatura.dias if d.status == 'relatorio_enviado')
@@ -173,7 +170,6 @@ def rejeitar_relatorio(dia_id):
     fatura.liquido = sum(d.liquido for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.repasse = sum(d.repasse for d in fatura.dias if d.status == 'relatorio_enviado')
     
-    # 3. Atualiza o status da semana
     dias_enviados = sum(1 for d in fatura.dias if d.status == 'relatorio_enviado')
     if dias_enviados == 0:
         fatura.status = 'pendente'
@@ -184,6 +180,44 @@ def rejeitar_relatorio(dia_id):
         
     db.session.commit()
     flash('Relatório rejeitado e valores recalculados.', 'success')
+    return redirect(url_for('admin.pagamentos_cliente', id=fatura.user_id))
+
+# NOVA ROTA: Forçar limpeza de valores fantasmas
+@admin_bp.route('/pagamentos/forcar_limpeza/<int:dia_id>', methods=['POST'])
+@login_required
+def forcar_limpeza_dia(dia_id):
+    dia = FaturaDiaria.query.get_or_404(dia_id)
+    
+    # Executa a mesma limpeza financeira pesada da rejeição, independentemente do status
+    dia.arquivo_pdf = None
+    dia.status = 'pendente'
+    dia.bruto = 0.0
+    dia.taxas_b3 = 0.0
+    dia.irrf_1 = 0.0
+    dia.liquido_pregao = 0.0
+    dia.irrf_19 = 0.0
+    dia.liquido = 0.0
+    dia.repasse = 0.0
+    
+    fatura = dia.fatura_semanal
+    fatura.bruto = sum(d.bruto for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.taxas_b3 = sum(d.taxas_b3 for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.irrf_1 = sum(d.irrf_1 for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.liquido_pregao = sum(d.liquido_pregao for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.irrf_19 = sum(d.irrf_19 for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.liquido = sum(d.liquido for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.repasse = sum(d.repasse for d in fatura.dias if d.status == 'relatorio_enviado')
+    
+    dias_enviados = sum(1 for d in fatura.dias if d.status == 'relatorio_enviado')
+    if dias_enviados == 0:
+        fatura.status = 'pendente'
+    elif dias_enviados == 5:
+        fatura.status = 'completo'
+    else:
+        fatura.status = 'parcial'
+        
+    db.session.commit()
+    flash('Limpeza forçada! Todos os valores fantasmas deste dia foram zerados.', 'success')
     return redirect(url_for('admin.pagamentos_cliente', id=fatura.user_id))
 
 @admin_bp.route('/gerar_senha_temporaria/<int:id>', methods=['POST'])
