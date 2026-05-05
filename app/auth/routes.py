@@ -39,7 +39,7 @@ def login():
             # ATUALIZADO: Usando auth_error
             flash('Cadastro pendente. Vá em Primeiro Acesso.', 'auth_error')
         else:
-            # ATUALIZADO: Usando auth_error
+            # ATUALIZADO: Usando auth_error 1
             flash('Credenciais inválidas.', 'auth_error')
             
     return render_template('auth/login.html')
