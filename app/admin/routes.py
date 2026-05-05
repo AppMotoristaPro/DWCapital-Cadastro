@@ -1,4 +1,7 @@
 import os
+import random
+import string
+from werkzeug.security import generate_password_hash
 from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app
 from flask_login import login_required, current_user
 from app.models import User, Fatura, FaturaDiaria
@@ -191,15 +194,12 @@ def status_pagamento(fatura_id):
 @admin_bp.route('/pagamentos/rejeitar/<int:dia_id>', methods=['POST'])
 @login_required
 def rejeitar_relatorio(dia_id):
-    """Rota para o admin rejeitar o PDF e forçar o cliente a reenviar."""
     dia = FaturaDiaria.query.get_or_404(dia_id)
-    
     if dia.arquivo_pdf:
         file_path = os.path.join(current_app.root_path, 'static', 'uploads', dia.arquivo_pdf)
         if os.path.exists(file_path):
             os.remove(file_path)
             
-    # Limpa os dados do dia
     dia.arquivo_pdf = None
     dia.bruto = 0.0
     dia.liquido = 0.0
@@ -208,12 +208,29 @@ def rejeitar_relatorio(dia_id):
     dia.repasse = 0.0
     dia.status = 'pendente'
     
-    # Se a fatura semanal estava como 'relatorio_enviado', ela volta para parcial ou pendente
     if dia.fatura_semanal.status in ['relatorio_enviado', 'pago', 'inadimplente']:
         dia.fatura_semanal.status = 'parcial'
         
     db.session.commit()
-    
     flash('O relatório foi rejeitado e o status devolvido ao cliente como Pendente.', 'success')
     return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id))
+
+# NOVA ROTA: Admin gerando senha temporária
+@admin_bp.route('/gerar_senha_temporaria/<int:id>', methods=['POST'])
+@login_required
+def gerar_senha_temporaria(id):
+    if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
+    
+    cliente = User.query.get_or_404(id)
+    
+    # Gera senha aleatória Ex: DW@8aF9k
+    caracteres_seguros = string.ascii_letters + string.digits
+    senha_temp = "DW@" + ''.join(random.choices(caracteres_seguros, k=5))
+    
+    cliente.password_hash = generate_password_hash(senha_temp)
+    cliente.precisa_trocar_senha = True
+    db.session.commit()
+    
+    flash(f'Senha temporária gerada com sucesso para {cliente.nome}: {senha_temp} (Copie e envie ao cliente)', 'success')
+    return redirect(url_for('admin.editar_cliente', id=cliente.id))
 

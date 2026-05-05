@@ -9,7 +9,6 @@ from app import db
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
-# ATUALIZADO: ID com apenas 4 números
 def gerar_matricula_unica():
     while True:
         mat = ''.join(random.choices(string.digits, k=4))
@@ -19,6 +18,8 @@ def gerar_matricula_unica():
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
+        if getattr(current_user, 'precisa_trocar_senha', False):
+            return redirect(url_for('auth.forcar_troca_senha'))
         return redirect(url_for('admin.dashboard' if current_user.role == 'admin' else 'client.dashboard'))
 
     if request.method == 'POST':
@@ -30,12 +31,35 @@ def login():
         if user and check_password_hash(user.password_hash, senha):
             if user.status_acesso == 'ativo':
                 login_user(user)
+                # INTERCEPTAÇÃO: Se a trava estiver True, obriga a trocar a senha
+                if getattr(user, 'precisa_trocar_senha', False):
+                    return redirect(url_for('auth.forcar_troca_senha'))
+                    
                 return redirect(url_for('admin.dashboard' if user.role == 'admin' else 'client.dashboard'))
             flash('Cadastro pendente. Vá em Primeiro Acesso.', 'error')
         else:
             flash('Credenciais inválidas.', 'error')
             
     return render_template('auth/login.html')
+
+# NOVA ROTA: Forçar troca de senha após reset do admin
+@auth_bp.route('/forcar_troca_senha', methods=['GET', 'POST'])
+@login_required
+def forcar_troca_senha():
+    if not current_user.precisa_trocar_senha:
+        return redirect(url_for('admin.dashboard' if current_user.role == 'admin' else 'client.dashboard'))
+        
+    if request.method == 'POST':
+        nova_senha = request.form.get('senha')
+        
+        current_user.password_hash = generate_password_hash(nova_senha)
+        current_user.precisa_trocar_senha = False
+        db.session.commit()
+        
+        flash('Sua senha foi atualizada com sucesso!', 'success')
+        return redirect(url_for('admin.dashboard' if current_user.role == 'admin' else 'client.dashboard'))
+        
+    return render_template('auth/trocar_senha.html')
 
 @auth_bp.route('/api/verificar_cpf', methods=['POST'])
 def verificar_cpf():
@@ -89,14 +113,8 @@ def primeiro_acesso():
 
 @auth_bp.route('/setup_secreto_dw')
 def setup_secreto():
-    """
-    MODIFICADO: Agora esta rota NÃO reseta mais o banco.
-    Ela apenas garante a existência do Admin. Use 'flask db' para migrações.
-    """
     try:
-        # Removido o DROP SCHEMA para proteção de dados
-        db.create_all() # Garante que as tabelas básicas existam se o banco estiver vazio
-        
+        db.create_all()
         admin = User.query.filter_by(username='dwcapital').first()
         if not admin:
             admin = User(
