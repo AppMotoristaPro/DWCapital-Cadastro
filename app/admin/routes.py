@@ -30,8 +30,10 @@ def dashboard():
         faturas_filtradas = faturas_base.all()
         
     faturamento_total = sum(f.repasse for f in faturas_filtradas)
+    
+    # ATUALIZAÇÃO: Contagem de Ativos e Inativos separados
     clientes_ativos = User.query.filter_by(role='cliente', status_acesso='ativo').count()
-    total_clientes = User.query.filter_by(role='cliente').count()
+    clientes_inativos = User.query.filter_by(role='cliente', status_acesso='inativo').count()
     
     alocado_row = db.session.query(db.func.sum(User.capital_alocado)).filter_by(role='cliente', status_acesso='ativo').first()
     capital_total = alocado_row[0] or 0.0
@@ -41,7 +43,7 @@ def dashboard():
     
     return render_template('admin/dashboard.html', 
                            clientes_ativos=clientes_ativos,
-                           total_clientes=total_clientes,
+                           clientes_inativos=clientes_inativos,
                            capital_total=capital_total,
                            faturamento_total=faturamento_total,
                            media_cliente=media_cliente,
@@ -51,12 +53,21 @@ def dashboard():
 @login_required
 def clientes_list():
     if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
+    
+    # ATUALIZAÇÃO: Capturando os filtros de busca e status
     busca = request.args.get('q', '')
+    status_filtro = request.args.get('status', '')
+    
     query = User.query.filter_by(role='cliente')
+    
     if busca:
         query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
+    if status_filtro:
+        query = query.filter_by(status_acesso=status_filtro)
+        
     clientes = query.order_by(User.id.desc()).all()
-    return render_template('admin/index.html', clientes=clientes, busca=busca)
+    
+    return render_template('admin/index.html', clientes=clientes, busca=busca, status_filtro=status_filtro)
 
 @admin_bp.route('/liberar_cliente', methods=['POST'])
 @login_required
@@ -102,6 +113,26 @@ def editar_cliente(id):
         flash('Dados atualizados!', 'success')
         return redirect(url_for('admin.clientes_list'))
     return render_template('admin/editar.html', cliente=cliente)
+
+# NOVA ROTA: Inativar Cliente
+@admin_bp.route('/inativar_cliente/<int:id>', methods=['POST'])
+@login_required
+def inativar_cliente(id):
+    cliente = User.query.get_or_404(id)
+    cliente.status_acesso = 'inativo'
+    db.session.commit()
+    flash(f'Cliente {cliente.nome} inativado com sucesso.', 'success')
+    return redirect(url_for('admin.clientes_list'))
+
+# NOVA ROTA: Excluir Cliente Definitivamente
+@admin_bp.route('/excluir_cliente/<int:id>', methods=['POST'])
+@login_required
+def excluir_cliente(id):
+    cliente = User.query.get_or_404(id)
+    db.session.delete(cliente)
+    db.session.commit()
+    flash('Cliente e todas as suas faturas foram excluídos permanentemente.', 'success')
+    return redirect(url_for('admin.clientes_list'))
 
 @admin_bp.route('/pagamentos')
 @login_required
@@ -182,13 +213,11 @@ def rejeitar_relatorio(dia_id):
     flash('Relatório rejeitado e valores recalculados.', 'success')
     return redirect(url_for('admin.pagamentos_cliente', id=fatura.user_id))
 
-# NOVA ROTA: Forçar limpeza de valores fantasmas
 @admin_bp.route('/pagamentos/forcar_limpeza/<int:dia_id>', methods=['POST'])
 @login_required
 def forcar_limpeza_dia(dia_id):
     dia = FaturaDiaria.query.get_or_404(dia_id)
     
-    # Executa a mesma limpeza financeira pesada da rejeição, independentemente do status
     dia.arquivo_pdf = None
     dia.status = 'pendente'
     dia.bruto = 0.0
