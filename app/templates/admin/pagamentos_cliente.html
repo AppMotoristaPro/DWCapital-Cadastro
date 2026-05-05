@@ -25,6 +25,7 @@
     
     <div class="space-y-6">
         {% for fatura in faturas %}
+        
         <details class="bg-white rounded-3xl shadow-lg border border-blue-50/50 overflow-hidden group">
             <summary class="cursor-pointer p-8 flex justify-between items-center list-none outline-none group-open:bg-gray-50 transition-colors">
                 <div>
@@ -34,7 +35,7 @@
                         <span class="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border {{ 'bg-yellow-100 text-yellow-700 border-yellow-200' if fatura.status in ['pendente', 'parcial'] else 'bg-green-100 text-green-700 border-green-200' }}">
                             {{ fatura.status.replace('_', ' ') }}
                         </span>
-                        <button type="button" onclick="document.getElementById('modal-semana-admin-{{ fatura.id }}').classList.remove('hidden'); event.preventDefault();" class="text-[10px] font-black text-royal uppercase hover:underline">Auditoria Completa</button>
+                        <button type="button" onclick="event.preventDefault(); event.stopPropagation(); document.getElementById('modal-semana-admin-{{ fatura.id }}').classList.remove('hidden');" class="text-[10px] font-black text-royal uppercase hover:underline">Auditoria Completa</button>
                     </div>
                 </div>
 
@@ -42,30 +43,12 @@
                     <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Repasse Total Consolidado</p>
                     <p class="text-3xl font-black text-green-600 mb-4">R$ {{ fatura.repasse|format_brl }}</p>
                     
-                    <form action="{{ url_for('admin.status_pagamento', fatura_id=fatura.id) }}" method="POST" class="flex gap-2 justify-end">
+                    <form action="{{ url_for('admin.status_pagamento', fatura_id=fatura.id) }}" method="POST" class="flex gap-2 justify-end" onclick="event.stopPropagation();">
                         <button type="submit" name="status" value="pago" class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition shadow-md">Marcar Pago</button>
                         <button type="submit" name="status" value="inadimplente" class="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 font-black text-[10px] uppercase tracking-widest rounded-xl transition border border-red-100">Inadimplente</button>
                     </form>
                 </div>
             </summary>
-
-            <div id="modal-semana-admin-{{ fatura.id }}" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-navy/50 backdrop-blur-sm p-4">
-                <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 relative">
-                    <button onclick="document.getElementById('modal-semana-admin-{{ fatura.id }}').classList.add('hidden')" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black">X</button>
-                    <h2 class="text-xl font-black text-navy mb-1">Auditoria Semanal DW</h2>
-                    <p class="text-xs text-gray-500 font-bold uppercase tracking-widest mb-6">De {{ fatura.data_inicio.strftime('%d/%m') }} a {{ fatura.data_fim.strftime('%d/%m') }}</p>
-                    
-                    <div class="space-y-3 font-medium text-sm text-gray-600">
-                        <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-gray-400">Valor Bruto</span> <span class="font-bold text-navy">R$ {{ fatura.bruto|format_brl }}</span></div>
-                        <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-red-400">Taxas B3 (Emol. + Liq.)</span> <span class="text-red-500">R$ {{ fatura.taxas_b3|format_brl }}</span></div>
-                        <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-red-400">IRRF "Dedo-Duro" (1%)</span> <span class="text-red-500">R$ {{ fatura.irrf_1|format_brl }}</span></div>
-                        <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-gray-400">Valor Líquido do Pregão</span> <span class="font-bold text-navy">R$ {{ fatura.liquido_pregao|format_brl }}</span></div>
-                        <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-red-400">IRRF DARF (19%)</span> <span class="text-red-500">R$ {{ fatura.irrf_19|format_brl }}</span></div>
-                        <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-gray-400">Valor Líquido do Dia</span> <span class="font-bold text-navy">R$ {{ fatura.liquido|format_brl }}</span></div>
-                        <div class="flex justify-between pt-2 mt-2 bg-green-50 p-3 rounded-xl border border-green-100"><span class="font-black text-green-700">Repasse DW (30%)</span> <span class="font-black text-green-600">R$ {{ fatura.repasse|format_brl }}</span></div>
-                    </div>
-                </div>
-            </div>
 
             <div class="p-8 border-t border-gray-100 bg-white">
                 <h3 class="text-sm font-black text-navy uppercase tracking-widest mb-6">Relatórios Diários do Cliente</h3>
@@ -100,24 +83,6 @@
                             </form>
                         </div>
 
-                        <div id="modal-dia-admin-{{ dia.id }}" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-navy/50 backdrop-blur-sm p-4">
-                            <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 relative">
-                                <button onclick="document.getElementById('modal-dia-admin-{{ dia.id }}').classList.add('hidden')" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black">X</button>
-                                <h2 class="text-xl font-black text-navy mb-1">Auditoria Diária DW</h2>
-                                <p class="text-xs text-gray-500 font-bold uppercase tracking-widest mb-6">Pregão: {{ dia.data_pregao.strftime('%d/%m/%Y') }}</p>
-                                
-                                <div class="space-y-3 font-medium text-sm text-gray-600">
-                                    <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-gray-400">Valor Bruto</span> <span class="font-bold text-navy">R$ {{ dia.bruto|format_brl }}</span></div>
-                                    <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-red-400">Taxas B3 (Emol. + Liq.)</span> <span class="text-red-500">R$ {{ dia.taxas_b3|format_brl }}</span></div>
-                                    <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-red-400">IRRF "Dedo-Duro" (1%)</span> <span class="text-red-500">R$ {{ dia.irrf_1|format_brl }}</span></div>
-                                    <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-gray-400">Valor Líquido do Pregão</span> <span class="font-bold text-navy">R$ {{ dia.liquido_pregao|format_brl }}</span></div>
-                                    <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-red-400">IRRF DARF (19%)</span> <span class="text-red-500">R$ {{ dia.irrf_19|format_brl }}</span></div>
-                                    <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-gray-400">Valor Líquido do Dia</span> <span class="font-bold text-navy">R$ {{ dia.liquido|format_brl }}</span></div>
-                                    <div class="flex justify-between pt-2 mt-2 bg-green-50 p-3 rounded-xl border border-green-100"><span class="font-black text-green-700">Repasse DW (30%)</span> <span class="font-black text-green-600">R$ {{ dia.repasse|format_brl }}</span></div>
-                                </div>
-                            </div>
-                        </div>
-
                         {% else %}
                         <div class="py-6 text-center text-gray-400">
                             <svg class="w-6 h-6 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -129,6 +94,47 @@
                 </div>
             </div>
         </details>
+
+        <div id="modal-semana-admin-{{ fatura.id }}" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-navy/50 backdrop-blur-sm p-4">
+            <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 relative">
+                <button onclick="document.getElementById('modal-semana-admin-{{ fatura.id }}').classList.add('hidden')" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black">X</button>
+                <h2 class="text-xl font-black text-navy mb-1">Auditoria Semanal DW</h2>
+                <p class="text-xs text-gray-500 font-bold uppercase tracking-widest mb-6">De {{ fatura.data_inicio.strftime('%d/%m') }} a {{ fatura.data_fim.strftime('%d/%m') }}</p>
+                
+                <div class="space-y-3 font-medium text-sm text-gray-600">
+                    <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-gray-400">Valor Bruto</span> <span class="font-bold text-navy">R$ {{ fatura.bruto|format_brl }}</span></div>
+                    <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-red-400">Taxas B3 (Emol. + Liq.)</span> <span class="text-red-500">R$ {{ fatura.taxas_b3|format_brl }}</span></div>
+                    <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-red-400">IRRF "Dedo-Duro" (1%)</span> <span class="text-red-500">R$ {{ fatura.irrf_1|format_brl }}</span></div>
+                    <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-gray-400">Valor Líquido do Pregão</span> <span class="font-bold text-navy">R$ {{ fatura.liquido_pregao|format_brl }}</span></div>
+                    <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-red-400">IRRF DARF (19%)</span> <span class="text-red-500">R$ {{ fatura.irrf_19|format_brl }}</span></div>
+                    <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-gray-400">Valor Líquido do Dia</span> <span class="font-bold text-navy">R$ {{ fatura.liquido|format_brl }}</span></div>
+                    <div class="flex justify-between pt-2 mt-2 bg-green-50 p-3 rounded-xl border border-green-100"><span class="font-black text-green-700">Repasse DW (30%)</span> <span class="font-black text-green-600">R$ {{ fatura.repasse|format_brl }}</span></div>
+                </div>
+            </div>
+        </div>
+
+        {% for dia in fatura.dias %}
+            {% if dia.status == 'relatorio_enviado' %}
+            <div id="modal-dia-admin-{{ dia.id }}" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-navy/50 backdrop-blur-sm p-4">
+                <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 relative">
+                    <button onclick="document.getElementById('modal-dia-admin-{{ dia.id }}').classList.add('hidden')" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black">X</button>
+                    <h2 class="text-xl font-black text-navy mb-1">Auditoria Diária DW</h2>
+                    <p class="text-xs text-gray-500 font-bold uppercase tracking-widest mb-6">Pregão: {{ dia.data_pregao.strftime('%d/%m/%Y') }}</p>
+                    
+                    <div class="space-y-3 font-medium text-sm text-gray-600">
+                        <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-gray-400">Valor Bruto</span> <span class="font-bold text-navy">R$ {{ dia.bruto|format_brl }}</span></div>
+                        <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-red-400">Taxas B3 (Emol. + Liq.)</span> <span class="text-red-500">R$ {{ dia.taxas_b3|format_brl }}</span></div>
+                        <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-red-400">IRRF "Dedo-Duro" (1%)</span> <span class="text-red-500">R$ {{ dia.irrf_1|format_brl }}</span></div>
+                        <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-gray-400">Valor Líquido do Pregão</span> <span class="font-bold text-navy">R$ {{ dia.liquido_pregao|format_brl }}</span></div>
+                        <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-red-400">IRRF DARF (19%)</span> <span class="text-red-500">R$ {{ dia.irrf_19|format_brl }}</span></div>
+                        <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-gray-400">Valor Líquido do Dia</span> <span class="font-bold text-navy">R$ {{ dia.liquido|format_brl }}</span></div>
+                        <div class="flex justify-between pt-2 mt-2 bg-green-50 p-3 rounded-xl border border-green-100"><span class="font-black text-green-700">Repasse DW (30%)</span> <span class="font-black text-green-600">R$ {{ dia.repasse|format_brl }}</span></div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        {% endfor %}
+
         {% else %}
         <div class="bg-white p-12 rounded-3xl shadow-lg border border-blue-50/50 text-center">
             <p class="text-gray-400 font-medium">Nenhum ciclo gerado para este cliente.</p>
