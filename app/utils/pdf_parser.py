@@ -12,69 +12,71 @@ def extrair_dados_nota_corretagem(caminho_arquivo):
 
         # Extrai valores financeiros das páginas finais
         texto_completo = ""
-        # Algumas corretoras empurram o resumo para a antepenúltima página se o dia for muito cheio.
-        # Por segurança, vamos ler até as 3 últimas páginas.
+        # Lemos as 3 últimas páginas para garantir o resumo (Genial usa a folha 4)
         paginas_finais = leitor.pages[-3:] if len(leitor.pages) > 2 else leitor.pages
         for pagina in paginas_finais:
             texto_completo += pagina.extract_text() + "\n"
 
+        # NOVA FUNÇÃO DE LIMPEZA: Detecta ponto ou vírgula decimal
         def limpar_valor(resultado):
             if not resultado: return 0.0
-            val = resultado.replace('.', '').replace(',', '.')
-            return float(val)
+            # Remove sufixos como 'C', 'D' ou '.' no final
+            resultado = resultado.strip().upper().replace('C', '').replace('D', '')
+            
+            # Se tem vírgula, o ponto é milhar e a vírgula é decimal (Padrão BR)
+            if ',' in resultado:
+                val = resultado.replace('.', '').replace(',', '.')
+            else:
+                # Se não tem vírgula, o ponto já é o decimal (Padrão Americano/Genial)
+                val = resultado
+            
+            try:
+                return float(val)
+            except:
+                return 0.0
 
-        # NOVA FUNÇÃO BLINDADA PARA XP, GENIAL E BTG
+        # FUNÇÃO DE BUSCA: Aceita .00 ou ,00 como final de valor
         def extrair_valor_linha(padrao, texto):
-            # Encontra a frase e captura tudo até o último número da linha
-            match = re.search(padrao + r".*?(\d[\d\.,]*,\d{2})", texto, re.IGNORECASE | re.MULTILINE)
+            # Regex agora aceita ponto ou vírgula antes dos dois dígitos finais
+            regex_valor = r"(\d[\d\.,]*[\.,]\d{2})"
+            match = re.search(padrao + r".*?" + regex_valor, texto, re.IGNORECASE | re.MULTILINE)
             if match:
                 linha = match.group(0)
-                # Extrai todos os valores formatados como dinheiro (ex: 1.500,00 ou 5,32)
-                numeros = re.findall(r"(\d[\d\.,]*,\d{2})", linha)
+                numeros = re.findall(regex_valor, linha)
                 if numeros:
-                    # Nas notas SINACOR (XP, BTG, Genial), o último número da linha é sempre o valor descontado
                     return limpar_valor(numeros[-1])
             return 0.0
 
-        # 1. Extração do Valor Líquido do Pregão
+        # 1. Valor Líquido da Nota (O valor que realmente entra/sai da conta)
         v_liquido_pregao = 0.0
-        # Tenta pegar pela nomenclatura oficial do Resumo Financeiro
-        match_liquido_termo = re.search(r"(L[ií]quido para.*|L[ií]quido da nota.*)", texto_completo, re.IGNORECASE)
+        match_liquido_termo = re.search(r"(L[ií]quido para.*|L[ií]quido da nota.*|Total l[ií]quido da nota.*)", texto_completo, re.IGNORECASE)
         if match_liquido_termo:
-            numeros = re.findall(r"(\d[\d\.,]*,\d{2})", match_liquido_termo.group(0))
+            numeros = re.findall(r"(\d[\d\.,]*[\.,]\d{2})", match_liquido_termo.group(0))
             if numeros:
                 v_liquido_pregao = limpar_valor(numeros[-1])
-        else:
-            # Fallback de segurança: pega o último número solto no final do documento
-            match_liquido = re.findall(r"(\d[\d\.,]*,\d{2})\s*$", texto_completo, re.MULTILINE)
-            if match_liquido:
-                v_liquido_pregao = limpar_valor(match_liquido[-1])
 
-        # 2. Extração das Taxas B3 e IRRF (Mapeando variações das corretoras)
-        # Cobre "I.R.R.F. Day Trade", "IRRF s/ operações Day Trade", etc.
-        v_irrf_1 = extrair_valor_linha(r"(I\.?R\.?R\.?F\.?.*?Day\s*Trade|IRRF\s*s/\s*opera[çc][õo]es.*?Day)", texto_completo)
+        # 2. IRRF 1% (Mapeia Genial: "IRRF Day Trade (Projeção)")
+        v_irrf_1 = extrair_valor_linha(r"(I\.?R\.?R\.?F\.?.*?Day\s*Trade|IRRF.*?Proje[çc][ãa]o)", texto_completo)
         
-        # Cobre "Taxa de liquidação", "Taxas de liquidação", etc.
+        # 3. Taxas B3 (Mapeia Genial: "Taxa registro BM&F" e "Taxas BM&F")
         taxa_liquidacao = extrair_valor_linha(r"Taxas? de liquida[çc][ãa]o", texto_completo)
+        taxa_registro = extrair_valor_linha(r"(Taxa de [rR]egistro|Taxa registro BM&F)", texto_completo)
         
-        # Cobre "Emolumentos" puro ou a junção "Taxa de termo/opções/emolumentos" (muito comum na XP e Rico)
-        emolumentos = extrair_valor_linha(r"(Emolumentos|Taxa de termo/op[çc][õo]es/emolumentos)", texto_completo)
+        # Emolumentos (Mapeia Genial: "Taxas BM&F (emol+fgar)")
+        emolumentos = extrair_valor_linha(r"(Emolumentos|Taxas? BM&F|Taxa de termo/op[çc][õo]es/emolumentos)", texto_completo)
         
-        # Cobre "Taxa de Registro" ou "Taxa de registro da BMF"
-        taxa_registro = extrair_valor_linha(r"Taxa de [rR]egistro", texto_completo)
-        
-        v_taxas_b3 = taxa_liquidacao + emolumentos + taxa_registro
+        v_taxas_b3 = taxa_liquidacao + taxa_registro + emolumentos
 
-        # --- CÁLCULOS DW CAPITAL ---
-
-        # Valor Bruto
+        # --- CÁLCULOS PADRÃO DW CAPITAL ---
+        
+        # Valor Bruto (Soma do líquido com o que foi descontado)
         v_bruto = v_liquido_pregao + v_irrf_1 + v_taxas_b3
 
-        # Base do IR 19% e Valor do DARF
+        # Base para o IR de 19%
         base_calculo_ir = v_bruto - v_taxas_b3
         v_irrf_19 = base_calculo_ir * 0.19 if base_calculo_ir > 0 else 0.0
         
-        # Valor Líquido do Cliente (Dia)
+        # Valor Líquido Real do Cliente (Dia)
         v_liquido_dia = v_liquido_pregao - v_irrf_19
 
         # Repasse DW Capital (30%)

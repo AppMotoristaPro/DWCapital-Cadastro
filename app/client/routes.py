@@ -84,10 +84,8 @@ def faturas():
         dia_id = request.form.get('dia_id')
         arquivo = request.files.get('relatorio_pdf')
         if arquivo and arquivo.filename:
-            
             upload_folder = os.path.join(current_app.root_path, 'static', 'uploads')
             os.makedirs(upload_folder, exist_ok=True)
-            
             file_path = os.path.join(upload_folder, arquivo.filename)
             arquivo.save(file_path)
             
@@ -100,18 +98,20 @@ def faturas():
                 return redirect(url_for('client.faturas'))
             
             try:
-                # CORREÇÃO: Enviar como "image" para o Cloudinary não bloquear o PDF no navegador
                 upload_res = cloudinary.uploader.upload(file_path, folder="dwcapital/relatorios", resource_type="image")
                 dia.arquivo_pdf = upload_res.get('secure_url')
                 
-                dia.bruto, dia.taxas_b3, dia.irrf_1 = dados.get('bruto'), dados.get('taxas_b3'), dados.get('irrf_1')
-                dia.liquido_pregao, dia.irrf_19, dia.liquido = dados.get('liquido_pregao'), dados.get('irrf_19'), dados.get('liquido_dia')
+                dia.bruto = dados.get('bruto')
+                dia.taxas_b3 = dados.get('taxas_b3')
+                dia.irrf_1 = dados.get('irrf_1')
+                dia.liquido_pregao = dados.get('liquido_pregao')
+                dia.irrf_19 = dados.get('irrf_19')
+                dia.liquido = dados.get('liquido_dia')
                 dia.repasse = dados.get('repasse_dw')
                 dia.status = 'relatorio_enviado'
                 db.session.commit()
                 
                 if os.path.exists(file_path): os.remove(file_path)
-                
                 atualizar_totais_semana(dia.fatura_semanal)
                 flash('Relatório salvo na nuvem com sucesso!', 'success')
             except Exception as e:
