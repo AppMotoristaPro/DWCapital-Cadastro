@@ -37,60 +37,60 @@ def extrair_dados_nota_corretagem(caminho_arquivo):
             except:
                 return 0.0
 
-        def extrair_valor_flexivel(nome_campo, padrao, texto):
-            # Procura a palavra-chave e captura um bloco de 100 caracteres à frente
-            # O modificador [\s\S] permite que a busca atravesse quebras de linha
-            match = re.search(padrao + r"[\s\S]{0,100}?", texto, re.IGNORECASE)
+        # NOVA LÓGICA: Busca por Posição (Índice)
+        def extrair_por_posicao(nome_campo, padrao, texto, posicao):
+            # Busca a palavra e pega um bloco de texto depois (200 caracteres para cobrir a linha de baixo)
+            match = re.search(padrao, texto, re.IGNORECASE)
             if match:
-                bloco_depois = texto[match.end():match.end()+120]
-                # Regex para capturar números no formato monetário (ex: 1.234,56 ou 12.34)
+                bloco_depois = texto[match.end():match.end()+200]
+                # Regex para capturar todos os números no formato monetário que aparecem depois
                 numeros = re.findall(r"(\d[\d\.,]*[\.,]\d{2})", bloco_depois)
-                if numeros:
-                    # Pega o primeiro número que aparece imediatamente após a palavra-chave
-                    valor = limpar_valor(numeros[0])
-                    print(f"[LOG SUCCESS] {nome_campo}: {valor}")
+                
+                if numeros and len(numeros) >= posicao:
+                    # 'posicao - 1' porque o array em Python começa no 0 (ex: 1º valor é índice 0)
+                    valor_str = numeros[posicao - 1]
+                    valor = limpar_valor(valor_str)
+                    print(f"[LOG SUCCESS] {nome_campo} (Posição {posicao}): {valor} | Lista lida: {numeros}")
                     return valor
-            print(f"[LOG WARNING] {nome_campo} não encontrado na última página.")
+                else:
+                    print(f"[LOG WARNING] {nome_campo}: Palavra encontrada, mas não achou o {posicao}º número. Lidos: {numeros}")
+            else:
+                print(f"[LOG WARNING] {nome_campo}: Palavra-chave '{padrao}' não encontrada.")
             return 0.0
 
-        # 1. Valor Líquido da Nota (Total que entra/sai da conta)
-        v_liquido_pregao = extrair_valor_flexivel(
-            "Líquido Nota", 
-            r"(Total l[ií]quido da nota|L[ií]quido da nota|Total l[ií]quido \(#\))", 
-            texto_completo
-        )
+        # 1. Valor Bruto (Valor dos Negócios) -> 1º número após a palavra
+        v_bruto = extrair_por_posicao("Valor Bruto", r"Valor dos negócios", texto_completo, 1)
 
-        # 2. IRRF 1% (Projeção)
-        v_irrf_1 = extrair_valor_flexivel(
-            "IRRF 1%", 
-            r"(I\.?R\.?R\.?F\.?.*?Day\s*Trade|IRRF.*?Proje[çc][ãa]o)", 
-            texto_completo
-        )
-        
-        # 3. Taxas B3 (Soma de Liquidação, Registro e Emolumentos)
-        taxa_liquidacao = extrair_valor_flexivel("Taxa Liquidação", r"Taxas? de liquida[çc][ãa]o", texto_completo)
-        taxa_registro = extrair_valor_flexivel("Taxa Registro", r"(Taxa de [rR]egistro|Taxa registro BM&F)", texto_completo)
-        emolumentos = extrair_valor_flexivel("Emolumentos", r"(Emolumentos|Taxas? BM&F|Taxa de termo/op[çc][õo]es/emolumentos)", texto_completo)
-        
-        v_taxas_b3 = taxa_liquidacao + taxa_registro + emolumentos
+        # 2. IRRF "Dedo-Duro" 1% -> 2º número após a linha de impostos (IRRF Day Trade / Taxas BM&F)
+        v_irrf_1 = extrair_por_posicao("IRRF 1%", r"(IRRF Day Trade|Taxas BM&F \( emol\+f\.gar\))", texto_completo, 2)
 
-        # --- CÁLCULOS PADRÃO DW CAPITAL ---
-        # Bruto = Líquido da nota + descontos (IRRF 1% e Taxas B3)
-        v_bruto = v_liquido_pregao + v_irrf_1 + v_taxas_b3
+        # 3. Taxas B3 (Total das despesas) -> 4º número após a palavra "Total das despesas"
+        v_taxas_b3 = extrair_por_posicao("Taxas B3", r"Total das despesas", texto_completo, 4)
 
-        # Base para o IR 19% e Valor do DARF
-        base_calculo_ir = v_bruto - v_taxas_b3
-        v_irrf_19 = base_calculo_ir * 0.19 if base_calculo_ir > 0 else 0.0
+
+        # ==========================================
+        # A MATEMÁTICA GENIAL (Cálculos em Cascata)
+        # ==========================================
         
-        # Valor Líquido Real (Dia)
+        # 4. Valor Líquido do Pregão
+        v_liquido_pregao = v_bruto - v_taxas_b3 - v_irrf_1
+
+        # 5. IRRF DARF (19%) sobre o lucro
+        v_irrf_19 = v_liquido_pregao * 0.19 if v_liquido_pregao > 0 else 0.0
+
+        # 6. Valor Líquido do Dia
         v_liquido_dia = v_liquido_pregao - v_irrf_19
 
-        # Repasse DW Capital (30%)
+        # 7. Repasse DW Capital (30%)
         v_repasse = v_liquido_dia * 0.30 if v_liquido_dia > 0 else 0.0
 
-        print(f"--- [RESUMO FINAL DA EXTRAÇÃO] ---")
-        print(f"Bruto: {v_bruto} | Taxas B3: {v_taxas_b3} | IRRF 1%: {v_irrf_1} | Repasse: {v_repasse}")
-        print(f"----------------------------------")
+
+        print(f"--- [RESUMO FINAL DA MATEMÁTICA] ---")
+        print(f"Bruto: R$ {v_bruto} | Taxas B3: R$ {v_taxas_b3} | IRRF 1%: R$ {v_irrf_1}")
+        print(f"Líquido Pregão (Conta): R$ {v_liquido_pregao}")
+        print(f"IRRF 19%: R$ {v_irrf_19} | Líquido Dia: R$ {v_liquido_dia}")
+        print(f"Repasse DW (30%): R$ {v_repasse}")
+        print(f"------------------------------------")
 
         return {
             'data_pregao': data_pregao,
