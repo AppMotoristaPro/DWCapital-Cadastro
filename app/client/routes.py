@@ -6,6 +6,7 @@ from werkzeug.utils import secure_filename
 from app import db
 from app.models import FaturaDiaria
 from app.utils.autentique import criar_documento_autentique, verificar_status_autentique
+from app.utils.pdf_parser import extrair_dados_nota_corretagem
 
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
 
@@ -91,16 +92,43 @@ def faturas():
                 arquivo.save(file_path)
                 
                 dia = FaturaDiaria.query.get(dia_id)
-                if dia:
-                    if dia.fatura_semanal.user_id == current_user.id:
-                        dia.arquivo_pdf = filename
-                        dia.status = 'relatorio_enviado'
-                        db.session.commit()
-                        flash('Relatório anexado com sucesso! Nossos robôs irão processá-lo em breve.', 'success')
+                if dia and dia.fatura_semanal.user_id == current_user.id:
+                    
+                    # 1. Tenta extrair os dados do PDF
+                    dados = extrair_dados_nota_corretagem(file_path)
+                    
+                    if not dados:
+                        os.remove(file_path) # Limpeza de segurança
+                        flash('Não foi possível ler o PDF. Certifique-se de que é uma Nota de Corretagem original e legível.', 'danger')
+                        return redirect(url_for('client.faturas'))
+                        
+                    # 2. Trava de Segurança da Data
+                    data_esperada = dia.data_pregao.strftime('%d/%m/%Y')
+                    if dados.get('data_pregao') != data_esperada:
+                        os.remove(file_path) # Exclui o arquivo errado do servidor
+                        flash(f'Data Incompatível! O sistema esperava o dia {data_esperada}, mas você enviou um relatório do dia {dados.get("data_pregao", "desconhecido")}.', 'danger')
+                        return redirect(url_for('client.faturas'))
+                    
+                    # 3. Sucesso! Alimenta o banco de dados
+                    dia.arquivo_pdf = filename
+                    dia.bruto = dados.get('bruto', 0.0)
+                    dia.liquido = dados.get('liquido', 0.0)
+                    dia.irrf_1 = dados.get('irrf_1', 0.0)
+                    dia.taxas_b3 = dados.get('taxas_b3', 0.0)
+                    
+                    # Cálculo de Repasse: 50% do lucro líquido (Você pode ajustar a porcentagem aqui)
+                    if dia.liquido > 0:
+                        dia.repasse = dia.liquido * 0.50 
                     else:
-                        flash('Erro de segurança: Você não tem permissão para alterar esta fatura.', 'danger')
+                        dia.repasse = 0.0
+                    
+                    dia.status = 'relatorio_enviado'
+                    db.session.commit()
+                    flash('Relatório anexado e processado com sucesso!', 'success')
+                    
                 else:
-                    flash('O dia de operação não foi encontrado no sistema.', 'danger')
+                    os.remove(file_path)
+                    flash('Erro interno ou violação de segurança.', 'danger')
             else:
                 flash('Formato inválido. Por favor, envie apenas arquivos em .PDF', 'danger')
         else:
@@ -110,6 +138,34 @@ def faturas():
 
     faturas = current_user.faturas
     return render_template('client/faturas.html', user=current_user, faturas=faturas)
+
+@client_bp.route('/faturas/remover/<int:dia_id>', methods=['POST'])
+@login_required
+def remover_fatura(dia_id):
+    """Rota para o cliente remover um relatório enviado incorretamente."""
+    dia = FaturaDiaria.query.get_or_404(dia_id)
+    
+    if dia.fatura_semanal.user_id != current_user.id:
+        flash('Operação não permitida.', 'danger')
+        return redirect(url_for('client.faturas'))
+        
+    if dia.arquivo_pdf:
+        file_path = os.path.join(current_app.root_path, 'static', 'uploads', dia.arquivo_pdf)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            
+    # Reseta o banco de dados para o estado inicial
+    dia.arquivo_pdf = None
+    dia.bruto = 0.0
+    dia.liquido = 0.0
+    dia.irrf_1 = 0.0
+    dia.taxas_b3 = 0.0
+    dia.repasse = 0.0
+    dia.status = 'pendente'
+    db.session.commit()
+    
+    flash('Anexo removido. A diária voltou para o status Pendente.', 'success')
+    return redirect(url_for('client.faturas'))
 
 @client_bp.route('/ajuda')
 @login_required

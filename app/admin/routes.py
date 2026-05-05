@@ -1,4 +1,5 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash
+import os
+from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app
 from flask_login import login_required, current_user
 from app.models import User, Fatura, FaturaDiaria
 from app import db
@@ -72,7 +73,6 @@ def clientes_list():
     busca = request.args.get('q', '')
     query = User.query.filter_by(role='cliente')
     if busca:
-        # ATUALIZADO: Busca por nome OU matrícula
         query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
     clientes = query.order_by(User.id.desc()).all()
     return render_template('admin/index.html', clientes=clientes, busca=busca)
@@ -157,7 +157,6 @@ def pagamentos():
     busca = request.args.get('q', '')
     query = User.query.filter_by(role='cliente', status_acesso='ativo')
     if busca:
-        # ATUALIZADO: Busca por nome OU matrícula
         query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
     ativos = query.all()
     
@@ -188,4 +187,33 @@ def status_pagamento(fatura_id):
     db.session.commit()
     flash('Status da fatura atualizado.', 'success')
     return redirect(url_for('admin.pagamentos_cliente', id=fatura.user_id))
+
+@admin_bp.route('/pagamentos/rejeitar/<int:dia_id>', methods=['POST'])
+@login_required
+def rejeitar_relatorio(dia_id):
+    """Rota para o admin rejeitar o PDF e forçar o cliente a reenviar."""
+    dia = FaturaDiaria.query.get_or_404(dia_id)
+    
+    if dia.arquivo_pdf:
+        file_path = os.path.join(current_app.root_path, 'static', 'uploads', dia.arquivo_pdf)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            
+    # Limpa os dados do dia
+    dia.arquivo_pdf = None
+    dia.bruto = 0.0
+    dia.liquido = 0.0
+    dia.irrf_1 = 0.0
+    dia.taxas_b3 = 0.0
+    dia.repasse = 0.0
+    dia.status = 'pendente'
+    
+    # Se a fatura semanal estava como 'relatorio_enviado', ela volta para parcial ou pendente
+    if dia.fatura_semanal.status in ['relatorio_enviado', 'pago', 'inadimplente']:
+        dia.fatura_semanal.status = 'parcial'
+        
+    db.session.commit()
+    
+    flash('O relatório foi rejeitado e o status devolvido ao cliente como Pendente.', 'success')
+    return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id))
 
