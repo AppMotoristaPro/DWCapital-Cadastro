@@ -23,6 +23,16 @@
             {% endif %}
         {% endwith %}
 
+        {% with messages = get_flashed_messages(category_filter=['success']) %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="p-4 rounded-xl text-sm font-bold bg-green-500/20 text-green-100 border border-green-500/50 text-center">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
         <form class="mt-8 space-y-6" action="{{ url_for('auth.login') }}" method="POST">
             <div class="space-y-4">
                 <div>
@@ -35,6 +45,9 @@
                     <button type="button" onclick="toggleLoginPassword()" class="absolute right-4 top-10 text-blue-300 hover:text-white transition-colors outline-none">
                         <svg id="eye-icon-login" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                     </button>
+                    <div class="text-right mt-3">
+                        <a href="https://wa.me/5511991167709?text=Ol%C3%A1%2C%20esqueci%20a%20minha%20senha%20da%20plataforma%20DW%20Capital%20e%20preciso%20de%20ajuda%20para%20recuperar%20meu%20acesso." target="_blank" class="text-[11px] font-bold text-blue-300 hover:text-white transition duration-200 uppercase tracking-wider">Esqueci minha senha</a>
+                    </div>
                 </div>
             </div>
 

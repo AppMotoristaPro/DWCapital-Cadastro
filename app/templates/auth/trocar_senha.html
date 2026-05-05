@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="min-h-screen flex items-center justify-center bg-navy p-4 overflow-x-hidden overflow-y-auto relative selection:bg-royal selection:text-white py-12">
+    <div class="absolute top-[-10%] left-[-10%] w-[30rem] h-[30rem] bg-royal rounded-full mix-blend-multiply filter blur-[128px] opacity-40"></div>
+    <div class="absolute bottom-[-20%] right-[-10%] w-[30rem] h-[30rem] bg-royal-dark rounded-full mix-blend-multiply filter blur-[128px] opacity-60"></div>
+
+    <div class="max-w-md w-full bg-navy-light/40 backdrop-blur-xl rounded-[2.5rem] shadow-2xl p-10 relative z-10 border border-white/10 my-auto">
+        <div class="mx-auto h-20 flex items-center justify-center mb-8">
+            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="DW Capital Logo" class="max-w-full max-h-full object-contain drop-shadow-2xl">
+        </div>
+
+        <form action="{{ url_for('auth.forcar_troca_senha') }}" method="POST">
+            <h2 class="text-3xl font-black text-white mb-2 tracking-tight">Atualize sua Senha</h2>
+            <p class="text-blue-200 text-sm mb-6 font-medium">Por segurança, você deve criar uma nova senha forte antes de acessar a plataforma.</p>
+            
+            {% with messages = get_flashed_messages(category_filter=['error']) %}
+                {% if messages %}{% for message in messages %}
+                    <div class="p-3 mb-4 rounded-xl text-xs font-bold bg-red-500/20 text-red-100 border border-red-500/50 text-center">{{ message }}</div>
+                {% endfor %}{% endif %}
+            {% endwith %}
+
+            <div class="space-y-4">
+                <div class="relative">
+                    <input type="password" name="senha" id="password" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-xl font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer transition-colors" placeholder=" " />
+                    <label for="password" class="absolute text-sm text-blue-300 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-5 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 font-bold uppercase tracking-widest pointer-events-none">Nova Senha</label>
+                    <button type="button" onclick="togglePassword('password', 'eye-icon-1')" class="absolute right-4 top-4 text-blue-300 hover:text-white transition-colors outline-none">
+                        <svg id="eye-icon-1" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                    </button>
+                </div>
+
+                <div class="relative">
+                    <input type="password" id="confirm_password" required class="block rounded-2xl px-5 pb-3 pt-6 w-full text-xl font-bold text-white bg-navy/50 border border-white/10 appearance-none focus:outline-none focus:ring-2 focus:ring-royal/80 focus:border-royal peer transition-colors" placeholder=" " />
+                    <label for="confirm_password" class="absolute text-sm text-blue-300 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-5 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 font-bold uppercase tracking-widest pointer-events-none">Confirme a Senha</label>
+                    <button type="button" onclick="togglePassword('confirm_password', 'eye-icon-2')" class="absolute right-4 top-4 text-blue-300 hover:text-white transition-colors outline-none">
+                        <svg id="eye-icon-2" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="mt-4 bg-navy/30 p-4 rounded-2xl border border-white/5">
+                <ul class="space-y-1.5">
+                    <li id="req-len" class="text-xs font-bold text-gray-500 transition-colors">✖ Mínimo de 8 caracteres</li>
+                    <li id="req-up" class="text-xs font-bold text-gray-500 transition-colors">✖ Letra maiúscula e minúscula</li>
+                    <li id="req-num" class="text-xs font-bold text-gray-500 transition-colors">✖ Número e Símbolo especial</li>
+                    <li id="req-match" class="text-xs font-bold text-gray-500 transition-colors">✖ As senhas conferem</li>
+                </ul>
+            </div>
+
+            <button type="submit" id="btn-finish" disabled class="w-full mt-6 py-4 bg-green-500 text-white rounded-2xl font-black uppercase tracking-widest text-sm opacity-30 cursor-not-allowed transition-all shadow-[0_0_20px_rgba(34,197,94,0.2)]">Confirmar e Acessar</button>
+        </form>
+    </div>
+</div>
+
+<script>
+function togglePassword(inputId, iconId) {
+    const input = document.getElementById(inputId);
+    const icon = document.getElementById(iconId);
+    if (input.type === "password") {
+        input.type = "text";
+        icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>';
+    } else {
+        input.type = "password";
+        icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>';
+    }
+}
+
+const password = document.getElementById('password');
+const confirmPassword = document.getElementById('confirm_password');
+const btnFinish = document.getElementById('btn-finish');
+
+function validarSenha() {
+    const val = password.value;
+    const confirmVal = confirmPassword.value;
+    const rules = {
+        len: val.length >= 8,
+        up: /[A-Z]/.test(val) && /[a-z]/.test(val),
+        num: /[0-9]/.test(val) && /[^A-Za-z0-9]/.test(val),
+        match: val === confirmVal && val.length > 0
+    };
+    const checkIcon = '✔ ';
+    const crossIcon = '✖ ';
+
+    document.getElementById('req-len').className = rules.len ? 'text-xs font-bold text-green-400' : 'text-xs font-bold text-gray-500';
+    document.getElementById('req-len').innerText = (rules.len ? checkIcon : crossIcon) + 'Mínimo de 8 caracteres';
+    document.getElementById('req-up').className = rules.up ? 'text-xs font-bold text-green-400' : 'text-xs font-bold text-gray-500';
+    document.getElementById('req-up').innerText = (rules.up ? checkIcon : crossIcon) + 'Letra maiúscula e minúscula';
+    document.getElementById('req-num').className = rules.num ? 'text-xs font-bold text-green-400' : 'text-xs font-bold text-gray-500';
+    document.getElementById('req-num').innerText = (rules.num ? checkIcon : crossIcon) + 'Número e Símbolo especial';
+    document.getElementById('req-match').className = rules.match ? 'text-xs font-bold text-green-400' : 'text-xs font-bold text-gray-500';
+    document.getElementById('req-match').innerText = (rules.match ? checkIcon : crossIcon) + 'As senhas conferem';
+
+    if(rules.len && rules.up && rules.num && rules.match) {
+        btnFinish.disabled = false;
+        btnFinish.classList.remove('opacity-30', 'cursor-not-allowed');
+        btnFinish.classList.add('hover:scale-[1.02]');
+    } else {
+        btnFinish.disabled = true;
+        btnFinish.classList.add('opacity-30', 'cursor-not-allowed');
+        btnFinish.classList.remove('hover:scale-[1.02]');
+    }
+}
+
+password.addEventListener('input', validarSenha);
+confirmPassword.addEventListener('input', validarSenha);
+</script>
+{% endblock %}
+

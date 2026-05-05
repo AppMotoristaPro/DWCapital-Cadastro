@@ -21,11 +21,9 @@ class User(db.Model, UserMixin):
     perfil_risco = db.Column(db.String(20))
     data_cadastro = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     matricula = db.Column(db.String(20), unique=True, nullable=True)
-    
-    # CAMPOS AUTENTIQUE
+    precisa_trocar_senha = db.Column(db.Boolean, default=False)
     termo_assinado = db.Column(db.Boolean, default=False)
     docusign_envelope_id = db.Column(db.String(100), nullable=True)
-    
     faturas = db.relationship('Fatura', backref='cliente', lazy=True, cascade="all, delete-orphan")
 
 class Fatura(db.Model):
@@ -33,8 +31,6 @@ class Fatura(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     data_inicio = db.Column(db.Date, nullable=False)
     data_fim = db.Column(db.Date, nullable=False)
-    
-    # NOVAS COLUNAS DA SEMANA
     bruto = db.Column(db.Float, default=0.0)
     taxas_b3 = db.Column(db.Float, default=0.0)
     irrf_1 = db.Column(db.Float, default=0.0)
@@ -42,6 +38,9 @@ class Fatura(db.Model):
     irrf_19 = db.Column(db.Float, default=0.0)
     liquido = db.Column(db.Float, default=0.0)
     repasse = db.Column(db.Float, default=0.0)
+    
+    # NOVA COLUNA
+    comprovante_pix = db.Column(db.String(255), nullable=True)
     
     status = db.Column(db.String(20), default='pendente')
     data_criacao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
@@ -51,8 +50,6 @@ class FaturaDiaria(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     fatura_id = db.Column(db.Integer, db.ForeignKey('fatura.id'), nullable=False)
     data_pregao = db.Column(db.Date, nullable=False)
-    
-    # NOVAS COLUNAS DO DIA
     bruto = db.Column(db.Float, default=0.0)
     taxas_b3 = db.Column(db.Float, default=0.0)
     irrf_1 = db.Column(db.Float, default=0.0)
@@ -60,7 +57,6 @@ class FaturaDiaria(db.Model):
     irrf_19 = db.Column(db.Float, default=0.0)
     liquido = db.Column(db.Float, default=0.0)
     repasse = db.Column(db.Float, default=0.0)
-    
     arquivo_pdf = db.Column(db.String(255), nullable=True)
     status = db.Column(db.String(20), default='pendente')
 
