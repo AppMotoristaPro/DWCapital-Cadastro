@@ -18,7 +18,8 @@ def dashboard():
     if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
     
     filtro_mes = request.args.get('mes')
-    faturas_base = Fatura.query.filter(Fatura.status.in_(['parcial', 'relatorio_enviado', 'pago', 'inadimplente']))
+    # ATUALIZADO: Busca também por 'completo' ao invés de apenas 'relatorio_enviado'
+    faturas_base = Fatura.query.filter(Fatura.status.in_(['parcial', 'completo', 'pago', 'inadimplente']))
     
     label_periodo = "Todo o Período"
     
@@ -114,7 +115,6 @@ def pagamentos():
         query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
     ativos = query.all()
     
-    # LÓGICA DO CICLO: Calcula a última sexta-feira
     hoje = datetime.now(tz_br).date()
     dias_para_sexta = (hoje.weekday() - 4) % 7
     inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
@@ -123,7 +123,6 @@ def pagamentos():
     for c in ativos:
         fatura_atual = Fatura.query.filter_by(user_id=c.id, data_inicio=inicio_ciclo).first()
         status_atual = fatura_atual.status if fatura_atual else 'sem_fatura'
-        # Monta o dicionário que o template espera
         clientes_dados.append({
             'info': c, 
             'status_semana': status_atual, 
@@ -152,15 +151,40 @@ def status_pagamento(fatura_id):
 @login_required
 def rejeitar_relatorio(dia_id):
     dia = FaturaDiaria.query.get_or_404(dia_id)
+    
+    # 1. Zera todos os valores do dia para não contar na soma
     dia.arquivo_pdf = None
     dia.status = 'pendente'
+    dia.bruto = 0.0
+    dia.taxas_b3 = 0.0
+    dia.irrf_1 = 0.0
+    dia.liquido_pregao = 0.0
+    dia.irrf_19 = 0.0
+    dia.liquido = 0.0
+    dia.repasse = 0.0
     
-    if dia.fatura_semanal.status in ['relatorio_enviado', 'pago', 'inadimplente']:
-        dia.fatura_semanal.status = 'parcial'
+    # 2. Recalcula a fatura semanal
+    fatura = dia.fatura_semanal
+    fatura.bruto = sum(d.bruto for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.taxas_b3 = sum(d.taxas_b3 for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.irrf_1 = sum(d.irrf_1 for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.liquido_pregao = sum(d.liquido_pregao for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.irrf_19 = sum(d.irrf_19 for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.liquido = sum(d.liquido for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.repasse = sum(d.repasse for d in fatura.dias if d.status == 'relatorio_enviado')
+    
+    # 3. Atualiza o status da semana
+    dias_enviados = sum(1 for d in fatura.dias if d.status == 'relatorio_enviado')
+    if dias_enviados == 0:
+        fatura.status = 'pendente'
+    elif dias_enviados == 5:
+        fatura.status = 'completo'
+    else:
+        fatura.status = 'parcial'
         
     db.session.commit()
-    flash('Relatório rejeitado.', 'success')
-    return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id))
+    flash('Relatório rejeitado e valores recalculados.', 'success')
+    return redirect(url_for('admin.pagamentos_cliente', id=fatura.user_id))
 
 @admin_bp.route('/gerar_senha_temporaria/<int:id>', methods=['POST'])
 @login_required
