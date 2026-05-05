@@ -12,7 +12,9 @@ def extrair_dados_nota_corretagem(caminho_arquivo):
 
         # Extrai valores financeiros das páginas finais
         texto_completo = ""
-        paginas_finais = leitor.pages[-2:] if len(leitor.pages) > 1 else leitor.pages
+        # Algumas corretoras empurram o resumo para a antepenúltima página se o dia for muito cheio.
+        # Por segurança, vamos ler até as 3 últimas páginas.
+        paginas_finais = leitor.pages[-3:] if len(leitor.pages) > 2 else leitor.pages
         for pagina in paginas_finais:
             texto_completo += pagina.extract_text() + "\n"
 
@@ -21,20 +23,47 @@ def extrair_dados_nota_corretagem(caminho_arquivo):
             val = resultado.replace('.', '').replace(',', '.')
             return float(val)
 
-        # 1. Extração do Valor Líquido do Pregão (Líquido da Nota)
-        v_liquido_pregao = 0.0
-        match_liquido = re.findall(r"(\d[\d\.,]+\d{2})\s*$", texto_completo, re.MULTILINE)
-        if match_liquido:
-            v_liquido_pregao = limpar_valor(match_liquido[-1])
+        # NOVA FUNÇÃO BLINDADA PARA XP, GENIAL E BTG
+        def extrair_valor_linha(padrao, texto):
+            # Encontra a frase e captura tudo até o último número da linha
+            match = re.search(padrao + r".*?(\d[\d\.,]*,\d{2})", texto, re.IGNORECASE | re.MULTILINE)
+            if match:
+                linha = match.group(0)
+                # Extrai todos os valores formatados como dinheiro (ex: 1.500,00 ou 5,32)
+                numeros = re.findall(r"(\d[\d\.,]*,\d{2})", linha)
+                if numeros:
+                    # Nas notas SINACOR (XP, BTG, Genial), o último número da linha é sempre o valor descontado
+                    return limpar_valor(numeros[-1])
+            return 0.0
 
-        # Extração do IRRF (Dedo Duro 1%) e Taxas da B3
-        match_resumo = re.search(r"IRRF Day Trade.*?([\d\.,]+\d{2})\s+D\s+0,00\s+([\d\.,]+\d{2})\s+([\d\.,]+\d{2})", texto_completo, re.DOTALL)
+        # 1. Extração do Valor Líquido do Pregão
+        v_liquido_pregao = 0.0
+        # Tenta pegar pela nomenclatura oficial do Resumo Financeiro
+        match_liquido_termo = re.search(r"(L[ií]quido para.*|L[ií]quido da nota.*)", texto_completo, re.IGNORECASE)
+        if match_liquido_termo:
+            numeros = re.findall(r"(\d[\d\.,]*,\d{2})", match_liquido_termo.group(0))
+            if numeros:
+                v_liquido_pregao = limpar_valor(numeros[-1])
+        else:
+            # Fallback de segurança: pega o último número solto no final do documento
+            match_liquido = re.findall(r"(\d[\d\.,]*,\d{2})\s*$", texto_completo, re.MULTILINE)
+            if match_liquido:
+                v_liquido_pregao = limpar_valor(match_liquido[-1])
+
+        # 2. Extração das Taxas B3 e IRRF (Mapeando variações das corretoras)
+        # Cobre "I.R.R.F. Day Trade", "IRRF s/ operações Day Trade", etc.
+        v_irrf_1 = extrair_valor_linha(r"(I\.?R\.?R\.?F\.?.*?Day\s*Trade|IRRF\s*s/\s*opera[çc][õo]es.*?Day)", texto_completo)
         
-        v_irrf_1 = 0.0
-        v_taxas_b3 = 0.0
-        if match_resumo:
-            v_irrf_1 = limpar_valor(match_resumo.group(1))
-            v_taxas_b3 = limpar_valor(match_resumo.group(2)) + limpar_valor(match_resumo.group(3))
+        # Cobre "Taxa de liquidação", "Taxas de liquidação", etc.
+        taxa_liquidacao = extrair_valor_linha(r"Taxas? de liquida[çc][ãa]o", texto_completo)
+        
+        # Cobre "Emolumentos" puro ou a junção "Taxa de termo/opções/emolumentos" (muito comum na XP e Rico)
+        emolumentos = extrair_valor_linha(r"(Emolumentos|Taxa de termo/op[çc][õo]es/emolumentos)", texto_completo)
+        
+        # Cobre "Taxa de Registro" ou "Taxa de registro da BMF"
+        taxa_registro = extrair_valor_linha(r"Taxa de [rR]egistro", texto_completo)
+        
+        v_taxas_b3 = taxa_liquidacao + emolumentos + taxa_registro
 
         # --- CÁLCULOS DW CAPITAL ---
 
