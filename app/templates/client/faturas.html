@@ -41,27 +41,38 @@
                                 <button type="submit" class="bg-royal text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-md hover:bg-royal-dark transition shrink-0">Anexar PDF</button>
                             </form>
                         {% else %}
-                            <div class="bg-green-50 p-4 rounded-2xl border border-green-100">
-                                <div class="flex justify-end items-center gap-6 mb-2">
-                                    <div class="text-right">
-                                        <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Bruto</p>
-                                        <p class="text-sm font-black text-navy">R$ {{ dia.bruto|format_brl }}</p>
-                                    </div>
-                                    <div class="text-right border-l border-green-200 pl-6">
-                                        <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Líquido</p>
-                                        <p class="text-sm font-black text-navy">R$ {{ dia.liquido|format_brl }}</p>
-                                    </div>
-                                    <div class="text-right border-l border-green-200 pl-6">
-                                        <p class="text-[10px] text-green-700 font-bold uppercase tracking-widest">Repasse Diário</p>
-                                        <p class="text-lg font-black text-green-600">R$ {{ dia.repasse|format_brl }}</p>
+                            <div class="flex justify-between items-center bg-green-50 p-4 rounded-2xl border border-green-100">
+                                <div>
+                                    <p class="text-[10px] text-green-700 font-bold uppercase tracking-widest">Repasse Diário</p>
+                                    <p class="text-lg font-black text-green-600">R$ {{ dia.repasse|format_brl }}</p>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <button type="button" onclick="document.getElementById('modal-dia-{{ dia.id }}').classList.remove('hidden')" class="px-4 py-2 bg-white text-royal border border-royal/20 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-royal hover:text-white transition shadow-sm">Ver Detalhes</button>
+                                    
+                                    <form action="{{ url_for('client.remover_fatura', dia_id=dia.id) }}" method="POST" onsubmit="return confirm('Tem certeza que deseja apagar este relatório? Você precisará enviá-lo novamente.')">
+                                        <button type="submit" title="Remover Relatório" class="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                            
+                            <div id="modal-dia-{{ dia.id }}" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-navy/50 backdrop-blur-sm p-4">
+                                <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 relative">
+                                    <button onclick="document.getElementById('modal-dia-{{ dia.id }}').classList.add('hidden')" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black">X</button>
+                                    <h2 class="text-xl font-black text-navy mb-1">Auditoria do Dia</h2>
+                                    <p class="text-xs text-gray-500 font-bold uppercase tracking-widest mb-6">Pregão: {{ dia.data_pregao.strftime('%d/%m/%Y') }}</p>
+                                    
+                                    <div class="space-y-3 font-medium text-sm text-gray-600">
+                                        <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-gray-400">Valor Bruto</span> <span class="font-bold text-navy">R$ {{ dia.bruto|format_brl }}</span></div>
+                                        <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-red-400">Taxas B3 (Emol. + Liq.)</span> <span class="text-red-500">R$ {{ dia.taxas_b3|format_brl }}</span></div>
+                                        <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-red-400">IRRF "Dedo-Duro" (1%)</span> <span class="text-red-500">R$ {{ dia.irrf_1|format_brl }}</span></div>
+                                        <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-gray-400">Valor Líquido do Pregão</span> <span class="font-bold text-navy">R$ {{ dia.liquido_pregao|format_brl }}</span></div>
+                                        <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-red-400">IRRF DARF (19%)</span> <span class="text-red-500">R$ {{ dia.irrf_19|format_brl }}</span></div>
+                                        <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-gray-400">Valor Líquido do Dia</span> <span class="font-bold text-navy">R$ {{ dia.liquido|format_brl }}</span></div>
+                                        <div class="flex justify-between pt-2 mt-2 bg-green-50 p-3 rounded-xl border border-green-100"><span class="font-black text-green-700">Repasse DW (30%)</span> <span class="font-black text-green-600">R$ {{ dia.repasse|format_brl }}</span></div>
                                     </div>
                                 </div>
-                                <form action="{{ url_for('client.remover_fatura', dia_id=dia.id) }}" method="POST" onsubmit="return confirm('Tem certeza que deseja apagar este relatório? Você precisará enviá-lo novamente.')" class="border-t border-green-200 pt-2 mt-2">
-                                    <button type="submit" class="w-full text-right text-[10px] font-black text-red-500 hover:text-red-700 uppercase tracking-widest transition flex justify-end items-center">
-                                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                        Remover / Refazer Anexo
-                                    </button>
-                                </form>
                             </div>
                         {% endif %}
                     </div>
@@ -70,11 +81,33 @@
                 
                 <div class="bg-royal p-8 rounded-2xl flex justify-between items-center text-white mt-6">
                     <div>
-                        <p class="text-[10px] font-bold uppercase tracking-widest opacity-80 mb-1">Repasse Geral da Semana Acumulado</p>
+                        <p class="text-[10px] font-bold uppercase tracking-widest opacity-80 mb-1">Repasse Consolidado da Semana</p>
                         <p class="text-3xl font-black">R$ {{ fatura.repasse|format_brl }}</p>
                     </div>
-                    <button type="button" onclick="document.getElementById('modal-pix').classList.remove('hidden')" class="bg-white text-royal px-8 py-3 rounded-xl font-black text-sm uppercase tracking-widest shadow-xl hover:scale-105 transition">PIX DW Capital</button>
+                    <div class="flex gap-3">
+                        <button type="button" onclick="document.getElementById('modal-semana-{{ fatura.id }}').classList.remove('hidden')" class="bg-white/20 hover:bg-white/30 text-white border border-white/30 px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition shadow-sm">Ver Fechamento</button>
+                        <button type="button" onclick="document.getElementById('modal-pix').classList.remove('hidden')" class="bg-white text-royal px-8 py-3 rounded-xl font-black text-sm uppercase tracking-widest shadow-xl hover:scale-105 transition">PIX DW Capital</button>
+                    </div>
                 </div>
+
+                <div id="modal-semana-{{ fatura.id }}" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-navy/50 backdrop-blur-sm p-4">
+                    <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 relative">
+                        <button onclick="document.getElementById('modal-semana-{{ fatura.id }}').classList.add('hidden')" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black">X</button>
+                        <h2 class="text-xl font-black text-navy mb-1">Fechamento Semanal</h2>
+                        <p class="text-xs text-gray-500 font-bold uppercase tracking-widest mb-6">De {{ fatura.data_inicio.strftime('%d/%m') }} a {{ fatura.data_fim.strftime('%d/%m') }}</p>
+                        
+                        <div class="space-y-3 font-medium text-sm text-gray-600">
+                            <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-gray-400">Valor Bruto</span> <span class="font-bold text-navy">R$ {{ fatura.bruto|format_brl }}</span></div>
+                            <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-red-400">Taxas B3 (Emol. + Liq.)</span> <span class="text-red-500">R$ {{ fatura.taxas_b3|format_brl }}</span></div>
+                            <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-red-400">IRRF "Dedo-Duro" (1%)</span> <span class="text-red-500">R$ {{ fatura.irrf_1|format_brl }}</span></div>
+                            <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-gray-400">Valor Líquido do Pregão</span> <span class="font-bold text-navy">R$ {{ fatura.liquido_pregao|format_brl }}</span></div>
+                            <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-red-400">IRRF DARF (19%)</span> <span class="text-red-500">R$ {{ fatura.irrf_19|format_brl }}</span></div>
+                            <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-gray-400">Valor Líquido do Dia</span> <span class="font-bold text-navy">R$ {{ fatura.liquido|format_brl }}</span></div>
+                            <div class="flex justify-between pt-2 mt-2 bg-green-50 p-3 rounded-xl border border-green-100"><span class="font-black text-green-700">Repasse DW (30%)</span> <span class="font-black text-green-600">R$ {{ fatura.repasse|format_brl }}</span></div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </details>
         {% endfor %}
@@ -84,7 +117,6 @@
 <div id="modal-pix" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-navy/50 backdrop-blur-sm p-4">
     <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 relative">
         <button onclick="document.getElementById('modal-pix').classList.add('hidden')" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black">X</button>
-        
         <div class="text-center mb-6">
             <div class="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-green-600">
                 <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -92,7 +124,6 @@
             <h2 class="text-2xl font-black text-navy tracking-tight">Pagamento PIX</h2>
             <p class="text-gray-500 text-sm mt-2 font-medium leading-relaxed">Transfira o valor do repasse para a chave oficial e segura da DW Capital.</p>
         </div>
-        
         <div class="bg-gray-50 p-5 rounded-2xl border border-gray-100 mb-6 space-y-3">
             <div class="flex justify-between border-b border-gray-200 pb-3">
                 <span class="text-xs font-bold text-gray-400 uppercase tracking-widest">Instituição</span>
@@ -107,7 +138,6 @@
                 <span class="text-sm font-black text-green-600">58.422.030/0001-76</span>
             </div>
         </div>
-
         <button onclick="copiarPix()" id="btn-copy-pix" class="w-full py-4 bg-green-500 text-white rounded-xl font-black uppercase tracking-widest text-xs hover:bg-green-600 transition shadow-lg flex justify-center items-center">
             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
             Copiar Chave PIX
@@ -121,11 +151,9 @@ function copiarPix() {
     navigator.clipboard.writeText(chave).then(() => {
         const btn = document.getElementById('btn-copy-pix');
         const textoOriginal = btn.innerHTML;
-        
         btn.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> CHAVE COPIADA!';
         btn.classList.remove('bg-green-500', 'hover:bg-green-600');
         btn.classList.add('bg-royal', 'hover:bg-royal-dark');
-        
         setTimeout(() => {
             btn.innerHTML = textoOriginal;
             btn.classList.add('bg-green-500', 'hover:bg-green-600');

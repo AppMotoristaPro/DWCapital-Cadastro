@@ -22,7 +22,7 @@ class User(db.Model, UserMixin):
     data_cadastro = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     matricula = db.Column(db.String(20), unique=True, nullable=True)
     
-    # NOVOS CAMPOS DOCUSIGN
+    # CAMPOS DOCUSIGN
     termo_assinado = db.Column(db.Boolean, default=False)
     docusign_envelope_id = db.Column(db.String(100), nullable=True)
     
@@ -34,9 +34,12 @@ class Fatura(db.Model):
     data_inicio = db.Column(db.Date, nullable=False)
     data_fim = db.Column(db.Date, nullable=False)
     
+    # NOVAS COLUNAS DA SEMANA
     bruto = db.Column(db.Float, default=0.0)
-    irrf_1 = db.Column(db.Float, default=0.0)
     taxas_b3 = db.Column(db.Float, default=0.0)
+    irrf_1 = db.Column(db.Float, default=0.0)
+    liquido_pregao = db.Column(db.Float, default=0.0)
+    irrf_19 = db.Column(db.Float, default=0.0)
     liquido = db.Column(db.Float, default=0.0)
     repasse = db.Column(db.Float, default=0.0)
     
@@ -49,9 +52,12 @@ class FaturaDiaria(db.Model):
     fatura_id = db.Column(db.Integer, db.ForeignKey('fatura.id'), nullable=False)
     data_pregao = db.Column(db.Date, nullable=False)
     
+    # NOVAS COLUNAS DO DIA
     bruto = db.Column(db.Float, default=0.0)
-    irrf_1 = db.Column(db.Float, default=0.0)
     taxas_b3 = db.Column(db.Float, default=0.0)
+    irrf_1 = db.Column(db.Float, default=0.0)
+    liquido_pregao = db.Column(db.Float, default=0.0)
+    irrf_19 = db.Column(db.Float, default=0.0)
     liquido = db.Column(db.Float, default=0.0)
     repasse = db.Column(db.Float, default=0.0)
     
