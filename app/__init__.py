@@ -11,9 +11,18 @@ db = SQLAlchemy()
 migrate = Migrate()
 login_manager = LoginManager()
 
+# FILTRO BLINDADO CONTRA ERROS DE "UNDEFINED"
 def format_brl(value):
-    if value is None: value = 0.0
-    return f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    try:
+        # Se o valor for None ou não for número, vira 0.0
+        if value is None or value == "":
+            num = 0.0
+        else:
+            num = float(value)
+    except (ValueError, TypeError):
+        num = 0.0
+        
+    return f"{num:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 def create_app():
     app = Flask(__name__)
@@ -28,7 +37,6 @@ def create_app():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
 
-    # CLOUDINARY CONFIG
     cloudinary.config(
         cloud_name = os.getenv('CLOUDINARY_CLOUD_NAME'),
         api_key = os.getenv('CLOUDINARY_API_KEY'),
@@ -40,6 +48,8 @@ def create_app():
     migrate.init_app(app, db)
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
+    
+    # Registra o filtro blindado
     app.jinja_env.filters['format_brl'] = format_brl
 
     from app.auth.routes import auth_bp

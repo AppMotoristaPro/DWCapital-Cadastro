@@ -20,18 +20,35 @@ def dashboard():
     filtro_mes = request.args.get('mes')
     faturas_base = Fatura.query.filter(Fatura.status.in_(['parcial', 'relatorio_enviado', 'pago', 'inadimplente']))
     
+    label_periodo = "Todo o Período"
+    
     if filtro_mes:
         dt_inicio = datetime.strptime(filtro_mes + '-01', '%Y-%m-%d').date()
         faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio).all()
+        label_periodo = f"Mês {dt_inicio.strftime('%m/%Y')}"
     else:
         faturas_filtradas = faturas_base.all()
         
+    # CÁLCULOS PARA O DASHBOARD
     faturamento_total = sum(f.repasse for f in faturas_filtradas)
     clientes_ativos = User.query.filter_by(role='cliente', status_acesso='ativo').count()
+    total_clientes = User.query.filter_by(role='cliente').count()
+    
+    # Soma do capital alocado
+    alocado_row = db.session.query(db.func.sum(User.capital_alocado)).filter_by(role='cliente', status_acesso='ativo').first()
+    capital_total = alocado_row[0] or 0.0
+    
+    # Média por cliente
+    qtd_faturas = len(faturas_filtradas)
+    media_cliente = faturamento_total / qtd_faturas if qtd_faturas > 0 else 0.0
     
     return render_template('admin/dashboard.html', 
                            clientes_ativos=clientes_ativos,
-                           faturamento_total=faturamento_total)
+                           total_clientes=total_clientes,
+                           capital_total=capital_total,
+                           faturamento_total=faturamento_total,
+                           media_cliente=media_cliente,
+                           label_periodo=label_periodo)
 
 @admin_bp.route('/clientes')
 @login_required
@@ -51,25 +68,24 @@ def liberar_cliente():
     nome_temp = request.form.get('nome_temp')
     
     if User.query.filter_by(cpf=cpf).first():
-        flash('CPF já cadastrado.', 'error')
+        flash('Este CPF já está cadastrado.', 'error')
         return redirect(url_for('admin.clientes_list'))
 
     novo = User(cpf=cpf, nome=nome_temp, role='cliente', status_acesso='pendente_cadastro')
     db.session.add(novo)
     db.session.flush()
     
-    # Gera ciclo inicial
     hoje = datetime.now().date()
     inicio_ciclo = hoje - timedelta(days=hoje.weekday())
     fatura = Fatura(user_id=novo.id, data_inicio=inicio_ciclo, data_fim=inicio_ciclo + timedelta(days=6))
     db.session.add(fatura)
     
-    for i in range(5): # Seg a Sex
+    for i in range(5):
         fd = FaturaDiaria(fatura_id=fatura.id, data_pregao=inicio_ciclo + timedelta(days=i))
         db.session.add(fd)
 
     db.session.commit()
-    flash('Acesso liberado!', 'success')
+    flash('Acesso liberado com sucesso!', 'success')
     return redirect(url_for('admin.clientes_list'))
 
 @admin_bp.route('/editar/<int:id>', methods=['GET', 'POST'])
@@ -80,7 +96,7 @@ def editar_cliente(id):
         cliente.nome = request.form.get('nome')
         cliente.capital_alocado = float(request.form.get('capital') or 0.0)
         db.session.commit()
-        flash('Atualizado!', 'success')
+        flash('Dados do cliente atualizados!', 'success')
         return redirect(url_for('admin.clientes_list'))
     return render_template('admin/editar.html', cliente=cliente)
 
@@ -103,21 +119,25 @@ def status_pagamento(fatura_id):
     fatura = Fatura.query.get_or_404(fatura_id)
     fatura.status = request.form.get('status')
     db.session.commit()
+    flash('Status atualizado.', 'success')
     return redirect(url_for('admin.pagamentos_cliente', id=fatura.user_id))
 
 @admin_bp.route('/pagamentos/rejeitar/<int:dia_id>', methods=['POST'])
 @login_required
 def rejeitar_relatorio(dia_id):
     dia = FaturaDiaria.query.get_or_404(dia_id)
-    dia.arquivo_pdf, dia.status = None, 'pendente'
+    dia.arquivo_pdf = None
+    dia.status = 'pendente'
     db.session.commit()
+    flash('Relatório rejeitado.', 'success')
     return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id))
 
 @admin_bp.route('/gerar_senha_temporaria/<int:id>', methods=['POST'])
 @login_required
 def gerar_senha_temporaria(id):
     cliente = User.query.get_or_404(id)
-    senha_temp = "DW@" + ''.join(random.choices(string.ascii_letters + string.digits, k=5))
+    caracteres = string.ascii_letters + string.digits
+    senha_temp = "DW@" + ''.join(random.choices(caracteres, k=5))
     cliente.password_hash = generate_password_hash(senha_temp)
     cliente.precisa_trocar_senha = True
     db.session.commit()
