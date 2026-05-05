@@ -92,7 +92,11 @@ def faturas():
             dia = FaturaDiaria.query.get(dia_id)
             dados = extrair_dados_nota_corretagem(file_path)
             
+            # LOG DA ROTA: Verificando o que o parser retornou para a aplicação
+            print(f"[ROUTE LOG] Resultado do parser para ID {dia_id}: {dados}")
+            
             if not dados or dados.get('data_pregao') != dia.data_pregao.strftime('%d/%m/%Y'):
+                print(f"[ROUTE ERROR] Divergência: PDF={dados.get('data_pregao') if dados else 'Erro'} vs DB={dia.data_pregao.strftime('%d/%m/%Y')}")
                 if os.path.exists(file_path): os.remove(file_path)
                 flash('PDF Inválido ou data incorreta.', 'danger')
                 return redirect(url_for('client.faturas'))
@@ -101,6 +105,7 @@ def faturas():
                 upload_res = cloudinary.uploader.upload(file_path, folder="dwcapital/relatorios", resource_type="image")
                 dia.arquivo_pdf = upload_res.get('secure_url')
                 
+                # Salvando os dados financeiros extraídos
                 dia.bruto = dados.get('bruto')
                 dia.taxas_b3 = dados.get('taxas_b3')
                 dia.irrf_1 = dados.get('irrf_1')
@@ -109,12 +114,15 @@ def faturas():
                 dia.liquido = dados.get('liquido_dia')
                 dia.repasse = dados.get('repasse_dw')
                 dia.status = 'relatorio_enviado'
+                
+                print(f"[ROUTE LOG] Salvando no banco: Bruto={dia.bruto}, Repasse={dia.repasse}")
                 db.session.commit()
                 
                 if os.path.exists(file_path): os.remove(file_path)
                 atualizar_totais_semana(dia.fatura_semanal)
                 flash('Relatório salvo na nuvem com sucesso!', 'success')
             except Exception as e:
+                print(f"[ROUTE ERROR] Erro ao salvar: {str(e)}")
                 if os.path.exists(file_path): os.remove(file_path)
                 flash(f'Erro na nuvem: {str(e)}', 'danger')
                 
