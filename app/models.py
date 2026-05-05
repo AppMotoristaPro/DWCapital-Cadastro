@@ -38,10 +38,7 @@ class Fatura(db.Model):
     irrf_19 = db.Column(db.Float, default=0.0)
     liquido = db.Column(db.Float, default=0.0)
     repasse = db.Column(db.Float, default=0.0)
-    
-    # NOVA COLUNA
     comprovante_pix = db.Column(db.String(255), nullable=True)
-    
     status = db.Column(db.String(20), default='pendente')
     data_criacao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     dias = db.relationship('FaturaDiaria', backref='fatura_semanal', lazy=True, cascade="all, delete-orphan", order_by="FaturaDiaria.data_pregao")
