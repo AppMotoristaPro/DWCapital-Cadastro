@@ -36,9 +36,11 @@ def login():
                     return redirect(url_for('auth.forcar_troca_senha'))
                     
                 return redirect(url_for('admin.dashboard' if user.role == 'admin' else 'client.dashboard'))
-            flash('Cadastro pendente. Vá em Primeiro Acesso.', 'error')
+            # ATUALIZADO: Usando auth_error
+            flash('Cadastro pendente. Vá em Primeiro Acesso.', 'auth_error')
         else:
-            flash('Credenciais inválidas.', 'error')
+            # ATUALIZADO: Usando auth_error
+            flash('Credenciais inválidas.', 'auth_error')
             
     return render_template('auth/login.html')
 
@@ -104,7 +106,8 @@ def primeiro_acesso():
             user.status_acesso = 'ativo'
             
             db.session.commit()
-            flash('Cadastro concluído com sucesso! Bem-vindo à DW Capital.', 'success')
+            # ATUALIZADO: Usando auth_success para aparecer no login.html
+            flash('Cadastro concluído com sucesso! Bem-vindo à DW Capital.', 'auth_success')
             return redirect(url_for('auth.login'))
         
         flash('CPF não liberado ou cadastro já ativo.', 'error')
