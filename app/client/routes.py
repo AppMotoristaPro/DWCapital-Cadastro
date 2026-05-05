@@ -1,7 +1,9 @@
 import os
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify
 from flask_login import login_required, current_user
+from werkzeug.utils import secure_filename
 from app import db
+from app.models import FaturaDiaria
 from app.utils.autentique import criar_documento_autentique, verificar_status_autentique
 
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
@@ -74,12 +76,54 @@ def dados_pessoais():
         return redirect(url_for('client.assinar_termo'))
     return render_template('client/dados_pessoais.html', user=current_user)
 
-@client_bp.route('/faturas')
+@client_bp.route('/faturas', methods=['GET', 'POST'])
 @login_required
 def faturas():
     if not current_user.termo_assinado:
         return redirect(url_for('client.assinar_termo'))
     
+    if request.method == 'POST':
+        dia_id = request.form.get('dia_id')
+        arquivo = request.files.get('relatorio_pdf')
+        
+        if arquivo and arquivo.filename:
+            # Verifica se é realmente um arquivo PDF
+            if arquivo.filename.lower().endswith('.pdf'):
+                # Limpa o nome do arquivo por segurança
+                filename = secure_filename(arquivo.filename)
+                
+                # Adiciona o ID do dia para evitar que arquivos com o mesmo nome se sobrescrevam
+                filename = f"dia_{dia_id}_{filename}"
+                
+                # Garante que a pasta uploads existe
+                upload_folder = os.path.join(current_app.root_path, 'static', 'uploads')
+                os.makedirs(upload_folder, exist_ok=True) 
+                
+                # Caminho completo onde o arquivo será salvo
+                file_path = os.path.join(upload_folder, filename)
+                arquivo.save(file_path)
+                
+                # Atualiza o status no banco de dados
+                dia = FaturaDiaria.query.get(dia_id)
+                if dia:
+                    # Trava de segurança: garantir que o dia pertence à fatura do usuário atual
+                    if dia.fatura_semanal.user_id == current_user.id:
+                        dia.arquivo_pdf = filename
+                        dia.status = 'relatorio_enviado'
+                        db.session.commit()
+                        flash('Relatório anexado com sucesso! Nossos robôs irão processá-lo em breve.', 'success')
+                    else:
+                        flash('Erro de segurança: Você não tem permissão para alterar esta fatura.', 'danger')
+                else:
+                    flash('O dia de operação não foi encontrado no sistema.', 'danger')
+            else:
+                flash('Formato inválido. Por favor, envie apenas arquivos em .PDF', 'danger')
+        else:
+            flash('Nenhum arquivo foi selecionado para envio.', 'warning')
+            
+        # Recarrega a página para evitar reenvio de formulário ao atualizar
+        return redirect(url_for('client.faturas'))
+
     faturas = current_user.faturas
     return render_template('client/faturas.html', user=current_user, faturas=faturas)
 
