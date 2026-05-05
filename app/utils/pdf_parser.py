@@ -6,21 +6,18 @@ def extrair_dados_nota_corretagem(caminho_arquivo):
         print(f"--- [ROBÔ] INICIANDO LEITURA DO PDF: {caminho_arquivo} ---")
         leitor = PdfReader(caminho_arquivo)
         
-        # Extrai a Data do Pregão (Sempre na primeira página)
-        texto_primeira_pagina = leitor.pages[0].extract_text()
-        match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_primeira_pagina)
-        data_pregao = match_data.group(1) if match_data else None
-        print(f"[LOG] Data identificada: {data_pregao}")
+        # FOCA EXCLUSIVAMENTE NA ÚLTIMA PÁGINA (Ignora todas as anteriores)
+        ultima_pagina = leitor.pages[-1]
+        texto_completo = ultima_pagina.extract_text()
+        
+        print(f"--- [DEBUG] CONTEÚDO BRUTO DA ÚLTIMA PÁGINA ---")
+        print(texto_completo)
+        print("--------------------------------------------------")
 
-        # Extrai conteúdo das páginas de resumo (geralmente as últimas)
-        texto_completo = ""
-        paginas_finais = leitor.pages[-3:] if len(leitor.pages) > 2 else leitor.pages
-        for i, pagina in enumerate(paginas_finais):
-            conteudo = pagina.extract_text()
-            texto_completo += conteudo + "\n"
-            print(f"--- [DEBUG] CONTEÚDO BRUTO PÁGINA FINAL {i+1} ---")
-            print(conteudo)
-            print("--------------------------------------------------")
+        # Extrai a Data do Pregão lendo o cabeçalho da última página
+        match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo)
+        data_pregao = match_data.group(1) if match_data else None
+        print(f"[LOG] Data identificada na última página: {data_pregao}")
 
         def limpar_valor(resultado):
             if not resultado: return 0.0
@@ -49,11 +46,11 @@ def extrair_dados_nota_corretagem(caminho_arquivo):
                 # Regex para capturar números no formato monetário (ex: 1.234,56 ou 12.34)
                 numeros = re.findall(r"(\d[\d\.,]*[\.,]\d{2})", bloco_depois)
                 if numeros:
-                    # Para Genial (multilinhas), pegamos o primeiro número que segue o rótulo
+                    # Pega o primeiro número que aparece imediatamente após a palavra-chave
                     valor = limpar_valor(numeros[0])
                     print(f"[LOG SUCCESS] {nome_campo}: {valor}")
                     return valor
-            print(f"[LOG WARNING] {nome_campo} não encontrado no bloco.")
+            print(f"[LOG WARNING] {nome_campo} não encontrado na última página.")
             return 0.0
 
         # 1. Valor Líquido da Nota (Total que entra/sai da conta)

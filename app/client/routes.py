@@ -20,7 +20,6 @@ def atualizar_totais_semana(fatura):
     fatura.liquido = sum(d.liquido for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.repasse = sum(d.repasse for d in fatura.dias if d.status == 'relatorio_enviado')
     
-    # Contagem de dias enviados para definir status exato
     dias_enviados = sum(1 for d in fatura.dias if d.status == 'relatorio_enviado')
     
     if dias_enviados == 0:
