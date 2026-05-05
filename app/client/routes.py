@@ -11,6 +11,7 @@ from app.utils.pdf_parser import extrair_dados_nota_corretagem
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
 
 def atualizar_totais_semana(fatura):
+    """Calcula os totais financeiros e define o status da semana (Pendente, Parcial ou Completo)"""
     fatura.bruto = sum(d.bruto for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.taxas_b3 = sum(d.taxas_b3 for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.irrf_1 = sum(d.irrf_1 for d in fatura.dias if d.status == 'relatorio_enviado')
@@ -92,15 +93,20 @@ def faturas():
             dia = FaturaDiaria.query.get(dia_id)
             dados = extrair_dados_nota_corretagem(file_path)
             
+            print(f"[ROUTE LOG] Processando PDF para ID {dia_id}...")
+            
             if not dados or dados.get('data_pregao') != dia.data_pregao.strftime('%d/%m/%Y'):
+                print(f"[ROUTE ERROR] Divergência de data: PDF={dados.get('data_pregao') if dados else 'ERRO'} vs Banco={dia.data_pregao.strftime('%d/%m/%Y')}")
                 if os.path.exists(file_path): os.remove(file_path)
                 flash('PDF Inválido ou data incorreta.', 'danger')
                 return redirect(url_for('client.faturas'))
             
             try:
+                # Upload seguro para o Cloudinary renderizado como imagem para burlar erros de visualização direta de PDF
                 upload_res = cloudinary.uploader.upload(file_path, folder="dwcapital/relatorios", resource_type="image")
                 dia.arquivo_pdf = upload_res.get('secure_url')
                 
+                # Persistência dos valores financeiros extraídos pelo robô
                 dia.bruto = dados.get('bruto')
                 dia.taxas_b3 = dados.get('taxas_b3')
                 dia.irrf_1 = dados.get('irrf_1')
@@ -109,14 +115,17 @@ def faturas():
                 dia.liquido = dados.get('liquido_dia')
                 dia.repasse = dados.get('repasse_dw')
                 dia.status = 'relatorio_enviado'
+                
+                print(f"[ROUTE LOG] Sucesso! Salvando Bruto: R$ {dia.bruto} | Repasse: R$ {dia.repasse}")
                 db.session.commit()
                 
                 if os.path.exists(file_path): os.remove(file_path)
                 atualizar_totais_semana(dia.fatura_semanal)
-                flash('Relatório salvo na nuvem com sucesso!', 'success')
+                flash('Relatório processado e salvo com sucesso!', 'success')
             except Exception as e:
+                print(f"[ROUTE ERROR] Falha no upload/salvamento: {str(e)}")
                 if os.path.exists(file_path): os.remove(file_path)
-                flash(f'Erro na nuvem: {str(e)}', 'danger')
+                flash(f'Erro técnico no processamento: {str(e)}', 'danger')
                 
     return render_template('client/faturas.html', faturas=current_user.faturas)
 
@@ -127,6 +136,7 @@ def enviar_comprovante(fatura_id):
     arquivo = request.files.get('comprovante')
     if arquivo:
         try:
+            # Comprovantes também são enviados como image para garantir visualização no navegador
             res = cloudinary.uploader.upload(arquivo, folder="dwcapital/comprovantes", resource_type="image")
             fatura.comprovante_pix = res.get('secure_url')
             db.session.commit()
@@ -147,7 +157,7 @@ def remover_fatura(dia_id):
 @client_bp.route('/ajuda')
 @login_required
 def ajuda():
-    mensagem = f"Olá, sou {current_user.nome}. Preciso de suporte."
+    mensagem = f"Olá, sou {current_user.nome}. Preciso de suporte referente ao portal DW Capital."
     msg_encoded = urllib.parse.quote(mensagem)
     return render_template('client/ajuda.html', link_suporte=f"https://wa.me/5511991167709?text={msg_encoded}")
 
