@@ -35,11 +35,10 @@
             </a>
         </div>
     </aside>
-    <main class="flex-1 p-8 lg:p-12 overflow-y-auto relative">
-         <div class="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full bg-royal/5 blur-3xl pointer-events-none z-0"></div>
-        <div class="relative z-10">
-            {% block client_content %}{% endblock %}
-        </div>
+    
+    <main class="flex-1 p-8 lg:p-12 overflow-y-auto relative z-0">
+         <div class="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full bg-royal/5 blur-3xl pointer-events-none -z-10"></div>
+        {% block client_content %}{% endblock %}
     </main>
 </div>
 {% endblock %}
