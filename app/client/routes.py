@@ -11,7 +11,6 @@ from app.utils.pdf_parser import extrair_dados_nota_corretagem
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
 
 def atualizar_totais_semana(fatura):
-    # Calcula os totais financeiros
     fatura.bruto = sum(d.bruto for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.taxas_b3 = sum(d.taxas_b3 for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.irrf_1 = sum(d.irrf_1 for d in fatura.dias if d.status == 'relatorio_enviado')
@@ -20,7 +19,6 @@ def atualizar_totais_semana(fatura):
     fatura.liquido = sum(d.liquido for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.repasse = sum(d.repasse for d in fatura.dias if d.status == 'relatorio_enviado')
     
-    # NOVA LÓGICA DE STATUS: Conta quantos dias foram enviados
     dias_enviados = sum(1 for d in fatura.dias if d.status == 'relatorio_enviado')
     
     if dias_enviados == 0:
@@ -102,7 +100,8 @@ def faturas():
                 return redirect(url_for('client.faturas'))
             
             try:
-                upload_res = cloudinary.uploader.upload(file_path, folder="dwcapital/relatorios", resource_type="raw")
+                # CORREÇÃO: Enviar como "image" para o Cloudinary não bloquear o PDF no navegador
+                upload_res = cloudinary.uploader.upload(file_path, folder="dwcapital/relatorios", resource_type="image")
                 dia.arquivo_pdf = upload_res.get('secure_url')
                 
                 dia.bruto, dia.taxas_b3, dia.irrf_1 = dados.get('bruto'), dados.get('taxas_b3'), dados.get('irrf_1')
@@ -128,7 +127,7 @@ def enviar_comprovante(fatura_id):
     arquivo = request.files.get('comprovante')
     if arquivo:
         try:
-            res = cloudinary.uploader.upload(arquivo, folder="dwcapital/comprovantes")
+            res = cloudinary.uploader.upload(arquivo, folder="dwcapital/comprovantes", resource_type="image")
             fatura.comprovante_pix = res.get('secure_url')
             db.session.commit()
             flash('Comprovante enviado com sucesso!', 'success')
