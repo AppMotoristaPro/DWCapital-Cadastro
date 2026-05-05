@@ -20,10 +20,11 @@
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        
         <div class="bg-white p-6 rounded-3xl shadow-lg border border-blue-50/50">
-            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Total de Clientes</p>
-            <p class="text-4xl font-black text-navy">{{ total_clientes }}</p>
-            <p class="text-xs text-green-600 font-bold mt-2">{{ clientes_ativos }} ativos no sistema</p>
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Clientes Ativos</p>
+            <p class="text-4xl font-black text-navy">{{ clientes_ativos }}</p>
+            <p class="text-xs text-red-400 font-bold mt-2">{{ clientes_inativos }} inativos no sistema</p>
         </div>
         
         <div class="bg-white p-6 rounded-3xl shadow-lg border border-blue-50/50">

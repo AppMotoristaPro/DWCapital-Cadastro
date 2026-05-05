@@ -17,21 +17,47 @@ admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 def dashboard():
     if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
     
+    # ATUALIZAÇÃO: Captura de todos os filtros do formulário
+    filtro_dia = request.args.get('dia')
+    filtro_semana = request.args.get('semana')
     filtro_mes = request.args.get('mes')
+    
     faturas_base = Fatura.query.filter(Fatura.status.in_(['parcial', 'completo', 'pago', 'inadimplente']))
     
     label_periodo = "Todo o Período"
     
-    if filtro_mes:
-        dt_inicio = datetime.strptime(filtro_mes + '-01', '%Y-%m-%d').date()
-        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio).all()
-        label_periodo = f"Mês {dt_inicio.strftime('%m/%Y')}"
+    # Lógica Dinâmica de Filtros
+    if filtro_dia:
+        dt_dia = datetime.strptime(filtro_dia, '%Y-%m-%d').date()
+        # Pega as faturas em que este dia está contido no ciclo
+        faturas_filtradas = faturas_base.filter(Fatura.data_inicio <= dt_dia, Fatura.data_fim >= dt_dia).all()
+        label_periodo = f"Dia {dt_dia.strftime('%d/%m/%Y')}"
+        
+    elif filtro_semana:
+        # O HTML envia '2026-W18'. O '-1' no final indica a segunda-feira daquela semana
+        dt_inicio_sem = datetime.strptime(filtro_semana + '-1', '%G-W%V-%u').date()
+        dt_fim_sem = dt_inicio_sem + timedelta(days=6)
+        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_sem, Fatura.data_inicio <= dt_fim_sem).all()
+        label_periodo = f"Semana {dt_inicio_sem.strftime('%d/%m')} a {dt_fim_sem.strftime('%d/%m')}"
+        
+    elif filtro_mes:
+        dt_inicio_mes = datetime.strptime(filtro_mes + '-01', '%Y-%m-%d').date()
+        # Descobre o último dia do mês
+        if dt_inicio_mes.month == 12:
+            dt_fim_mes = dt_inicio_mes.replace(year=dt_inicio_mes.year+1, month=1, day=1) - timedelta(days=1)
+        else:
+            dt_fim_mes = dt_inicio_mes.replace(month=dt_inicio_mes.month+1, day=1) - timedelta(days=1)
+            
+        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_mes, Fatura.data_inicio <= dt_fim_mes).all()
+        label_periodo = f"Mês {dt_inicio_mes.strftime('%m/%Y')}"
+        
     else:
         faturas_filtradas = faturas_base.all()
         
     faturamento_total = sum(f.repasse for f in faturas_filtradas)
+    
     clientes_ativos = User.query.filter_by(role='cliente', status_acesso='ativo').count()
-    total_clientes = User.query.filter_by(role='cliente').count()
+    clientes_inativos = User.query.filter_by(role='cliente', status_acesso='inativo').count()
     
     alocado_row = db.session.query(db.func.sum(User.capital_alocado)).filter_by(role='cliente', status_acesso='ativo').first()
     capital_total = alocado_row[0] or 0.0
@@ -41,7 +67,7 @@ def dashboard():
     
     return render_template('admin/dashboard.html', 
                            clientes_ativos=clientes_ativos,
-                           total_clientes=total_clientes,
+                           clientes_inativos=clientes_inativos,
                            capital_total=capital_total,
                            faturamento_total=faturamento_total,
                            media_cliente=media_cliente,
@@ -51,12 +77,20 @@ def dashboard():
 @login_required
 def clientes_list():
     if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
+    
     busca = request.args.get('q', '')
+    status_filtro = request.args.get('status', '')
+    
     query = User.query.filter_by(role='cliente')
+    
     if busca:
         query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
+    if status_filtro:
+        query = query.filter_by(status_acesso=status_filtro)
+        
     clientes = query.order_by(User.id.desc()).all()
-    return render_template('admin/index.html', clientes=clientes, busca=busca)
+    
+    return render_template('admin/index.html', clientes=clientes, busca=busca, status_filtro=status_filtro)
 
 @admin_bp.route('/liberar_cliente', methods=['POST'])
 @login_required
@@ -102,6 +136,24 @@ def editar_cliente(id):
         flash('Dados atualizados!', 'success')
         return redirect(url_for('admin.clientes_list'))
     return render_template('admin/editar.html', cliente=cliente)
+
+@admin_bp.route('/inativar_cliente/<int:id>', methods=['POST'])
+@login_required
+def inativar_cliente(id):
+    cliente = User.query.get_or_404(id)
+    cliente.status_acesso = 'inativo'
+    db.session.commit()
+    flash(f'Cliente {cliente.nome} inativado com sucesso.', 'success')
+    return redirect(url_for('admin.clientes_list'))
+
+@admin_bp.route('/excluir_cliente/<int:id>', methods=['POST'])
+@login_required
+def excluir_cliente(id):
+    cliente = User.query.get_or_404(id)
+    db.session.delete(cliente)
+    db.session.commit()
+    flash('Cliente e todas as suas faturas foram excluídos permanentemente.', 'success')
+    return redirect(url_for('admin.clientes_list'))
 
 @admin_bp.route('/pagamentos')
 @login_required
@@ -182,13 +234,11 @@ def rejeitar_relatorio(dia_id):
     flash('Relatório rejeitado e valores recalculados.', 'success')
     return redirect(url_for('admin.pagamentos_cliente', id=fatura.user_id))
 
-# NOVA ROTA: Forçar limpeza de valores fantasmas
 @admin_bp.route('/pagamentos/forcar_limpeza/<int:dia_id>', methods=['POST'])
 @login_required
 def forcar_limpeza_dia(dia_id):
     dia = FaturaDiaria.query.get_or_404(dia_id)
     
-    # Executa a mesma limpeza financeira pesada da rejeição, independentemente do status
     dia.arquivo_pdf = None
     dia.status = 'pendente'
     dia.bruto = 0.0

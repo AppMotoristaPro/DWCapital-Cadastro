@@ -1,4 +1,4 @@
-from flask import Flask, redirect, url_for
+from flask import Flask, redirect, url_for, render_template
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
@@ -14,7 +14,6 @@ login_manager = LoginManager()
 # FILTRO BLINDADO CONTRA ERROS DE "UNDEFINED"
 def format_brl(value):
     try:
-        # Se o valor for None ou não for número, vira 0.0
         if value is None or value == "":
             num = 0.0
         else:
@@ -49,7 +48,6 @@ def create_app():
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
     
-    # Registra o filtro blindado
     app.jinja_env.filters['format_brl'] = format_brl
 
     from app.auth.routes import auth_bp
@@ -61,5 +59,29 @@ def create_app():
 
     @app.route('/')
     def root(): return redirect(url_for('auth.login'))
+
+    # ==========================================
+    # CAPTURA DE ERROS (ERROR HANDLERS)
+    # ==========================================
+    @app.errorhandler(404)
+    def page_not_found(e):
+        return render_template('errors/404.html'), 404
+
+    @app.errorhandler(500)
+    def internal_server_error(e):
+        return render_template('errors/500.html'), 500
+
+    @app.errorhandler(403)
+    def forbidden_error(e):
+        return render_template('errors/403.html'), 403
+
+    @app.errorhandler(413)
+    def request_entity_too_large(e):
+        return render_template('errors/413.html'), 413
+
+    @app.errorhandler(405)
+    def method_not_allowed(e):
+        return render_template('errors/405.html'), 405
+
     return app
 

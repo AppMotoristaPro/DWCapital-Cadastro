@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex items-center justify-center min-h-screen bg-ice p-4">
+    <div class="bg-white p-10 rounded-3xl shadow-2xl text-center max-w-lg mx-auto border border-blue-50/50">
+        <div class="w-24 h-24 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-6 text-gray-400 rotate-12">
+            <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg>
+        </div>
+        <h1 class="text-4xl font-black text-navy mb-2 tracking-tight">Erro 404</h1>
+        <p class="text-sm text-gray-500 font-medium mb-8 leading-relaxed">Página não encontrada.<br>A URL pode estar incorreta ou o conteúdo foi removido.</p>
+        <a href="{{ url_for('auth.login') }}" class="inline-block px-8 py-4 bg-royal hover:bg-royal-dark text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg transition hover:-translate-y-1">Voltar ao Início</a>
+    </div>
+</div>
+{% endblock %}
+
