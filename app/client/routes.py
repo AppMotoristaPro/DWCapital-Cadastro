@@ -1,9 +1,11 @@
 import os
+import urllib.parse
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify
 from flask_login import login_required, current_user
 import cloudinary.uploader
 from app import db
 from app.models import FaturaDiaria, Fatura
+from app.utils.autentique import criar_documento_autentique, verificar_status_autentique
 from app.utils.pdf_parser import extrair_dados_nota_corretagem
 
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
@@ -21,7 +23,50 @@ def atualizar_totais_semana(fatura):
 
 @client_bp.route('/dashboard')
 @login_required
-def dashboard(): return render_template('client/index.html', user=current_user)
+def dashboard():
+    if getattr(current_user, 'precisa_trocar_senha', False):
+        return redirect(url_for('auth.forcar_troca_senha'))
+    if not current_user.termo_assinado:
+        return redirect(url_for('client.assinar_termo'))
+    return render_template('client/index.html', user=current_user)
+
+@client_bp.route('/assinar')
+@login_required
+def assinar_termo():
+    if current_user.termo_assinado: return redirect(url_for('client.dashboard'))
+    documento_enviado = bool(current_user.docusign_envelope_id)
+    if not documento_enviado:
+        caminho_pdf = os.path.join(current_app.root_path, 'static', 'documentos', 'termo_adesao.pdf')
+        try:
+            doc_id = criar_documento_autentique(
+                nome_signer=current_user.nome,
+                email_signer=current_user.email,
+                caminho_pdf=caminho_pdf
+            )
+            current_user.docusign_envelope_id = doc_id 
+            db.session.commit()
+            documento_enviado = True
+        except Exception as e:
+            flash(f"Erro ao gerar contrato: {str(e)}", "danger")
+    return render_template('client/assinar_termo.html', documento_enviado=documento_enviado)
+
+@client_bp.route('/api/status_assinatura')
+@login_required
+def api_status_assinatura():
+    doc_id = current_user.docusign_envelope_id
+    if not doc_id: return jsonify({"assinado": False})
+    try:
+        if verificar_status_autentique(doc_id):
+            current_user.termo_assinado = True
+            db.session.commit()
+            return jsonify({"assinado": True})
+    except: pass
+    return jsonify({"assinado": False})
+
+@client_bp.route('/dados_pessoais')
+@login_required
+def dados_pessoais():
+    return render_template('client/dados_pessoais.html', user=current_user)
 
 @client_bp.route('/faturas', methods=['GET', 'POST'])
 @login_required
@@ -41,7 +86,6 @@ def faturas():
                 return redirect(url_for('client.faturas'))
             
             try:
-                # Upload direto pra nuvem
                 upload_res = cloudinary.uploader.upload(file_path, folder="dwcapital/relatorios", resource_type="raw")
                 dia.arquivo_pdf = upload_res.get('secure_url')
                 dia.bruto, dia.taxas_b3, dia.irrf_1 = dados.get('bruto'), dados.get('taxas_b3'), dados.get('irrf_1')
@@ -53,7 +97,7 @@ def faturas():
                 atualizar_totais_semana(dia.fatura_semanal)
                 flash('Relatório salvo na nuvem!', 'success')
             except: flash('Erro na nuvem.', 'danger')
-    return render_template('client/faturas.html', user=current_user, faturas=current_user.faturas)
+    return render_template('client/faturas.html', faturas=current_user.faturas)
 
 @client_bp.route('/faturas/comprovante/<int:fatura_id>', methods=['POST'])
 @login_required
@@ -62,12 +106,11 @@ def enviar_comprovante(fatura_id):
     arquivo = request.files.get('comprovante')
     if arquivo:
         try:
-            # Cloudinary faz o trabalho de otimizar a imagem aqui
             res = cloudinary.uploader.upload(arquivo, folder="dwcapital/comprovantes")
             fatura.comprovante_pix = res.get('secure_url')
             db.session.commit()
             flash('Comprovante enviado!', 'success')
-        except: flash('Erro ao enviar comprovante.', 'danger')
+        except: flash('Erro ao enviar.', 'danger')
     return redirect(url_for('client.faturas'))
 
 @client_bp.route('/faturas/remover/<int:dia_id>', methods=['POST'])
@@ -78,4 +121,11 @@ def remover_fatura(dia_id):
     db.session.commit()
     atualizar_totais_semana(dia.fatura_semanal)
     return redirect(url_for('client.faturas'))
+
+@client_bp.route('/ajuda')
+@login_required
+def ajuda():
+    mensagem = f"Olá, sou {current_user.nome}. Preciso de suporte."
+    msg_encoded = urllib.parse.quote(mensagem)
+    return render_template('client/ajuda.html', link_suporte=f"https://wa.me/5511991167709?text={msg_encoded}")
 
