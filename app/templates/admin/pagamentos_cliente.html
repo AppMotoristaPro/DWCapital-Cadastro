@@ -70,7 +70,11 @@
                             <button type="button" onclick="document.getElementById('modal-dia-admin-{{ dia.id }}').classList.remove('hidden')" class="px-4 py-2 bg-white text-royal border border-royal/20 rounded-xl text-[10px] font-black uppercase tracking-widest">Detalhes</button>
                         </div>
                         <div class="flex gap-2 mt-4 pt-4 border-t border-green-100">
-                            <a href="{{ dia.arquivo_pdf }}" target="_blank" class="flex-1 text-center bg-white border border-green-200 text-green-700 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">Abrir Nuvem</a>
+                            {% if dia.arquivo_pdf and dia.arquivo_pdf.startswith('http') %}
+                                <a href="{{ dia.arquivo_pdf }}" target="_blank" class="flex-1 text-center bg-white border border-green-200 text-green-700 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">Abrir Nuvem</a>
+                            {% else %}
+                                <span class="flex-1 text-center bg-gray-100 border border-gray-200 text-gray-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest cursor-not-allowed">Arquivo Antigo (Rejeite)</span>
+                            {% endif %}
                             <form action="{{ url_for('admin.rejeitar_relatorio', dia_id=dia.id) }}" method="POST" onsubmit="return confirm('Rejeitar este relatório?')">
                                 <button type="submit" class="bg-red-50 text-red-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-100">X</button>
                             </form>
