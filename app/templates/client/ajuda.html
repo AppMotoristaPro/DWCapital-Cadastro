@@ -1,0 +1,38 @@
+{% extends "client/layout.html" %}
+{% block client_content %}
+<div class="max-w-4xl mx-auto pb-20">
+    <h1 class="text-3xl font-black text-gray-800 mb-2">Central de Ajuda</h1>
+    <p class="text-gray-500 font-medium mb-8">Escolha o setor desejado para atendimento via WhatsApp.</p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <a href="{{ link_comercial }}" target="_blank" class="block bg-white p-8 rounded-3xl shadow-lg border border-gray-100 hover:shadow-2xl hover:-translate-y-1 transition transform duration-300 group">
+            <div class="w-16 h-16 bg-blue-50 text-royal rounded-2xl flex items-center justify-center mb-6 group-hover:bg-royal group-hover:text-white transition">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <h2 class="text-xl font-black text-navy mb-2 group-hover:text-royal transition">Comercial e Financeiro</h2>
+            <p class="text-gray-500 text-sm font-medium leading-relaxed">
+                Fale conosco sobre repasses, extratos, contratos, capital alocado e dúvidas comerciais em geral.
+            </p>
+            <div class="mt-6 flex items-center text-xs font-bold text-royal uppercase tracking-widest">
+                Iniciar Atendimento <svg class="w-4 h-4 ml-2 group-hover:translate-x-2 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+            </div>
+        </a>
+
+        <a href="{{ link_suporte }}" target="_blank" class="block bg-white p-8 rounded-3xl shadow-lg border border-gray-100 hover:shadow-2xl hover:-translate-y-1 transition transform duration-300 group">
+            <div class="w-16 h-16 bg-gray-50 text-gray-700 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-gray-800 group-hover:text-white transition">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+            </div>
+            <h2 class="text-xl font-black text-navy mb-2 group-hover:text-gray-800 transition">Suporte Técnico</h2>
+            <p class="text-gray-500 text-sm font-medium leading-relaxed">
+                Fale conosco caso esteja enfrentando erros na plataforma, dificuldade com a senha ou bugs no envio de arquivos.
+            </p>
+            <div class="mt-6 flex items-center text-xs font-bold text-gray-700 uppercase tracking-widest">
+                Iniciar Atendimento <svg class="w-4 h-4 ml-2 group-hover:translate-x-2 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+            </div>
+        </a>
+
+    </div>
+</div>
+{% endblock %}
+

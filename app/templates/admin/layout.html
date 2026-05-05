@@ -14,7 +14,7 @@
         
         <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
             <a href="{{ url_for('admin.dashboard') }}" class="block px-4 py-3.5 rounded-xl transition duration-300 {% if request.endpoint == 'admin.dashboard' %}bg-royal text-white shadow-lg shadow-royal/30 font-bold{% else %}hover:bg-navy-light hover:text-white font-medium{% endif %}">
-                Dashboard Inicial
+                Dashboard
             </a>
             <a href="{{ url_for('admin.clientes_list') }}" class="block px-4 py-3.5 rounded-xl transition duration-300 {% if request.endpoint == 'admin.clientes_list' %}bg-royal text-white shadow-lg shadow-royal/30 font-bold{% else %}hover:bg-navy-light hover:text-white font-medium{% endif %}">
                 Gestão de Clientes
