@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex items-center justify-center min-h-screen bg-ice p-4">
+    <div class="bg-white p-10 rounded-3xl shadow-2xl text-center max-w-lg mx-auto border border-blue-50/50">
+        <div class="w-24 h-24 bg-blue-100 rounded-3xl flex items-center justify-center mx-auto mb-6 text-royal">
+            <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+        </div>
+        <h1 class="text-4xl font-black text-navy mb-2 tracking-tight">Arquivo Gigante (413)</h1>
+        <p class="text-sm text-gray-500 font-medium mb-8 leading-relaxed">O arquivo que você tentou anexar é muito grande e ultrapassa o limite do servidor. Tente usar um arquivo menor.</p>
+        <button onclick="window.history.back()" class="inline-block px-8 py-4 bg-royal hover:bg-royal-dark text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg transition hover:-translate-y-1">Voltar e Tentar de Novo</button>
+    </div>
+</div>
+{% endblock %}
+
