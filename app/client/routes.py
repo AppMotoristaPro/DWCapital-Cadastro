@@ -11,6 +11,7 @@ from app.utils.pdf_parser import extrair_dados_nota_corretagem
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
 
 def atualizar_totais_semana(fatura):
+    # Calcula os totais financeiros
     fatura.bruto = sum(d.bruto for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.taxas_b3 = sum(d.taxas_b3 for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.irrf_1 = sum(d.irrf_1 for d in fatura.dias if d.status == 'relatorio_enviado')
@@ -18,7 +19,17 @@ def atualizar_totais_semana(fatura):
     fatura.irrf_19 = sum(d.irrf_19 for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.liquido = sum(d.liquido for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.repasse = sum(d.repasse for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.status = 'relatorio_enviado' if all(d.status == 'relatorio_enviado' for d in fatura.dias) else 'parcial'
+    
+    # NOVA LÓGICA DE STATUS: Conta quantos dias foram enviados
+    dias_enviados = sum(1 for d in fatura.dias if d.status == 'relatorio_enviado')
+    
+    if dias_enviados == 0:
+        fatura.status = 'pendente'
+    elif dias_enviados == 5:
+        fatura.status = 'completo'
+    else:
+        fatura.status = 'parcial'
+        
     db.session.commit()
 
 @client_bp.route('/dashboard')
@@ -76,7 +87,6 @@ def faturas():
         arquivo = request.files.get('relatorio_pdf')
         if arquivo and arquivo.filename:
             
-            # 1. GARANTIA DE PASTA: Cria a pasta se ela não existir
             upload_folder = os.path.join(current_app.root_path, 'static', 'uploads')
             os.makedirs(upload_folder, exist_ok=True)
             
@@ -92,18 +102,15 @@ def faturas():
                 return redirect(url_for('client.faturas'))
             
             try:
-                # 2. UPLOAD NA NUVEM
                 upload_res = cloudinary.uploader.upload(file_path, folder="dwcapital/relatorios", resource_type="raw")
                 dia.arquivo_pdf = upload_res.get('secure_url')
                 
-                # 3. SALVA OS DADOS
                 dia.bruto, dia.taxas_b3, dia.irrf_1 = dados.get('bruto'), dados.get('taxas_b3'), dados.get('irrf_1')
                 dia.liquido_pregao, dia.irrf_19, dia.liquido = dados.get('liquido_pregao'), dados.get('irrf_19'), dados.get('liquido_dia')
                 dia.repasse = dados.get('repasse_dw')
                 dia.status = 'relatorio_enviado'
                 db.session.commit()
                 
-                # 4. LIMPA O SERVIDOR
                 if os.path.exists(file_path): os.remove(file_path)
                 
                 atualizar_totais_semana(dia.fatura_semanal)
