@@ -1,4 +1,5 @@
 import os
+import urllib.parse
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
@@ -24,7 +25,6 @@ def assinar_termo():
         
     documento_enviado = bool(current_user.docusign_envelope_id)
         
-    # ENVIO AUTOMÁTICO: O servidor envia o e-mail logo ao carregar a página
     if not documento_enviado:
         caminho_pdf = os.path.join(current_app.root_path, 'static', 'documentos', 'termo_adesao.pdf')
         
@@ -51,14 +51,8 @@ def assinar_termo():
 @client_bp.route('/api/status_assinatura')
 @login_required
 def api_status_assinatura():
-    """
-    Rota invisível que o JavaScript da tela fica consultando de 5 em 5 segundos.
-    """
     doc_id = current_user.docusign_envelope_id
-    
-    if not doc_id:
-        return jsonify({"assinado": False})
-        
+    if not doc_id: return jsonify({"assinado": False})
     try:
         if verificar_status_autentique(doc_id):
             current_user.termo_assinado = True
@@ -66,7 +60,6 @@ def api_status_assinatura():
             return jsonify({"assinado": True})
     except Exception:
         pass
-        
     return jsonify({"assinado": False})
 
 @client_bp.route('/dados_pessoais')
@@ -87,26 +80,18 @@ def faturas():
         arquivo = request.files.get('relatorio_pdf')
         
         if arquivo and arquivo.filename:
-            # Verifica se é realmente um arquivo PDF
             if arquivo.filename.lower().endswith('.pdf'):
-                # Limpa o nome do arquivo por segurança
                 filename = secure_filename(arquivo.filename)
-                
-                # Adiciona o ID do dia para evitar que arquivos com o mesmo nome se sobrescrevam
                 filename = f"dia_{dia_id}_{filename}"
                 
-                # Garante que a pasta uploads existe
                 upload_folder = os.path.join(current_app.root_path, 'static', 'uploads')
                 os.makedirs(upload_folder, exist_ok=True) 
                 
-                # Caminho completo onde o arquivo será salvo
                 file_path = os.path.join(upload_folder, filename)
                 arquivo.save(file_path)
                 
-                # Atualiza o status no banco de dados
                 dia = FaturaDiaria.query.get(dia_id)
                 if dia:
-                    # Trava de segurança: garantir que o dia pertence à fatura do usuário atual
                     if dia.fatura_semanal.user_id == current_user.id:
                         dia.arquivo_pdf = filename
                         dia.status = 'relatorio_enviado'
@@ -121,9 +106,22 @@ def faturas():
         else:
             flash('Nenhum arquivo foi selecionado para envio.', 'warning')
             
-        # Recarrega a página para evitar reenvio de formulário ao atualizar
         return redirect(url_for('client.faturas'))
 
     faturas = current_user.faturas
     return render_template('client/faturas.html', user=current_user, faturas=faturas)
+
+@client_bp.route('/ajuda')
+@login_required
+def ajuda():
+    if not current_user.termo_assinado:
+        return redirect(url_for('client.assinar_termo'))
+        
+    mensagem = f"Olá, sou {current_user.nome}, ID {current_user.matricula or 'Pendente'}. Preciso de um suporte."
+    msg_encoded = urllib.parse.quote(mensagem)
+    
+    link_comercial = f"https://wa.me/5511920504850?text={msg_encoded}"
+    link_suporte = f"https://wa.me/5511991167709?text={msg_encoded}"
+    
+    return render_template('client/ajuda.html', user=current_user, link_comercial=link_comercial, link_suporte=link_suporte)
 

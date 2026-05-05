@@ -72,7 +72,8 @@ def clientes_list():
     busca = request.args.get('q', '')
     query = User.query.filter_by(role='cliente')
     if busca:
-        query = query.filter(User.nome.ilike(f'%{busca}%'))
+        # ATUALIZADO: Busca por nome OU matrícula
+        query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
     clientes = query.order_by(User.id.desc()).all()
     return render_template('admin/index.html', clientes=clientes, busca=busca)
 
@@ -119,14 +120,13 @@ def editar_cliente(id):
         cliente.celular = request.form.get('celular')
         cliente.capital_alocado = float(request.form.get('capital') or 0.0)
         
-        # Lógica para salvar a nova data de cadastro
         nova_data_str = request.form.get('data_cadastro')
         if nova_data_str:
             try:
                 dt = datetime.strptime(nova_data_str, '%Y-%m-%dT%H:%M')
                 cliente.data_cadastro = tz_br.localize(dt)
             except ValueError:
-                pass # Em caso de formato inválido, mantém a data atual
+                pass 
 
         db.session.commit()
         flash('Dados atualizados.', 'success')
@@ -157,7 +157,8 @@ def pagamentos():
     busca = request.args.get('q', '')
     query = User.query.filter_by(role='cliente', status_acesso='ativo')
     if busca:
-        query = query.filter(User.nome.ilike(f'%{busca}%'))
+        # ATUALIZADO: Busca por nome OU matrícula
+        query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
     ativos = query.all()
     
     hoje = datetime.now().date()
