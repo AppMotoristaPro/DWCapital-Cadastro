@@ -17,21 +17,45 @@ admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 def dashboard():
     if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
     
+    # ATUALIZAÇÃO: Captura de todos os filtros do formulário
+    filtro_dia = request.args.get('dia')
+    filtro_semana = request.args.get('semana')
     filtro_mes = request.args.get('mes')
+    
     faturas_base = Fatura.query.filter(Fatura.status.in_(['parcial', 'completo', 'pago', 'inadimplente']))
     
     label_periodo = "Todo o Período"
     
-    if filtro_mes:
-        dt_inicio = datetime.strptime(filtro_mes + '-01', '%Y-%m-%d').date()
-        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio).all()
-        label_periodo = f"Mês {dt_inicio.strftime('%m/%Y')}"
+    # Lógica Dinâmica de Filtros
+    if filtro_dia:
+        dt_dia = datetime.strptime(filtro_dia, '%Y-%m-%d').date()
+        # Pega as faturas em que este dia está contido no ciclo
+        faturas_filtradas = faturas_base.filter(Fatura.data_inicio <= dt_dia, Fatura.data_fim >= dt_dia).all()
+        label_periodo = f"Dia {dt_dia.strftime('%d/%m/%Y')}"
+        
+    elif filtro_semana:
+        # O HTML envia '2026-W18'. O '-1' no final indica a segunda-feira daquela semana
+        dt_inicio_sem = datetime.strptime(filtro_semana + '-1', '%G-W%V-%u').date()
+        dt_fim_sem = dt_inicio_sem + timedelta(days=6)
+        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_sem, Fatura.data_inicio <= dt_fim_sem).all()
+        label_periodo = f"Semana {dt_inicio_sem.strftime('%d/%m')} a {dt_fim_sem.strftime('%d/%m')}"
+        
+    elif filtro_mes:
+        dt_inicio_mes = datetime.strptime(filtro_mes + '-01', '%Y-%m-%d').date()
+        # Descobre o último dia do mês
+        if dt_inicio_mes.month == 12:
+            dt_fim_mes = dt_inicio_mes.replace(year=dt_inicio_mes.year+1, month=1, day=1) - timedelta(days=1)
+        else:
+            dt_fim_mes = dt_inicio_mes.replace(month=dt_inicio_mes.month+1, day=1) - timedelta(days=1)
+            
+        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_mes, Fatura.data_inicio <= dt_fim_mes).all()
+        label_periodo = f"Mês {dt_inicio_mes.strftime('%m/%Y')}"
+        
     else:
         faturas_filtradas = faturas_base.all()
         
     faturamento_total = sum(f.repasse for f in faturas_filtradas)
     
-    # ATUALIZAÇÃO: Contagem de Ativos e Inativos separados
     clientes_ativos = User.query.filter_by(role='cliente', status_acesso='ativo').count()
     clientes_inativos = User.query.filter_by(role='cliente', status_acesso='inativo').count()
     
@@ -54,7 +78,6 @@ def dashboard():
 def clientes_list():
     if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
     
-    # ATUALIZAÇÃO: Capturando os filtros de busca e status
     busca = request.args.get('q', '')
     status_filtro = request.args.get('status', '')
     
@@ -114,7 +137,6 @@ def editar_cliente(id):
         return redirect(url_for('admin.clientes_list'))
     return render_template('admin/editar.html', cliente=cliente)
 
-# NOVA ROTA: Inativar Cliente
 @admin_bp.route('/inativar_cliente/<int:id>', methods=['POST'])
 @login_required
 def inativar_cliente(id):
@@ -124,7 +146,6 @@ def inativar_cliente(id):
     flash(f'Cliente {cliente.nome} inativado com sucesso.', 'success')
     return redirect(url_for('admin.clientes_list'))
 
-# NOVA ROTA: Excluir Cliente Definitivamente
 @admin_bp.route('/excluir_cliente/<int:id>', methods=['POST'])
 @login_required
 def excluir_cliente(id):
