@@ -81,7 +81,14 @@ def dados_pessoais():
 def faturas():
     if request.method == 'GET':
         for fatura in current_user.faturas:
-            datas_da_semana = [fatura.data_inicio + timedelta(days=i) for i in range(5)]
+            # LÓGICA DE DIAS ÚTEIS: Garante 5 dias, ignorando Sábado (5) e Domingo (6)
+            datas_da_semana = []
+            data_atual = fatura.data_inicio
+            while len(datas_da_semana) < 5:
+                if data_atual.weekday() < 5:
+                    datas_da_semana.append(data_atual)
+                data_atual += timedelta(days=1)
+                
             for data in datas_da_semana:
                 for alocacao in current_user.alocacoes:
                     dia_existente = FaturaDiaria.query.filter_by(
@@ -120,11 +127,22 @@ def faturas():
                 print(f"[ROUTES] Chamando processar_pdf para {dia.nome_corretora}...")
                 dados = processar_pdf(file_path, dia.nome_corretora, current_user.cpf, senha_manual)
                 
-                # === TRAVA DE DATA DESATIVADA TEMPORARIAMENTE PARA TESTES ===
+                # VARIÁVEL DE AMBIENTE: Controle de Bloqueio de Data
+                bloq_data_env = os.environ.get('BLOQ_DATA', 'False').lower()
+                bloquear_data = bloq_data_env in ('true', '1', 't')
+                
                 if not dados:
                     print("[ROUTES] ERRO: Retorno do processar_pdf foi None.")
                     if os.path.exists(file_path): os.remove(file_path)
                     return jsonify({'success': False, 'error': 'RELATORIO_INVALIDO', 'message': 'Não foi possível ler os dados do PDF.'})
+
+                data_pdf = dados.get('data_pregao')
+                data_esperada = dia.data_pregao.strftime('%d/%m/%Y')
+                
+                if bloquear_data and data_pdf != data_esperada:
+                    print(f"[ROUTES] ERRO DE DATA: PDF={data_pdf} | Esperada={data_esperada}")
+                    if os.path.exists(file_path): os.remove(file_path)
+                    return jsonify({'success': False, 'error': 'RELATORIO_INVALIDO', 'message': f'Data incorreta. Esperado: {data_esperada}.'})
 
                 print("[ROUTES] Sucesso na leitura do robô! Arquivo local destrancado.")
                 print("[ROUTES] Iniciando envio para o Cloudinary (versão sem senha)...")

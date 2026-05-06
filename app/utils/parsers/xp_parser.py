@@ -24,8 +24,7 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
                 pdf_trancado.save(buffer_limpo)
                 buffer_limpo.seek(0)
             
-            # MAGIA ACONTECENDO AQUI: Substituímos o arquivo trancado pelo arquivo limpo no disco.
-            # Assim, quando a rota mandar o arquivo pro Cloudinary, ele já vai sem senha!
+            # Substituímos o arquivo trancado pelo arquivo limpo no disco.
             with open(caminho_arquivo, "wb") as f_out:
                 f_out.write(buffer_limpo.getvalue())
             print("[XP_PARSER] Arquivo original sobrescrito com sucesso (Cadeado removido).")
@@ -51,13 +50,6 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
             except Exception as e2:
                 print(f"[XP_PARSER] ERRO: Fallback falhou também. Senha incorreta ou arquivo corrompido.")
                 raise Exception("SENHA_INCORRETA")
-
-        # DUMP DO TEXTO PARA ANÁLISE NO RENDER
-        print("\n" + "="*50)
-        print("[XP_PARSER] --- INÍCIO DO DUMP DE TEXTO DA PÁGINA ---")
-        print(texto_completo)
-        print("[XP_PARSER] --- FIM DO DUMP DE TEXTO DA PÁGINA ---")
-        print("="*50 + "\n")
 
         print("[XP_PARSER] Validando assinatura da corretora...")
         if "XP INVESTIMENTOS" not in texto_completo.upper():
@@ -91,9 +83,10 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
             return 0.0
 
         print("[XP_PARSER] Extraindo valores financeiros...")
-        v_bruto = extrair_por_posicao(r"Valor dos negócios", texto_completo, 1)
-        v_irrf_1 = extrair_por_posicao(r"IRRF Day Trade", texto_completo, 1) 
-        v_taxas_b3 = extrair_por_posicao(r"Total de custos operacionais", texto_completo, 1)
+        # REGRAS AJUSTADAS: Ignorando as colunas de "Opções" que ficavam zeradas
+        v_bruto = extrair_por_posicao(r"Valor dos negócios", texto_completo, 5)
+        v_irrf_1 = extrair_por_posicao(r"IRRF Day Trade", texto_completo, 2) 
+        v_taxas_b3 = extrair_por_posicao(r"Total de custos operacionais", texto_completo, 5)
 
         v_liquido_pregao = v_bruto - v_taxas_b3 - v_irrf_1
         v_irrf_19 = v_liquido_pregao * 0.19 if v_liquido_pregao > 0 else 0.0
