@@ -3,6 +3,7 @@ import string
 from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy import text  # IMPORTAÇÃO ADICIONADA PARA EXECUTAR SQL PURO
 from app.models import User, AlocacaoCorretora
 from app import db
 
@@ -145,6 +146,16 @@ def setup_secreto():
 @auth_bp.route('/migracao_secreta_dw')
 def migracao_secreta():
     try:
+        # 1. INJEÇÃO SQL FORÇADA: Cria a coluna que faltava na tabela antiga
+        try:
+            db.session.execute(text('ALTER TABLE fatura_diaria ADD COLUMN IF NOT EXISTS nome_corretora VARCHAR(50);'))
+            db.session.commit()
+            msg_coluna = "Coluna 'nome_corretora' forçada com sucesso! "
+        except Exception as e_sql:
+            db.session.rollback()
+            msg_coluna = f"Aviso sobre a coluna (pode já existir): {str(e_sql)}. "
+
+        # 2. MIGRAÇÃO DE DADOS DOS CLIENTES
         usuarios = User.query.all()
         alocacoes_criadas = 0
         
@@ -169,7 +180,7 @@ def migracao_secreta():
                 alocacoes_criadas += 1
         
         db.session.commit()
-        return f"✅ MIGRAÇÃO CONCLUÍDA! {alocacoes_criadas} alocações convertidas com sucesso. O histórico dos clientes está a salvo."
+        return f"✅ {msg_coluna} MIGRAÇÃO CONCLUÍDA! {alocacoes_criadas} alocações convertidas com sucesso. O histórico dos clientes está a salvo."
         
     except Exception as e:
         db.session.rollback()
