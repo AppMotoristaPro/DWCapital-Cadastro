@@ -15,7 +15,7 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
             senha_final = cpf_limpo[-3:] if len(cpf_limpo) >= 3 else ""
             print(f"[XP_PARSER] Tentando senha automática (final CPF): {senha_final}")
         
-        # 2. Desbloqueio com pikepdf
+        # 2. Desbloqueio com pikepdf e Sobrescrita do Arquivo
         try:
             print("[XP_PARSER] Tentando abrir com o motor PIKEPDF...")
             with pikepdf.open(caminho_arquivo, password=senha_final) as pdf_trancado:
@@ -23,12 +23,18 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
                 buffer_limpo = io.BytesIO()
                 pdf_trancado.save(buffer_limpo)
                 buffer_limpo.seek(0)
-                
-                print("[XP_PARSER] Extraindo texto da memória...")
-                leitor = PdfReader(buffer_limpo)
-                ultima_pagina = leitor.pages[-1]
-                texto_completo = ultima_pagina.extract_text()
-                print("[XP_PARSER] Texto extraído com sucesso pelo PIKEPDF.")
+            
+            # MAGIA ACONTECENDO AQUI: Substituímos o arquivo trancado pelo arquivo limpo no disco.
+            # Assim, quando a rota mandar o arquivo pro Cloudinary, ele já vai sem senha!
+            with open(caminho_arquivo, "wb") as f_out:
+                f_out.write(buffer_limpo.getvalue())
+            print("[XP_PARSER] Arquivo original sobrescrito com sucesso (Cadeado removido).")
+
+            print("[XP_PARSER] Extraindo texto da memória...")
+            leitor = PdfReader(buffer_limpo)
+            ultima_pagina = leitor.pages[-1]
+            texto_completo = ultima_pagina.extract_text()
+            print("[XP_PARSER] Texto extraído com sucesso pelo PIKEPDF.")
                 
         except pikepdf.PasswordError:
             print("[XP_PARSER] ERRO: PIKEPDF rejeitou a senha.")
@@ -45,6 +51,13 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
             except Exception as e2:
                 print(f"[XP_PARSER] ERRO: Fallback falhou também. Senha incorreta ou arquivo corrompido.")
                 raise Exception("SENHA_INCORRETA")
+
+        # DUMP DO TEXTO PARA ANÁLISE NO RENDER
+        print("\n" + "="*50)
+        print("[XP_PARSER] --- INÍCIO DO DUMP DE TEXTO DA PÁGINA ---")
+        print(texto_completo)
+        print("[XP_PARSER] --- FIM DO DUMP DE TEXTO DA PÁGINA ---")
+        print("="*50 + "\n")
 
         print("[XP_PARSER] Validando assinatura da corretora...")
         if "XP INVESTIMENTOS" not in texto_completo.upper():

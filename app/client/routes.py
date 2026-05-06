@@ -126,7 +126,8 @@ def faturas():
                     if os.path.exists(file_path): os.remove(file_path)
                     return jsonify({'success': False, 'error': 'RELATORIO_INVALIDO', 'message': 'Não foi possível ler os dados do PDF.'})
 
-                print("[ROUTES] Sucesso na leitura! Iniciando envio Cloudinary...")
+                print("[ROUTES] Sucesso na leitura do robô! Arquivo local destrancado.")
+                print("[ROUTES] Iniciando envio para o Cloudinary (versão sem senha)...")
                 upload_res = cloudinary.uploader.upload(file_path, folder="dwcapital/relatorios")
                 print("[ROUTES] Envio Cloudinary finalizado.")
                 
