@@ -3,8 +3,7 @@ import string
 from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import text
-from app.models import User
+from app.models import User, AlocacaoCorretora
 from app import db
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
@@ -31,20 +30,16 @@ def login():
         if user and check_password_hash(user.password_hash, senha):
             if user.status_acesso == 'ativo':
                 login_user(user)
-                # INTERCEPTAÇÃO: Se a trava estiver True, obriga a trocar a senha
                 if getattr(user, 'precisa_trocar_senha', False):
                     return redirect(url_for('auth.forcar_troca_senha'))
                     
                 return redirect(url_for('admin.dashboard' if user.role == 'admin' else 'client.dashboard'))
-            # ATUALIZADO: Usando auth_error
             flash('Cadastro pendente. Vá em Primeiro Acesso.', 'auth_error')
         else:
-            # ATUALIZADO: Usando auth_error 1
             flash('Credenciais inválidas.', 'auth_error')
             
     return render_template('auth/login.html')
 
-# NOVA ROTA: Forçar troca de senha após reset do admin
 @auth_bp.route('/forcar_troca_senha', methods=['GET', 'POST'])
 @login_required
 def forcar_troca_senha():
@@ -53,7 +48,6 @@ def forcar_troca_senha():
         
     if request.method == 'POST':
         nova_senha = request.form.get('senha')
-        
         current_user.password_hash = generate_password_hash(nova_senha)
         current_user.precisa_trocar_senha = False
         db.session.commit()
@@ -99,14 +93,28 @@ def primeiro_acesso():
             cep = request.form.get('cep', '')
             
             user.endereco = f"{rua}, {numero} - {bairro}, {cidade}/{estado} - CEP: {cep}"
-            user.corretora = request.form.get('corretora')
-            user.capital_alocado = float(request.form.get('capital') or 0.0)
             user.password_hash = generate_password_hash(request.form.get('senha'))
             user.matricula = gerar_matricula_unica() 
             user.status_acesso = 'ativo'
             
+            # Limpeza de alocações antigas em caso de erro na tela (Prevenção)
+            AlocacaoCorretora.query.filter_by(user_id=user.id).delete()
+            
+            # Recupera as listas enviadas pelo Frontend (Os Arrays Dinâmicos)
+            corretoras_selecionadas = request.form.getlist('corretora[]')
+            capitais_alocados = request.form.getlist('capital[]')
+            
+            # Zíper: Junta a corretora 1 com o capital 1, e salva.
+            for corretora, capital in zip(corretoras_selecionadas, capitais_alocados):
+                if corretora and capital:
+                    nova_alocacao = AlocacaoCorretora(
+                        user_id=user.id,
+                        nome_corretora=corretora.upper(),
+                        capital_alocado=float(capital)
+                    )
+                    db.session.add(nova_alocacao)
+            
             db.session.commit()
-            # ATUALIZADO: Usando auth_success para aparecer no login.html
             flash('Cadastro concluído com sucesso! Bem-vindo à DW Capital.', 'auth_success')
             return redirect(url_for('auth.login'))
         
@@ -133,6 +141,39 @@ def setup_secreto():
         return "ℹ️ O Admin já existe. Nenhuma alteração foi necessária."
     except Exception as e:
         return f"❌ Erro: {e}"
+
+@auth_bp.route('/migracao_secreta_dw')
+def migracao_secreta():
+    try:
+        usuarios = User.query.all()
+        alocacoes_criadas = 0
+        
+        for user in usuarios:
+            # Pula clientes que não possuem corretora antiga cadastrada
+            if not user.corretora:
+                continue
+                
+            # Verifica se já migrou antes para não duplicar
+            existe = AlocacaoCorretora.query.filter_by(
+                user_id=user.id, 
+                nome_corretora=user.corretora
+            ).first()
+            
+            if not existe:
+                nova_alocacao = AlocacaoCorretora(
+                    user_id=user.id,
+                    nome_corretora=user.corretora.upper(),
+                    capital_alocado=user.capital_alocado or 0.0
+                )
+                db.session.add(nova_alocacao)
+                alocacoes_criadas += 1
+        
+        db.session.commit()
+        return f"✅ MIGRAÇÃO CONCLUÍDA! {alocacoes_criadas} alocações convertidas com sucesso. O histórico dos clientes está a salvo."
+        
+    except Exception as e:
+        db.session.rollback()
+        return f"❌ Erro ao salvar migração: {str(e)}"
 
 @auth_bp.route('/logout')
 def logout():
