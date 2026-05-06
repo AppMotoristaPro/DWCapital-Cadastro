@@ -3,26 +3,29 @@ from pypdf import PdfReader
 
 def extrair_dados_xp(caminho_arquivo, cpf_cliente):
     try:
-        leitor = PdfReader(caminho_arquivo)
+        # 1. Preparação da Senha (Garante que pegamos os 3 dígitos finais do CPF 819)
+        cpf_limpo = ''.join(filter(str.isdigit, str(cpf_cliente)))
+        senha_final = cpf_limpo[-3:] if len(cpf_limpo) >= 3 else ""
         
-        # Desbloqueio da Nota usando os 3 últimos dígitos do CPF do cliente
-        if leitor.is_encrypted:
-            # Pega os últimos 3 caracteres do CPF (removendo qualquer máscara que possa ter passado)
-            cpf_limpo = ''.join(filter(str.isdigit, cpf_cliente))
-            senha = cpf_limpo[-3:]
-            
-            sucesso_desbloqueio = leitor.decrypt(senha)
-            
-            # Se o decrypt retornar 0, a senha falhou!
-            if sucesso_desbloqueio == 0:
-                raise Exception(f"A senha '{senha}' (final do CPF) está incorreta e não abriu a nota da XP.")
+        # 2. Abertura Direta com Senha (Evita o erro de 'Not Supported')
+        # Tentamos abrir já passando a senha na inicialização
+        try:
+            leitor = PdfReader(caminho_arquivo, password=senha_final)
+        except:
+            # Fallback caso a versão da biblioteca peça abertura simples primeiro
+            leitor = PdfReader(caminho_arquivo)
+            if leitor.is_encrypted:
+                leitor.decrypt(senha_final)
 
-        ultima_pagina = leitor.pages[-1]
-        texto_completo = ultima_pagina.extract_text()
+        # 3. Validação de Acesso
+        try:
+            ultima_pagina = leitor.pages[-1]
+            texto_completo = ultima_pagina.extract_text()
+        except Exception as e:
+            raise Exception(f"Cadeado não abriu. A senha '{senha_final}' foi rejeitada pelo PDF da XP.")
         
         # BLOQUEIO DE SEGURANÇA: Verifica se o PDF é realmente da XP
         if "XP INVESTIMENTOS" not in texto_completo.upper():
-            print("[ERRO] O PDF enviado não pertence à XP Investimentos.")
             return None
         
         match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo)
@@ -49,12 +52,11 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente):
                     return limpar_valor(numeros[posicao - 1])
             return 0.0
 
-        # Regras XP: Bruto (1º), IRRF 1% (1º), Custos (1º)
+        # Regras XP atualizadas
         v_bruto = extrair_por_posicao(r"Valor dos negócios", texto_completo, 1)
         v_irrf_1 = extrair_por_posicao(r"IRRF Day Trade", texto_completo, 1) 
         v_taxas_b3 = extrair_por_posicao(r"Total de custos operacionais", texto_completo, 1)
 
-        # Cálculos Matemáticos DW Capital
         v_liquido_pregao = v_bruto - v_taxas_b3 - v_irrf_1
         v_irrf_19 = v_liquido_pregao * 0.19 if v_liquido_pregao > 0 else 0.0
         v_liquido_dia = v_liquido_pregao - v_irrf_19
@@ -71,6 +73,5 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente):
             'repasse_dw': v_repasse
         }
     except Exception as e:
-        # Repassa o erro exato para o log e para a tela
-        raise Exception(f"Erro na XP: {str(e)}")
+        raise Exception(str(e))
 
