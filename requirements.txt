@@ -10,4 +10,5 @@ pypdf==4.2.0
 pytz==2024.1
 requests
 cloudinary==1.40.0
+cryptography
 
