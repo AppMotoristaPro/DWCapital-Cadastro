@@ -1,30 +1,41 @@
 import re
+import io
+import pikepdf
 from pypdf import PdfReader
 
 def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
     try:
-        # 1. Definição da Senha a ser usada
+        # 1. Definição da Senha (Prioriza manual, senão usa final do CPF ...819)
         if senha_manual:
             senha_final = str(senha_manual).strip()
         else:
             cpf_limpo = ''.join(filter(str.isdigit, str(cpf_cliente)))
             senha_final = cpf_limpo[-3:] if len(cpf_limpo) >= 3 else ""
         
-        # 2. Tentativa de Abertura (Método Robusto)
+        # 2. Desbloqueio com pikepdf (Motor de alta compatibilidade)
         try:
-            leitor = PdfReader(caminho_arquivo, password=senha_final)
-            if leitor.is_encrypted:
-                leitor.decrypt(senha_final)
-        except Exception:
+            # pikepdf abre o arquivo e remove a criptografia
+            with pikepdf.open(caminho_arquivo, password=senha_final) as pdf_trancado:
+                # Criamos um buffer na memória para não precisar salvar outro arquivo no disco
+                buffer_limpo = io.BytesIO()
+                pdf_trancado.save(buffer_limpo)
+                buffer_limpo.seek(0)
+                
+                # Agora o PdfReader lê o arquivo já desbloqueado
+                leitor = PdfReader(buffer_limpo)
+                ultima_pagina = leitor.pages[-1]
+                texto_completo = ultima_pagina.extract_text()
+        except pikepdf.PasswordError:
             raise Exception("SENHA_INCORRETA")
+        except Exception as e:
+            # Fallback para caso o PDF já esteja sem senha
+            try:
+                leitor = PdfReader(caminho_arquivo)
+                ultima_pagina = leitor.pages[-1]
+                texto_completo = ultima_pagina.extract_text()
+            except:
+                raise Exception("SENHA_INCORRETA")
 
-        # 3. Validação de Leitura
-        try:
-            ultima_pagina = leitor.pages[-1]
-            texto_completo = ultima_pagina.extract_text()
-        except:
-            raise Exception("SENHA_INCORRETA")
-        
         # BLOQUEIO DE SEGURANÇA: Verifica se o PDF é realmente da XP
         if "XP INVESTIMENTOS" not in texto_completo.upper():
             return None
@@ -53,7 +64,7 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
                     return limpar_valor(numeros[posicao - 1])
             return 0.0
 
-        # Regras XP
+        # Regras XP (Mantidas conforme sua lógica original de extração)
         v_bruto = extrair_por_posicao(r"Valor dos negócios", texto_completo, 1)
         v_irrf_1 = extrair_por_posicao(r"IRRF Day Trade", texto_completo, 1) 
         v_taxas_b3 = extrair_por_posicao(r"Total de custos operacionais", texto_completo, 1)
@@ -74,5 +85,7 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
             'repasse_dw': v_repasse
         }
     except Exception as e:
-        raise Exception(str(e))
+        if "SENHA_INCORRETA" in str(e):
+            raise Exception("SENHA_INCORRETA")
+        raise Exception(f"Erro na extração XP: {str(e)}")
 
