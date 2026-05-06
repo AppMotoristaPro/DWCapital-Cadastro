@@ -31,7 +31,7 @@
                         <div class="py-6 flex flex-col md:flex-row justify-between items-center gap-6">
                             <div class="w-full md:w-1/3">
                                 <p class="text-sm font-black text-navy uppercase">{{ ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'][dia.data_pregao.weekday()] }}</p>
-                                <p class="text-xs text-gray-400 font-bold">{{ dia.data_pregao.strftime('%d/%m/%Y') }}</p>
+                                <p class="text-xs text-gray-500 font-bold tracking-widest">{{ dia.data_pregao.strftime('%d/%m/%Y') }}</p>
                             </div>
 
                             <div class="w-full md:w-2/3">
@@ -54,6 +54,58 @@
                     </div>
                 </details>
                 {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <h2 class="text-2xl font-black text-gray-800 mb-6 mt-12 pt-8 border-t border-gray-200">Resumo Consolidado</h2>
+    <div class="space-y-4">
+        {% for fatura in faturas %}
+        <div class="bg-gradient-to-r from-royal to-royal-dark p-8 rounded-3xl flex flex-col md:flex-row justify-between items-center text-white shadow-2xl">
+            <div>
+                <p class="text-[10px] font-bold uppercase tracking-widest text-blue-200 mb-1">Semana de {{ fatura.data_inicio.strftime('%d/%m') }} a {{ fatura.data_fim.strftime('%d/%m') }}</p>
+                <p class="text-3xl font-black mb-1">R$ {{ fatura.repasse|format_brl }}</p>
+                <p class="text-xs text-blue-100 font-medium">Soma de todas as corretoras operadas</p>
+            </div>
+            <div class="flex gap-3 mt-6 md:mt-0">
+                <button type="button" onclick="document.getElementById('modal-semana-{{ fatura.id }}').classList.remove('hidden')" class="bg-white/10 hover:bg-white/20 text-white border border-white/20 px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition shadow-sm backdrop-blur-sm">Ver Fechamento</button>
+                <button type="button" onclick="document.getElementById('modal-pix-{{ fatura.id }}').classList.remove('hidden')" class="bg-white text-royal px-8 py-3 rounded-xl font-black text-sm uppercase tracking-widest shadow-xl hover:scale-105 transition">PIX de Repasse</button>
+            </div>
+        </div>
+
+        <div id="modal-semana-{{ fatura.id }}" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-navy/50 backdrop-blur-sm p-4">
+            <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 relative">
+                <button onclick="document.getElementById('modal-semana-{{ fatura.id }}').classList.add('hidden')" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black">X</button>
+                <h2 class="text-xl font-black text-navy mb-1">Fechamento Consolidado</h2>
+                <p class="text-xs text-gray-500 font-bold uppercase tracking-widest mb-6">De {{ fatura.data_inicio.strftime('%d/%m') }} a {{ fatura.data_fim.strftime('%d/%m') }}</p>
+                
+                <div class="space-y-3 font-medium text-sm text-gray-600">
+                    <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-gray-400">Valor Bruto</span> <span class="font-bold text-navy">R$ {{ fatura.bruto|format_brl }}</span></div>
+                    <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-red-400">Taxas B3</span> <span class="text-red-500">R$ {{ fatura.taxas_b3|format_brl }}</span></div>
+                    <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-red-400">IRRF (1%)</span> <span class="text-red-500">R$ {{ fatura.irrf_1|format_brl }}</span></div>
+                    <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-gray-400">Líquido do Pregão</span> <span class="font-bold text-navy">R$ {{ fatura.liquido_pregao|format_brl }}</span></div>
+                    <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-red-400">IRRF (19%)</span> <span class="text-red-500">R$ {{ fatura.irrf_19|format_brl }}</span></div>
+                    <div class="flex justify-between pb-2 border-b border-gray-100"><span class="text-gray-400">Líquido do Dia</span> <span class="font-bold text-navy">R$ {{ fatura.liquido|format_brl }}</span></div>
+                    <div class="flex justify-between pt-2 mt-2 bg-green-50 p-3 rounded-xl border border-green-100"><span class="font-black text-green-700">Repasse DW (30%)</span> <span class="font-black text-green-600">R$ {{ fatura.repasse|format_brl }}</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="modal-pix-{{ fatura.id }}" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-navy/50 backdrop-blur-sm p-4">
+            <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 relative">
+                <button onclick="document.getElementById('modal-pix-{{ fatura.id }}').classList.add('hidden')" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black">X</button>
+                <div class="text-center mb-6">
+                    <div class="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-green-600">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <h2 class="text-2xl font-black text-navy">Pagamento PIX</h2>
+                </div>
+                <div class="bg-gray-50 p-5 rounded-2xl border border-gray-100 mb-6 space-y-3">
+                    <div class="flex justify-between border-b border-gray-200 pb-3"><span class="text-xs font-bold text-gray-400">Instituição</span><span class="text-sm font-black text-navy">Nu Pagamentos</span></div>
+                    <div class="flex justify-between border-b border-gray-200 pb-3 pt-1"><span class="text-xs font-bold text-gray-400">Nome</span><span class="text-sm font-black text-navy">Dw Sollar</span></div>
+                    <div class="flex justify-between items-center pt-1"><span class="text-xs font-bold text-gray-400">Chave CNPJ</span><span class="text-sm font-black text-green-600">58.422.030/0001-76</span></div>
+                </div>
             </div>
         </div>
         {% endfor %}

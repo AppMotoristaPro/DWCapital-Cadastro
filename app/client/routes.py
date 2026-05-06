@@ -12,7 +12,6 @@ from app.utils.parsers.gerenciador_pdf import processar_pdf
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
 
 def atualizar_totais_semana(fatura):
-    """Calcula os totais financeiros de TODAS as corretoras juntas (Consolidado)"""
     fatura.bruto = sum(d.bruto for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.taxas_b3 = sum(d.taxas_b3 for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.irrf_1 = sum(d.irrf_1 for d in fatura.dias if d.status == 'relatorio_enviado')
@@ -80,7 +79,6 @@ def dados_pessoais():
 @client_bp.route('/faturas', methods=['GET', 'POST'])
 @login_required
 def faturas():
-    # INJEÇÃO AUTOMÁTICA: Garante que existam dias para todas as corretoras do cliente
     if request.method == 'GET':
         for fatura in current_user.faturas:
             datas_da_semana = [fatura.data_inicio + timedelta(days=i) for i in range(5)]
@@ -106,7 +104,11 @@ def faturas():
         senha_manual = request.form.get('senha_manual')
         arquivo = request.files.get('relatorio_pdf')
         
+        print(f"\n[ROUTES] --- INÍCIO DE UPLOAD ---")
+        print(f"[ROUTES] FaturaDiaria ID: {dia_id} | Senha Manual: {'Sim' if senha_manual else 'Não'}")
+        
         if arquivo and arquivo.filename:
+            print(f"[ROUTES] Arquivo recebido: {arquivo.filename}")
             upload_folder = os.path.join(current_app.root_path, 'static', 'uploads')
             os.makedirs(upload_folder, exist_ok=True)
             file_path = os.path.join(upload_folder, arquivo.filename)
@@ -115,22 +117,19 @@ def faturas():
             dia = FaturaDiaria.query.get(dia_id)
             
             try:
-                # Tenta processar com senha manual (se enviada) ou automática (final do CPF)
+                print(f"[ROUTES] Chamando processar_pdf para {dia.nome_corretora}...")
                 dados = processar_pdf(file_path, dia.nome_corretora, current_user.cpf, senha_manual)
                 
                 # === TRAVA DE DATA DESATIVADA TEMPORARIAMENTE PARA TESTES ===
                 if not dados:
+                    print("[ROUTES] ERRO: Retorno do processar_pdf foi None.")
                     if os.path.exists(file_path): os.remove(file_path)
-                    return jsonify({
-                        'success': False, 
-                        'error': 'RELATORIO_INVALIDO', 
-                        'message': 'Não foi possível ler os dados do PDF.'
-                    })
+                    return jsonify({'success': False, 'error': 'RELATORIO_INVALIDO', 'message': 'Não foi possível ler os dados do PDF.'})
 
-                # Upload seguro para a nuvem
+                print("[ROUTES] Sucesso na leitura! Iniciando envio Cloudinary...")
                 upload_res = cloudinary.uploader.upload(file_path, folder="dwcapital/relatorios")
+                print("[ROUTES] Envio Cloudinary finalizado.")
                 
-                # Gravação dos dados extraídos
                 dia.arquivo_pdf = upload_res.get('secure_url')
                 dia.bruto = dados.get('bruto')
                 dia.taxas_b3 = dados.get('taxas_b3')
@@ -143,15 +142,17 @@ def faturas():
                 
                 db.session.commit()
                 atualizar_totais_semana(dia.fatura_semanal)
+                print("[ROUTES] Dados gravados no banco. Processo concluído.")
                 
                 if os.path.exists(file_path): os.remove(file_path)
                 return jsonify({'success': True})
 
             except Exception as e:
+                print(f"[ROUTES] EXCEÇÃO NO FLUXO: {str(e)}")
                 if os.path.exists(file_path): os.remove(file_path)
                 
-                # Caso o robô sinalize que o arquivo continua trancado
                 if "SENHA_INCORRETA" in str(e):
+                    print("[ROUTES] Disparando alerta de REQUER_SENHA para o Frontend.")
                     return jsonify({'success': False, 'error': 'REQUER_SENHA'})
                 
                 return jsonify({'success': False, 'error': 'ERRO_TECNICO', 'message': str(e)})

@@ -2,14 +2,15 @@ import re
 from pypdf import PdfReader
 
 def extrair_dados_genial(caminho_arquivo):
+    print(f"[GENIAL_PARSER] Iniciando robô Genial. Arquivo: {caminho_arquivo}")
     try:
         leitor = PdfReader(caminho_arquivo)
         ultima_pagina = leitor.pages[-1]
         texto_completo = ultima_pagina.extract_text()
+        print("[GENIAL_PARSER] Texto lido.")
         
-        # BLOQUEIO DE SEGURANÇA: Verifica se o PDF é realmente da Genial
         if "GENIAL" not in texto_completo.upper():
-            print("[ERRO] O PDF enviado não pertence à Genial Investimentos.")
+            print("[GENIAL_PARSER] ERRO: O PDF não pertence à Genial Investimentos.")
             return None
         
         match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo)
@@ -36,16 +37,16 @@ def extrair_dados_genial(caminho_arquivo):
                     return limpar_valor(numeros[posicao - 1])
             return 0.0
 
-        # Regras Genial: Valor Bruto (1º), IRRF 1% (2º), Taxas B3 (4º)
         v_bruto = extrair_por_posicao(r"Valor dos negócios", texto_completo, 1)
         v_irrf_1 = extrair_por_posicao(r"IRRF Day Trade", texto_completo, 2)
         v_taxas_b3 = extrair_por_posicao(r"Total das despesas", texto_completo, 4)
 
-        # Cálculos Matemáticos DW Capital
         v_liquido_pregao = v_bruto - v_taxas_b3 - v_irrf_1
         v_irrf_19 = v_liquido_pregao * 0.19 if v_liquido_pregao > 0 else 0.0
         v_liquido_dia = v_liquido_pregao - v_irrf_19
         v_repasse = v_liquido_dia * 0.30 if v_liquido_dia > 0 else 0.0
+        
+        print(f"[GENIAL_PARSER] Valores extraídos: {v_bruto} / {v_taxas_b3}")
 
         return {
             'data_pregao': data_pregao,
@@ -58,6 +59,6 @@ def extrair_dados_genial(caminho_arquivo):
             'repasse_dw': v_repasse
         }
     except Exception as e:
-        print(f"[ERRO GENIAL] {str(e)}")
+        print(f"[GENIAL_PARSER] Erro: {str(e)}")
         return None
 

@@ -4,6 +4,7 @@ from .btg_parser import extrair_dados_btg
 
 def processar_pdf(caminho_arquivo, corretora, cpf_cliente, senha_manual=None):
     corretora = corretora.upper()
+    print(f"\n[GERENCIADOR] Iniciando processamento. Corretora alvo: {corretora}")
     
     if corretora == 'GENIAL':
         return extrair_dados_genial(caminho_arquivo)
@@ -15,5 +16,6 @@ def processar_pdf(caminho_arquivo, corretora, cpf_cliente, senha_manual=None):
         return extrair_dados_btg(caminho_arquivo)
         
     else:
+        print(f"[GERENCIADOR] ERRO: Corretora {corretora} não está configurada.")
         raise Exception(f"Corretora {corretora} não configurada.")
 
