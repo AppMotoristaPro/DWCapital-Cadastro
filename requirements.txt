@@ -6,9 +6,10 @@ Flask-Migrate==4.0.7
 psycopg2-binary==2.9.12
 python-dotenv==1.0.1
 Flask-Login==0.6.3
-pypdf==4.2.0
+pypdf[crypto]==4.2.0
 pytz==2024.1
 requests
 cloudinary==1.40.0
-cryptography
+cryptography>=41.0.3
+pycryptodome
 
