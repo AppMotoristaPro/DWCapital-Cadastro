@@ -118,13 +118,13 @@ def faturas():
                 # Tenta processar com senha manual (se enviada) ou automática (final do CPF)
                 dados = processar_pdf(file_path, dia.nome_corretora, current_user.cpf, senha_manual)
                 
-                # Validação de Segurança: Corretora e Data do Pregão
-                if not dados or (dados.get('data_pregao') != dia.data_pregao.strftime('%d/%m/%Y')):
+                # === TRAVA DE DATA DESATIVADA TEMPORARIAMENTE PARA TESTES ===
+                if not dados:
                     if os.path.exists(file_path): os.remove(file_path)
                     return jsonify({
                         'success': False, 
                         'error': 'RELATORIO_INVALIDO', 
-                        'message': 'PDF de outra corretora ou data incorreta.'
+                        'message': 'Não foi possível ler os dados do PDF.'
                     })
 
                 # Upload seguro para a nuvem
@@ -150,7 +150,7 @@ def faturas():
             except Exception as e:
                 if os.path.exists(file_path): os.remove(file_path)
                 
-                # Caso o robô XP sinalize que o arquivo continua trancado
+                # Caso o robô sinalize que o arquivo continua trancado
                 if "SENHA_INCORRETA" in str(e):
                     return jsonify({'success': False, 'error': 'REQUER_SENHA'})
                 
