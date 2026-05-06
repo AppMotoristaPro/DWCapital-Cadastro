@@ -81,6 +81,12 @@ def dados_pessoais():
 def faturas():
     if request.method == 'GET':
         for fatura in current_user.faturas:
+            # FAXINA AUTOMÁTICA: Remove dias antigos de final de semana (5=Sábado, 6=Domingo)
+            for dia in list(fatura.dias):
+                if dia.data_pregao.weekday() >= 5:
+                    db.session.delete(dia)
+            db.session.commit()
+
             # LÓGICA DE DIAS ÚTEIS: Garante 5 dias, ignorando Sábado (5) e Domingo (6)
             datas_da_semana = []
             data_atual = fatura.data_inicio

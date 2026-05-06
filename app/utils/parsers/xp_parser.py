@@ -24,7 +24,8 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
                 pdf_trancado.save(buffer_limpo)
                 buffer_limpo.seek(0)
             
-            # Substituímos o arquivo trancado pelo arquivo limpo no disco.
+            # MAGIA ACONTECENDO AQUI: Substituímos o arquivo trancado pelo arquivo limpo no disco.
+            # Assim, quando a rota mandar o arquivo pro Cloudinary, ele já vai sem senha!
             with open(caminho_arquivo, "wb") as f_out:
                 f_out.write(buffer_limpo.getvalue())
             print("[XP_PARSER] Arquivo original sobrescrito com sucesso (Cadeado removido).")
@@ -83,7 +84,6 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
             return 0.0
 
         print("[XP_PARSER] Extraindo valores financeiros...")
-        # REGRAS AJUSTADAS: Ignorando as colunas de "Opções" que ficavam zeradas
         v_bruto = extrair_por_posicao(r"Valor dos negócios", texto_completo, 5)
         v_irrf_1 = extrair_por_posicao(r"IRRF Day Trade", texto_completo, 2) 
         v_taxas_b3 = extrair_por_posicao(r"Total de custos operacionais", texto_completo, 5)
