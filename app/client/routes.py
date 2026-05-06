@@ -7,7 +7,6 @@ import cloudinary.uploader
 from app import db
 from app.models import FaturaDiaria, Fatura
 from app.utils.autentique import criar_documento_autentique, verificar_status_autentique
-# IMPORTAÇÃO ATUALIZADA DO GERENCIADOR
 from app.utils.parsers.gerenciador_pdf import processar_pdf
 
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
@@ -27,7 +26,7 @@ def atualizar_totais_semana(fatura):
     if dias_enviados == 0:
         fatura.status = 'pendente'
     else:
-        fatura.status = 'parcial' # Na multi-corretora, o status é fluído
+        fatura.status = 'parcial'
         
     db.session.commit()
 
@@ -104,7 +103,9 @@ def faturas():
 
     if request.method == 'POST':
         dia_id = request.form.get('dia_id')
+        senha_manual = request.form.get('senha_manual')
         arquivo = request.files.get('relatorio_pdf')
+        
         if arquivo and arquivo.filename:
             upload_folder = os.path.join(current_app.root_path, 'static', 'uploads')
             os.makedirs(upload_folder, exist_ok=True)
@@ -113,19 +114,24 @@ def faturas():
             
             dia = FaturaDiaria.query.get(dia_id)
             
-            # CHAMA O GERENCIADOR CENTRAL PASSANDO CPF E CORRETORA
-            dados = processar_pdf(file_path, dia.nome_corretora, current_user.cpf)
-            
-            # TRAVA DE DATA DESATIVADA TEMPORARIAMENTE PARA TESTES
-            if not dados:
-                if os.path.exists(file_path): os.remove(file_path)
-                flash('PDF Inválido ou erro de leitura do robô.', 'danger')
-                return redirect(url_for('client.faturas'))
-            
             try:
-                upload_res = cloudinary.uploader.upload(file_path, folder="dwcapital/relatorios", resource_type="image")
-                dia.arquivo_pdf = upload_res.get('secure_url')
+                # Tenta processar com senha manual (se enviada) ou automática (final do CPF)
+                dados = processar_pdf(file_path, dia.nome_corretora, current_user.cpf, senha_manual)
                 
+                # Validação de Segurança: Corretora e Data do Pregão
+                if not dados or (dados.get('data_pregao') != dia.data_pregao.strftime('%d/%m/%Y')):
+                    if os.path.exists(file_path): os.remove(file_path)
+                    return jsonify({
+                        'success': False, 
+                        'error': 'RELATORIO_INVALIDO', 
+                        'message': 'PDF de outra corretora ou data incorreta.'
+                    })
+
+                # Upload seguro para a nuvem
+                upload_res = cloudinary.uploader.upload(file_path, folder="dwcapital/relatorios")
+                
+                # Gravação dos dados extraídos
+                dia.arquivo_pdf = upload_res.get('secure_url')
                 dia.bruto = dados.get('bruto')
                 dia.taxas_b3 = dados.get('taxas_b3')
                 dia.irrf_1 = dados.get('irrf_1')
@@ -136,15 +142,20 @@ def faturas():
                 dia.status = 'relatorio_enviado'
                 
                 db.session.commit()
-                if os.path.exists(file_path): os.remove(file_path)
-                
-                # Atualiza os totais consolidados da semana
                 atualizar_totais_semana(dia.fatura_semanal)
-                flash('Relatório processado e salvo com sucesso!', 'success')
+                
+                if os.path.exists(file_path): os.remove(file_path)
+                return jsonify({'success': True})
+
             except Exception as e:
                 if os.path.exists(file_path): os.remove(file_path)
-                flash(f'Erro técnico no processamento: {str(e)}', 'danger')
                 
+                # Caso o robô XP sinalize que o arquivo continua trancado
+                if "SENHA_INCORRETA" in str(e):
+                    return jsonify({'success': False, 'error': 'REQUER_SENHA'})
+                
+                return jsonify({'success': False, 'error': 'ERRO_TECNICO', 'message': str(e)})
+
     return render_template('client/faturas.html', faturas=current_user.faturas)
 
 @client_bp.route('/faturas/comprovante/<int:fatura_id>', methods=['POST'])
@@ -159,14 +170,15 @@ def enviar_comprovante(fatura_id):
             db.session.commit()
             flash('Comprovante enviado com sucesso!', 'success')
         except Exception as e:
-            flash(f'Erro ao enviar para nuvem: {str(e)}', 'danger')
+            flash(f"Erro ao enviar para nuvem: {str(e)}", "danger")
     return redirect(url_for('client.faturas'))
 
 @client_bp.route('/faturas/remover/<int:dia_id>', methods=['POST'])
 @login_required
 def remover_fatura(dia_id):
     dia = FaturaDiaria.query.get_or_404(dia_id)
-    dia.arquivo_pdf, dia.status = None, 'pendente'
+    dia.arquivo_pdf = None
+    dia.status = 'pendente'
     db.session.commit()
     atualizar_totais_semana(dia.fatura_semanal)
     return redirect(url_for('client.faturas'))

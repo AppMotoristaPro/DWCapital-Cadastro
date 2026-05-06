@@ -1,28 +1,29 @@
 import re
 from pypdf import PdfReader
 
-def extrair_dados_xp(caminho_arquivo, cpf_cliente):
+def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
     try:
-        # 1. Preparação da Senha (Garante que pegamos os 3 dígitos finais do CPF 819)
-        cpf_limpo = ''.join(filter(str.isdigit, str(cpf_cliente)))
-        senha_final = cpf_limpo[-3:] if len(cpf_limpo) >= 3 else ""
+        # 1. Definição da Senha a ser usada
+        if senha_manual:
+            senha_final = str(senha_manual).strip()
+        else:
+            cpf_limpo = ''.join(filter(str.isdigit, str(cpf_cliente)))
+            senha_final = cpf_limpo[-3:] if len(cpf_limpo) >= 3 else ""
         
-        # 2. Abertura Direta com Senha (Evita o erro de 'Not Supported')
-        # Tentamos abrir já passando a senha na inicialização
+        # 2. Tentativa de Abertura (Método Robusto)
         try:
             leitor = PdfReader(caminho_arquivo, password=senha_final)
-        except:
-            # Fallback caso a versão da biblioteca peça abertura simples primeiro
-            leitor = PdfReader(caminho_arquivo)
             if leitor.is_encrypted:
                 leitor.decrypt(senha_final)
+        except Exception:
+            raise Exception("SENHA_INCORRETA")
 
-        # 3. Validação de Acesso
+        # 3. Validação de Leitura
         try:
             ultima_pagina = leitor.pages[-1]
             texto_completo = ultima_pagina.extract_text()
-        except Exception as e:
-            raise Exception(f"Cadeado não abriu. A senha '{senha_final}' foi rejeitada pelo PDF da XP.")
+        except:
+            raise Exception("SENHA_INCORRETA")
         
         # BLOQUEIO DE SEGURANÇA: Verifica se o PDF é realmente da XP
         if "XP INVESTIMENTOS" not in texto_completo.upper():
@@ -52,7 +53,7 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente):
                     return limpar_valor(numeros[posicao - 1])
             return 0.0
 
-        # Regras XP atualizadas
+        # Regras XP
         v_bruto = extrair_por_posicao(r"Valor dos negócios", texto_completo, 1)
         v_irrf_1 = extrair_por_posicao(r"IRRF Day Trade", texto_completo, 1) 
         v_taxas_b3 = extrair_por_posicao(r"Total de custos operacionais", texto_completo, 1)
