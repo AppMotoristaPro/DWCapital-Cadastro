@@ -7,8 +7,15 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente):
         
         # Desbloqueio da Nota usando os 3 últimos dígitos do CPF do cliente
         if leitor.is_encrypted:
-            senha = cpf_cliente[-3:]
-            leitor.decrypt(senha)
+            # Pega os últimos 3 caracteres do CPF (removendo qualquer máscara que possa ter passado)
+            cpf_limpo = ''.join(filter(str.isdigit, cpf_cliente))
+            senha = cpf_limpo[-3:]
+            
+            sucesso_desbloqueio = leitor.decrypt(senha)
+            
+            # Se o decrypt retornar 0, a senha falhou!
+            if sucesso_desbloqueio == 0:
+                raise Exception(f"A senha '{senha}' (final do CPF) está incorreta e não abriu a nota da XP.")
 
         ultima_pagina = leitor.pages[-1]
         texto_completo = ultima_pagina.extract_text()
@@ -64,6 +71,6 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente):
             'repasse_dw': v_repasse
         }
     except Exception as e:
-        print(f"[ERRO XP] {str(e)}")
-        return None
+        # Repassa o erro exato para o log e para a tela
+        raise Exception(f"Erro na XP: {str(e)}")
 
