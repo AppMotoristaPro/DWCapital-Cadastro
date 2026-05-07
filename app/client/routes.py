@@ -1,14 +1,16 @@
 import os
 import urllib.parse
-from datetime import timedelta
+from datetime import datetime, timedelta
+import pytz
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify
 from flask_login import login_required, current_user
 import cloudinary.uploader
 from app import db
-from app.models import FaturaDiaria, Fatura
+from app.models import FaturaDiaria, Fatura, AlocacaoCorretora
 from app.utils.autentique import criar_documento_autentique, verificar_status_autentique
 from app.utils.parsers.gerenciador_pdf import processar_pdf
 
+tz_br = pytz.timezone('America/Sao_Paulo')
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
 
 def atualizar_totais_semana(fatura):
@@ -29,6 +31,57 @@ def atualizar_totais_semana(fatura):
         
     db.session.commit()
 
+def auto_gerar_ciclo_atual(user):
+    """
+    ETAPA 1: Gerador Preditivo de Ciclos
+    Verifica silenciosamente se a gaveta desta semana (Sexta a Quinta) existe.
+    Se não existir, cria a gaveta e os dias úteis instantaneamente.
+    """
+    if not user.alocacoes:
+        return # Não cria ciclo se o cliente não tiver corretoras
+
+    hoje = datetime.now(tz_br).date()
+    # Encontra a Sexta-feira mais recente que inicia o ciclo
+    dias_para_sexta = (hoje.weekday() - 4) % 7
+    inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
+    fim_ciclo = inicio_ciclo + timedelta(days=6)
+
+    # Checa se a fatura atual já existe no banco
+    fatura_existente = Fatura.query.filter_by(user_id=user.id, data_inicio=inicio_ciclo).first()
+
+    if not fatura_existente:
+        # 1. Cria a Fatura (Gaveta)
+        nova_fatura = Fatura(
+            user_id=user.id,
+            data_inicio=inicio_ciclo,
+            data_fim=fim_ciclo,
+            status='pendente'
+        )
+        db.session.add(nova_fatura)
+        db.session.commit() # Salva para gerar o ID
+
+        # 2. Descobre os dias úteis dessa semana
+        data_atual = inicio_ciclo
+        dias_uteis = []
+        while len(dias_uteis) < 5 and data_atual <= fim_ciclo:
+            if data_atual.weekday() < 5: # Ignora Sábado (5) e Domingo (6)
+                dias_uteis.append(data_atual)
+            data_atual += timedelta(days=1)
+
+        # 3. Cria as caixinhas de upload para cada corretora do cliente
+        for data in dias_uteis:
+            for alocacao in user.alocacoes:
+                novo_dia = FaturaDiaria(
+                    fatura_id=nova_fatura.id,
+                    data_pregao=data,
+                    nome_corretora=alocacao.nome_corretora,
+                    status='pendente'
+                )
+                db.session.add(novo_dia)
+        
+        db.session.commit()
+
+
 @client_bp.route('/dashboard')
 @login_required
 def dashboard():
@@ -36,6 +89,10 @@ def dashboard():
         return redirect(url_for('auth.forcar_troca_senha'))
     if not current_user.termo_assinado:
         return redirect(url_for('client.assinar_termo'))
+        
+    # GATILHO INVISÍVEL: Se for sexta-feira e não tiver gaveta, cria agora!
+    auto_gerar_ciclo_atual(current_user)
+    
     return render_template('client/index.html', user=current_user)
 
 @client_bp.route('/assinar')
@@ -79,6 +136,9 @@ def dados_pessoais():
 @client_bp.route('/faturas', methods=['GET', 'POST'])
 @login_required
 def faturas():
+    # GATILHO INVISÍVEL: Caso ele tenha vindo direto pelo link
+    auto_gerar_ciclo_atual(current_user)
+
     if request.method == 'GET':
         for fatura in current_user.faturas:
             # FAXINA AUTOMÁTICA: Remove dias antigos de final de semana (5=Sábado, 6=Domingo)
