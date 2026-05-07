@@ -216,7 +216,13 @@ def faturas():
                 dia.liquido_pregao = dados.get('liquido_pregao')
                 dia.irrf_19 = dados.get('irrf_19')
                 dia.liquido = dados.get('liquido_dia')
-                dia.repasse = dados.get('repasse_dw')
+                
+                # VERIFICAÇÃO DE ISENÇÃO DE REPASSE (DW CAPITAL)
+                if getattr(current_user, 'is_isento', False):
+                    dia.repasse = 0.0
+                else:
+                    dia.repasse = dados.get('repasse_dw')
+                    
                 dia.status = 'relatorio_enviado'
                 
                 db.session.commit()
