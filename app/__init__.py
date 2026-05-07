@@ -6,6 +6,8 @@ import os
 from dotenv import load_dotenv
 import cloudinary
 import cloudinary.uploader
+import pytz
+from datetime import datetime
 
 db = SQLAlchemy()
 migrate = Migrate()
@@ -22,6 +24,20 @@ def format_brl(value):
         num = 0.0
         
     return f"{num:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+# NOVO FILTRO: CONVERSÃO DE FUSO HORÁRIO (UTC -> BRASÍLIA)
+def to_tz_br(dt):
+    """Converte um datetime UTC do banco para o horário de Brasília."""
+    if not isinstance(dt, datetime):
+        return dt
+    
+    # Se o datetime for 'naive' (sem fuso), assumimos que é UTC (padrão do banco na nuvem)
+    if dt.tzinfo is None:
+        dt = pytz.utc.localize(dt)
+        
+    # Converte para o fuso de São Paulo (Brasília)
+    tz_br = pytz.timezone('America/Sao_Paulo')
+    return dt.astimezone(tz_br)
 
 def create_app():
     app = Flask(__name__)
@@ -48,7 +64,9 @@ def create_app():
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
     
+    # REGISTRO DOS FILTROS NO JINJA (FRONTEND)
     app.jinja_env.filters['format_brl'] = format_brl
+    app.jinja_env.filters['to_tz_br'] = to_tz_br
 
     from app.auth.routes import auth_bp
     from app.client.routes import client_bp

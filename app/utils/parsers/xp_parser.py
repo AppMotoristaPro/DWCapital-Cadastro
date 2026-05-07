@@ -4,96 +4,106 @@ import pikepdf
 from pypdf import PdfReader
 
 def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
-    print(f"[XP_PARSER] Iniciando robô XP. Arquivo: {caminho_arquivo}")
+    print(f"\n==================================================")
+    print(f"[XP_PARSER] INICIANDO ROBÔ XP (CALIBRADO)")
+    print(f"==================================================")
     try:
-        # 1. Definição da Senha
         if senha_manual:
             senha_final = str(senha_manual).strip()
-            print(f"[XP_PARSER] Senha manual recebida: {senha_final}")
         else:
             cpf_limpo = ''.join(filter(str.isdigit, str(cpf_cliente)))
             senha_final = cpf_limpo[-3:] if len(cpf_limpo) >= 3 else ""
-            print(f"[XP_PARSER] Tentando senha automática (final CPF): {senha_final}")
         
-        # 2. Desbloqueio com pikepdf e Sobrescrita do Arquivo
         try:
-            print("[XP_PARSER] Tentando abrir com o motor PIKEPDF...")
             with pikepdf.open(caminho_arquivo, password=senha_final) as pdf_trancado:
-                print("[XP_PARSER] Cadeado aberto! Salvando versão limpa na memória...")
                 buffer_limpo = io.BytesIO()
                 pdf_trancado.save(buffer_limpo)
                 buffer_limpo.seek(0)
             
-            # MAGIA ACONTECENDO AQUI: Substituímos o arquivo trancado pelo arquivo limpo no disco.
-            # Assim, quando a rota mandar o arquivo pro Cloudinary, ele já vai sem senha!
             with open(caminho_arquivo, "wb") as f_out:
                 f_out.write(buffer_limpo.getvalue())
-            print("[XP_PARSER] Arquivo original sobrescrito com sucesso (Cadeado removido).")
 
-            print("[XP_PARSER] Extraindo texto da memória...")
             leitor = PdfReader(buffer_limpo)
             ultima_pagina = leitor.pages[-1]
             texto_completo = ultima_pagina.extract_text()
-            print("[XP_PARSER] Texto extraído com sucesso pelo PIKEPDF.")
                 
         except pikepdf.PasswordError:
-            print("[XP_PARSER] ERRO: PIKEPDF rejeitou a senha.")
             raise Exception("SENHA_INCORRETA")
-        except Exception as e:
-            print(f"[XP_PARSER] AVISO: Falha no PIKEPDF ({str(e)}). Tentando motor secundário (PdfReader)...")
+        except Exception:
             try:
                 leitor = PdfReader(caminho_arquivo)
                 if leitor.is_encrypted:
                     leitor.decrypt(senha_final)
                 ultima_pagina = leitor.pages[-1]
                 texto_completo = ultima_pagina.extract_text()
-                print("[XP_PARSER] Texto extraído com sucesso pelo fallback (PdfReader).")
-            except Exception as e2:
-                print(f"[XP_PARSER] ERRO: Fallback falhou também. Senha incorreta ou arquivo corrompido.")
+            except Exception:
                 raise Exception("SENHA_INCORRETA")
 
-        print("[XP_PARSER] Validando assinatura da corretora...")
         if "XP INVESTIMENTOS" not in texto_completo.upper():
-            print("[XP_PARSER] ERRO: Assinatura da XP não encontrada no documento.")
             return None
         
-        print("[XP_PARSER] Buscando data do pregão...")
         match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo)
         data_pregao = match_data.group(1) if match_data else None
-        print(f"[XP_PARSER] Data encontrada: {data_pregao}")
 
-        def limpar_valor(resultado):
-            if not resultado: return 0.0
-            resultado = re.sub(r'[^\d,.]', '', resultado)
-            if ',' in resultado:
-                val = resultado.replace('.', '').replace(',', '.')
-            else:
-                val = resultado
-            try:
-                return float(val)
-            except:
-                return 0.0
-
-        def extrair_por_posicao(padrao, texto, posicao):
+        def extrair_por_posicao(nome_campo, padrao, texto, posicao, aceita_cd=False, janela_tras=0, janela_frente=250):
+            print(f"\n  [BUSCA] Campo: '{nome_campo}'")
             match = re.search(padrao, texto, re.IGNORECASE)
             if match:
-                bloco_depois = texto[match.end():match.end()+200]
-                numeros = re.findall(r"(\d[\d\.,]*[\.,]\d{2})", bloco_depois)
-                if numeros and len(numeros) >= posicao:
-                    return limpar_valor(numeros[posicao - 1])
+                inicio = max(0, match.start() - janela_tras)
+                fim = min(len(texto), match.end() + janela_frente)
+                bloco = texto[inicio:fim]
+
+                # Limpeza de caracteres que confundem a XP
+                bloco_limpo = re.sub(r'[\|/]', ' ', bloco)
+                bloco_limpo = re.sub(r'(,\d{2})\s*([CDcd])\b', r'\1 \2', bloco_limpo)
+
+                regex_numeros = r"(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})\s*([CDcd])?"
+                matches = re.findall(regex_numeros, bloco_limpo)
+
+                print(f"    -> Valores localizados na janela:")
+                for i, m in enumerate(matches):
+                    l_print = m[1] if m[1] else "(Sem Letra)"
+                    print(f"       [Pos: {i+1}] -> {m[0]} {l_print}")
+
+                if matches:
+                    try:
+                        alvo = matches[posicao - 1]
+                        valor_str, letra = alvo
+                        num = float(valor_str.replace('.', '').replace(',', '.'))
+
+                        if aceita_cd:
+                            if letra and letra.upper() == 'D':
+                                num = -num
+                                print(f"    -> [!] Débito detectado: {num}")
+                            else:
+                                print(f"    -> [!] Crédito detectado: {num}")
+                        else:
+                            num = abs(num)
+                        return num
+                    except IndexError:
+                        print(f"    -> [ERRO] Posição {posicao} não encontrada.")
             return 0.0
 
-        print("[XP_PARSER] Extraindo valores financeiros...")
-        v_bruto = extrair_por_posicao(r"Valor dos negócios", texto_completo, 5)
-        v_irrf_1 = extrair_por_posicao(r"IRRF Day Trade", texto_completo, 2) 
-        v_taxas_b3 = extrair_por_posicao(r"Total de custos operacionais", texto_completo, 5)
-
-        v_liquido_pregao = v_bruto - v_taxas_b3 - v_irrf_1
-        v_irrf_19 = v_liquido_pregao * 0.19 if v_liquido_pregao > 0 else 0.0
-        v_liquido_dia = v_liquido_pregao - v_irrf_19
-        v_repasse = v_liquido_dia * 0.30 if v_liquido_dia > 0 else 0.0
+        # --- CALIBRAÇÃO FINAL DAS POSIÇÕES XP ---
         
-        print(f"[XP_PARSER] Valores capturados: Bruto={v_bruto}, Taxas={v_taxas_b3}, Repasse={v_repasse}")
+        # 1. Bruto: No log, o lucro de 75,00 C apareceu na Posição 4 do resumo
+        v_bruto = extrair_por_posicao("Valor Bruto", r"Ajuste day trade", texto_completo, 4, aceita_cd=True)
+        
+        # 2. IRRF 1%: O valor de 0,36 aparece na Posição 2
+        v_irrf_1 = extrair_por_posicao("IRRF Day Trade (1%)", r"IRRF Day Trade", texto_completo, 2, aceita_cd=False)
+        
+        # 3. Taxas B3: O custo de 38,89 aparece na Posição 5
+        v_taxas_b3 = extrair_por_posicao("Taxas B3", r"Total de custos operacionais", texto_completo, 5, aceita_cd=False)
+
+        print("\n  [MATEMÁTICA] --- PROCESSAMENTO ---")
+        v_liquido_pregao = round(v_bruto - v_taxas_b3 - v_irrf_1, 2)
+        print(f"    Líquido Pregão: {v_liquido_pregao}")
+        
+        v_irrf_19 = round(v_liquido_pregao * 0.19, 2) if v_liquido_pregao > 0 else 0.0
+        v_liquido_dia = round(v_liquido_pregao - v_irrf_19, 2)
+        
+        v_repasse = round(v_liquido_dia * 0.30, 2) if v_liquido_dia > 0 else 0.0
+        print(f"    Repasse DW Final: R$ {v_repasse}")
 
         return {
             'data_pregao': data_pregao,
@@ -106,8 +116,7 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
             'repasse_dw': v_repasse
         }
     except Exception as e:
-        print(f"[XP_PARSER] EXCEÇÃO CRÍTICA: {str(e)}")
-        if "SENHA_INCORRETA" in str(e):
-            raise Exception("SENHA_INCORRETA")
-        raise Exception(f"Erro na extração XP: {str(e)}")
+        print(f"[XP_PARSER] ERRO: {str(e)}")
+        if "SENHA_INCORRETA" in str(e): raise Exception("SENHA_INCORRETA")
+        return None
 

@@ -14,13 +14,14 @@ tz_br = pytz.timezone('America/Sao_Paulo')
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
 
 def atualizar_totais_semana(fatura):
-    fatura.bruto = sum(d.bruto for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.taxas_b3 = sum(d.taxas_b3 for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.irrf_1 = sum(d.irrf_1 for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.liquido_pregao = sum(d.liquido_pregao for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.irrf_19 = sum(d.irrf_19 for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.liquido = sum(d.liquido for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.repasse = sum(d.repasse for d in fatura.dias if d.status == 'relatorio_enviado')
+    # LÓGICA DE SOMA POSITIVA: Se o valor do dia for negativo (Loss), ele soma 0 na fatura semanal.
+    fatura.bruto = sum((d.bruto if d.bruto > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.taxas_b3 = sum((d.taxas_b3 if d.taxas_b3 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.irrf_1 = sum((d.irrf_1 if d.irrf_1 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.liquido_pregao = sum((d.liquido_pregao if d.liquido_pregao > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.irrf_19 = sum((d.irrf_19 if d.irrf_19 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.liquido = sum((d.liquido if d.liquido > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.repasse = sum((d.repasse if d.repasse > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     
     dias_enviados = sum(1 for d in fatura.dias if d.status == 'relatorio_enviado')
     
@@ -38,19 +39,16 @@ def auto_gerar_ciclo_atual(user):
     Se não existir, cria a gaveta e os dias úteis instantaneamente.
     """
     if not user.alocacoes:
-        return # Não cria ciclo se o cliente não tiver corretoras
+        return
 
     hoje = datetime.now(tz_br).date()
-    # Encontra a Sexta-feira mais recente que inicia o ciclo
     dias_para_sexta = (hoje.weekday() - 4) % 7
     inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
     fim_ciclo = inicio_ciclo + timedelta(days=6)
 
-    # Checa se a fatura atual já existe no banco
     fatura_existente = Fatura.query.filter_by(user_id=user.id, data_inicio=inicio_ciclo).first()
 
     if not fatura_existente:
-        # 1. Cria a Fatura (Gaveta)
         nova_fatura = Fatura(
             user_id=user.id,
             data_inicio=inicio_ciclo,
@@ -58,17 +56,15 @@ def auto_gerar_ciclo_atual(user):
             status='pendente'
         )
         db.session.add(nova_fatura)
-        db.session.commit() # Salva para gerar o ID
+        db.session.commit()
 
-        # 2. Descobre os dias úteis dessa semana
         data_atual = inicio_ciclo
         dias_uteis = []
         while len(dias_uteis) < 5 and data_atual <= fim_ciclo:
-            if data_atual.weekday() < 5: # Ignora Sábado (5) e Domingo (6)
+            if data_atual.weekday() < 5:
                 dias_uteis.append(data_atual)
             data_atual += timedelta(days=1)
 
-        # 3. Cria as caixinhas de upload para cada corretora do cliente
         for data in dias_uteis:
             for alocacao in user.alocacoes:
                 novo_dia = FaturaDiaria(
@@ -81,7 +77,6 @@ def auto_gerar_ciclo_atual(user):
         
         db.session.commit()
 
-
 @client_bp.route('/dashboard')
 @login_required
 def dashboard():
@@ -90,7 +85,6 @@ def dashboard():
     if not current_user.termo_assinado:
         return redirect(url_for('client.assinar_termo'))
         
-    # GATILHO INVISÍVEL: Se for sexta-feira e não tiver gaveta, cria agora!
     auto_gerar_ciclo_atual(current_user)
     
     return render_template('client/index.html', user=current_user)
@@ -136,18 +130,15 @@ def dados_pessoais():
 @client_bp.route('/faturas', methods=['GET', 'POST'])
 @login_required
 def faturas():
-    # GATILHO INVISÍVEL: Caso ele tenha vindo direto pelo link
     auto_gerar_ciclo_atual(current_user)
 
     if request.method == 'GET':
         for fatura in current_user.faturas:
-            # FAXINA AUTOMÁTICA: Remove dias antigos de final de semana (5=Sábado, 6=Domingo)
             for dia in list(fatura.dias):
                 if dia.data_pregao.weekday() >= 5:
                     db.session.delete(dia)
             db.session.commit()
 
-            # LÓGICA DE DIAS ÚTEIS: Garante 5 dias, ignorando Sábado (5) e Domingo (6)
             datas_da_semana = []
             data_atual = fatura.data_inicio
             while len(datas_da_semana) < 5:
@@ -177,11 +168,7 @@ def faturas():
         senha_manual = request.form.get('senha_manual')
         arquivo = request.files.get('relatorio_pdf')
         
-        print(f"\n[ROUTES] --- INÍCIO DE UPLOAD ---")
-        print(f"[ROUTES] FaturaDiaria ID: {dia_id} | Senha Manual: {'Sim' if senha_manual else 'Não'}")
-        
         if arquivo and arquivo.filename:
-            print(f"[ROUTES] Arquivo recebido: {arquivo.filename}")
             upload_folder = os.path.join(current_app.root_path, 'static', 'uploads')
             os.makedirs(upload_folder, exist_ok=True)
             file_path = os.path.join(upload_folder, arquivo.filename)
@@ -190,15 +177,12 @@ def faturas():
             dia = FaturaDiaria.query.get(dia_id)
             
             try:
-                print(f"[ROUTES] Chamando processar_pdf para {dia.nome_corretora}...")
                 dados = processar_pdf(file_path, dia.nome_corretora, current_user.cpf, senha_manual)
                 
-                # VARIÁVEL DE AMBIENTE: Controle de Bloqueio de Data
                 bloq_data_env = os.environ.get('BLOQ_DATA', 'False').lower()
                 bloquear_data = bloq_data_env in ('true', '1', 't')
                 
                 if not dados:
-                    print("[ROUTES] ERRO: Retorno do processar_pdf foi None.")
                     if os.path.exists(file_path): os.remove(file_path)
                     return jsonify({'success': False, 'error': 'RELATORIO_INVALIDO', 'message': 'Não foi possível ler os dados do PDF.'})
 
@@ -206,14 +190,10 @@ def faturas():
                 data_esperada = dia.data_pregao.strftime('%d/%m/%Y')
                 
                 if bloquear_data and data_pdf != data_esperada:
-                    print(f"[ROUTES] ERRO DE DATA: PDF={data_pdf} | Esperada={data_esperada}")
                     if os.path.exists(file_path): os.remove(file_path)
                     return jsonify({'success': False, 'error': 'RELATORIO_INVALIDO', 'message': f'Data incorreta. Esperado: {data_esperada}.'})
 
-                print("[ROUTES] Sucesso na leitura do robô! Arquivo local destrancado.")
-                print("[ROUTES] Iniciando envio para o Cloudinary (versão sem senha)...")
                 upload_res = cloudinary.uploader.upload(file_path, folder="dwcapital/relatorios")
-                print("[ROUTES] Envio Cloudinary finalizado.")
                 
                 dia.arquivo_pdf = upload_res.get('secure_url')
                 dia.bruto = dados.get('bruto')
@@ -227,17 +207,14 @@ def faturas():
                 
                 db.session.commit()
                 atualizar_totais_semana(dia.fatura_semanal)
-                print("[ROUTES] Dados gravados no banco. Processo concluído.")
                 
                 if os.path.exists(file_path): os.remove(file_path)
                 return jsonify({'success': True})
 
             except Exception as e:
-                print(f"[ROUTES] EXCEÇÃO NO FLUXO: {str(e)}")
                 if os.path.exists(file_path): os.remove(file_path)
                 
                 if "SENHA_INCORRETA" in str(e):
-                    print("[ROUTES] Disparando alerta de REQUER_SENHA para o Frontend.")
                     return jsonify({'success': False, 'error': 'REQUER_SENHA'})
                 
                 return jsonify({'success': False, 'error': 'ERRO_TECNICO', 'message': str(e)})
