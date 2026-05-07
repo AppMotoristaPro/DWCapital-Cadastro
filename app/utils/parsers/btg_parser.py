@@ -3,7 +3,7 @@ from pypdf import PdfReader
 
 def extrair_dados_btg(caminho_arquivo):
     print(f"\n==================================================")
-    print(f"[BTG_PARSER] INICIANDO ROBÔ SNIPER BTG")
+    print(f"[BTG_PARSER] INICIANDO ROBÔ BTG (POSIÇÃO + LETRA)")
     print(f"==================================================")
     print(f"[BTG_PARSER] Arquivo alvo: {caminho_arquivo}")
     try:
@@ -13,56 +13,103 @@ def extrair_dados_btg(caminho_arquivo):
         print("[BTG_PARSER] Texto lido com sucesso.")
         
         if "BTG PACTUAL" not in texto_completo.upper():
+            print("[BTG_PARSER] ERRO: O PDF não pertence ao BTG Pactual.")
             return None
         
         match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo)
         data_pregao = match_data.group(1) if match_data else None
+        print(f"[BTG_PARSER] Data encontrada: {data_pregao}\n")
 
-        # PREPARAÇÃO DO RESUMO (Limpeza do BTG e Pipes)
-        resumo = texto_completo[-2000:]
-        resumo_limpo = re.sub(r'[\n\r\|]', ' ', resumo)
-        resumo_limpo = re.sub(r'1\s+D\b', ' D', resumo_limpo, flags=re.IGNORECASE)
-        resumo_limpo = re.sub(r'1\s+C\b', ' C', resumo_limpo, flags=re.IGNORECASE)
-
-        # 1. Busca todos os valores com C/D
-        matches_cd = re.findall(r"(\d{1,3}(?:\.\d{3})*,\d{2})\s*([CDcd])\b", resumo_limpo)
-        validos_cd = [(val, letra) for val, letra in matches_cd if val != '0,00']
-        
-        v_bruto = 0.0
-        v_total_liquido = 0.0
-        
-        if validos_cd:
-            # Primeiro valor com C/D
-            val_b, let_b = validos_cd[0]
-            v_bruto = float(val_b.replace('.', '').replace(',', '.'))
-            if let_b.upper() == 'D': v_bruto = -v_bruto
+        def extrair_por_posicao(nome_campo, padrao, texto, posicao, aceita_cd=False):
+            print(f"\n  [BUSCA] Analisando Campo: '{nome_campo}'")
+            print(f"  [BUSCA] Padrão (Regex): '{padrao}' | Posição-Alvo: {posicao}")
             
-            # Último valor com C/D
-            val_l, let_l = validos_cd[-1]
-            v_total_liquido = float(val_l.replace('.', '').replace(',', '.'))
-            if let_l.upper() == 'D': v_total_liquido = -v_total_liquido
+            match = re.search(padrao, texto, re.IGNORECASE)
+            if match:
+                # Pega um bloco maior (300 caracteres) após a palavra-chave
+                bloco_depois = texto[match.end():match.end()+300]
+                print(f"    -> [TEXTO CRU LIDO LOGO APÓS A PALAVRA]:")
+                print(f"       {repr(bloco_depois[:100])}...")
+                
+                # LIMPEZA DO CAOS DO BTG ANTES DE PROCURAR OS NÚMEROS:
+                # 1. Troca a barra vertical '|' por um espaço para não ser lida como o número '1'
+                bloco_limpo = bloco_depois.replace('|', ' ')
+                
+                # 2. Arruma letras grudadas nos números (ex: 123,00D vira 123,00 D)
+                bloco_limpo = re.sub(r'(,\d{2})([CDcd])\b', r'\1 \2', bloco_limpo)
+                
+                print(f"    -> [TEXTO LIMPO (Sem '|' e separado)]:")
+                print(f"       {repr(bloco_limpo[:100])}...")
 
-        # 2. Busca do IRRF (O BTG amassa o número ANTES da palavra IRRF)
-        v_irrf_1 = 0.0
-        match_irrf = re.search(r"(\d{1,3}(?:\.\d{3})*,\d{2})\s*IRRF Day Trade", resumo_limpo, re.IGNORECASE)
-        if match_irrf:
-            v_irrf_1 = float(match_irrf.group(1).replace('.', '').replace(',', '.'))
+                # 3. A REGEX PREDADORA: Procura o número e Opcionalmente o C ou D logo na frente
+                regex_numeros = r"(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})\s*([CDcd])?"
+                matches = re.findall(regex_numeros, bloco_limpo)
+                
+                print(f"    -> Valores e Letras localizados na ordem em que aparecem:")
+                for i, m in enumerate(matches):
+                    print(f"       [{i+1}] {m[0]} {m[1]}")
+                
+                if matches and len(matches) >= posicao:
+                    valor_str, letra = matches[posicao - 1]
+                    
+                    # Converte para float matemático
+                    num_str = valor_str.replace('.', '').replace(',', '.')
+                    num = float(num_str)
+                    
+                    if aceita_cd:
+                        if letra and letra.upper() == 'D':
+                            num = -num
+                            print(f"    -> [SUCESSO] Letra 'D' aplicada. Retornando LOSS (Negativo): {num}")
+                        elif letra and letra.upper() == 'C':
+                            print(f"    -> [SUCESSO] Letra 'C' aplicada. Retornando GAIN (Positivo): {num}")
+                        else:
+                            print(f"    -> [SUCESSO] Nenhuma letra detectada. Retornando Positivo: {num}")
+                    else:
+                        num = abs(num) 
+                        print(f"    -> [SUCESSO] Campo de Despesa/Taxa. Forçado Absoluto: {num}")
+                        
+                    return num
+                else:
+                    print(f"    -> [ERRO] O PDF só tem {len(matches)} valores, mas você pediu a posição {posicao}.")
+            else:
+                print(f"    -> [ERRO] A palavra-chave '{padrao}' sumiu do PDF.")
+            return 0.0
 
-        # 3. DEDUÇÃO MATEMÁTICA DAS TAXAS B3
-        v_taxas_b3 = round(abs(v_bruto - v_total_liquido) - v_irrf_1, 2)
-        v_taxas_b3 = max(0.0, v_taxas_b3)
+        # --- EXTRAÇÃO DE DADOS POR POSIÇÃO NO BTG ---
+        # No BTG (BM&F), o Bruto não fica no "Valor dos negócios". Fica no "Ajuste day trade".
+        # Vamos testar olhar para a palavra 'Ajuste day trade' e pegar a posição 1.
+        v_bruto = extrair_por_posicao("Valor Bruto (Ajuste Day Trade)", r"Ajuste day trade", texto_completo, 1, aceita_cd=True)
+        
+        # O IRRF 1% no BTG fica depois de 'IRRF Day Trade (proj.)'. A posição varia, vamos testar a 2.
+        v_irrf_1 = extrair_por_posicao("IRRF Day Trade (1%)", r"IRRF Day Trade \(proj\.\)", texto_completo, 2, aceita_cd=False)
+        
+        # Total das Despesas
+        v_taxas_b3 = extrair_por_posicao("Taxas B3", r"Total das despesas", texto_completo, 1, aceita_cd=False)
 
-        print(f"\n  [SNIPER] MATEMÁTICA DEDUTIVA B3:")
-        print(f"    -> Bruto Encontrado: {v_bruto}")
-        print(f"    -> Total Líquido Encontrado: {v_total_liquido}")
-        print(f"    -> IRRF 1% Encontrado: {v_irrf_1}")
-        print(f"    -> Taxas B3 Deduzidas: |({v_bruto}) - ({v_total_liquido})| - {v_irrf_1} = {v_taxas_b3}")
+        print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS DO PREGÃO ---")
+        
+        print(f"    Fórmula: Líquido Pregão = Bruto ({v_bruto}) - Taxas B3 ({v_taxas_b3}) - IRRF 1% ({v_irrf_1})")
+        v_liquido_pregao = round(v_bruto - v_taxas_b3 - v_irrf_1, 2)
+        print(f"    Resultado Líquido Pregão: {v_liquido_pregao}")
+        
+        if v_liquido_pregao > 0:
+            v_irrf_19 = round(v_liquido_pregao * 0.19, 2)
+            print(f"    Fórmula: IRRF 19% = {v_liquido_pregao} * 0.19 = {v_irrf_19}")
+        else:
+            v_irrf_19 = 0.0
+            print(f"    Fórmula: IRRF 19% = 0.00 (Pregão foi LOSS ou Zero)")
+            
+        v_liquido_dia = round(v_liquido_pregao - v_irrf_19, 2)
+        print(f"    Fórmula: Líquido do Dia = {v_liquido_pregao} - {v_irrf_19} = {v_liquido_dia}")
+        
+        if v_liquido_dia > 0:
+            v_repasse = round(v_liquido_dia * 0.30, 2)
+            print(f"    Fórmula: Repasse DW = {v_liquido_dia} * 0.30 = {v_repasse}")
+        else:
+            v_repasse = 0.0
+            print(f"    Fórmula: Repasse DW = 0.00 (Sem repasse no Loss)")
 
-        # REPASSE ZERO NO LOSS
-        v_liquido_pregao = v_bruto - v_taxas_b3 - v_irrf_1
-        v_irrf_19 = v_liquido_pregao * 0.19 if v_liquido_pregao > 0 else 0.0
-        v_liquido_dia = v_liquido_pregao - v_irrf_19
-        v_repasse = v_liquido_dia * 0.30 if v_liquido_dia > 0 else 0.0
+        print("  [MATEMÁTICA] --- FIM DOS CÁLCULOS ---\n")
 
         return {
             'data_pregao': data_pregao,
