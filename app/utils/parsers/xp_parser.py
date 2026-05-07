@@ -4,7 +4,10 @@ import pikepdf
 from pypdf import PdfReader
 
 def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
-    print(f"[XP_PARSER] Iniciando robô XP. Arquivo: {caminho_arquivo}")
+    print(f"\n==================================================")
+    print(f"[XP_PARSER] INICIANDO ROBÔ XP")
+    print(f"==================================================")
+    print(f"[XP_PARSER] Arquivo alvo: {caminho_arquivo}")
     try:
         # 1. Definição da Senha
         if senha_manual:
@@ -58,47 +61,78 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
         print("[XP_PARSER] Buscando data do pregão...")
         match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo)
         data_pregao = match_data.group(1) if match_data else None
-        print(f"[XP_PARSER] Data encontrada: {data_pregao}")
+        print(f"[XP_PARSER] Data encontrada: {data_pregao}\n")
 
-        def limpar_valor(resultado, letra):
-            if not resultado: return 0.0
-            resultado = re.sub(r'[^\d,.]', '', resultado)
-            if ',' in resultado:
-                val = resultado.replace('.', '').replace(',', '.')
-            else:
-                val = resultado
-            try:
-                num = float(val)
-                # SE TIVER A LETRA D (DÉBITO), TRANSFORMA EM NEGATIVO (LOSS)
-                if letra and letra.upper() == 'D':
-                    num = num * -1
-                return num
-            except:
-                return 0.0
-
-        def extrair_por_posicao(padrao, texto, posicao):
+        def extrair_por_posicao(nome_campo, padrao, texto, posicao, aceita_cd=False):
+            print(f"  [BUSCA] Campo: '{nome_campo}' | Padrão: '{padrao}' | Posição: {posicao}")
             match = re.search(padrao, texto, re.IGNORECASE)
             if match:
                 bloco_depois = texto[match.end():match.end()+200]
-                # A Regex agora captura o número e a letra C ou D que estiver na frente
-                numeros = re.findall(r"(\d[\d\.,]*[\.,]\d{2})\s*([DCdc]?)", bloco_depois)
-                if numeros and len(numeros) >= posicao:
-                    return limpar_valor(numeros[posicao - 1][0], numeros[posicao - 1][1])
+                print(f"    -> Bloco extraído: {repr(bloco_depois[:60])}...")
+                
+                # Regex captura o número e a letra D/C (se existir) ignorando espaços
+                regex_numeros = r"(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})\s*([CDcd])?"
+                matches = re.findall(regex_numeros, bloco_depois)
+                
+                print(f"    -> Valores localizados: {matches}")
+                
+                if matches and len(matches) >= posicao:
+                    valor_str, letra = matches[posicao - 1]
+                    num_str = valor_str.replace('.', '').replace(',', '.')
+                    num = float(num_str)
+                    
+                    if aceita_cd:
+                        if letra and letra.upper() == 'D':
+                            num = -num
+                            print(f"    -> [!] Letra 'D' detectada. Convertido para LOSS (Negativo): {num}")
+                        elif letra and letra.upper() == 'C':
+                            print(f"    -> [!] Letra 'C' detectada. Mantido como GAIN (Positivo): {num}")
+                        else:
+                            print(f"    -> [!] Nenhuma letra C/D detectada. Assumindo POSITIVO: {num}")
+                    else:
+                        num = abs(num) # Garante que as taxas não buguem a matemática
+                        print(f"    -> [!] Campo de Despesa. Forçado para absoluto POSITIVO: {num}")
+                        
+                    return num
+                else:
+                    print(f"    -> [ERRO] Posição {posicao} não existe. Encontrados apenas {len(matches)} itens.")
+            else:
+                print(f"    -> [ERRO] Padrão não encontrado no PDF.")
             return 0.0
 
-        print("[XP_PARSER] Extraindo valores financeiros...")
-        v_bruto = extrair_por_posicao(r"Valor dos negócios", texto_completo, 5)
-        v_irrf_1 = extrair_por_posicao(r"IRRF Day Trade", texto_completo, 2) 
-        v_taxas_b3 = extrair_por_posicao(r"Total de custos operacionais", texto_completo, 5)
+        # --- EXTRAÇÃO DE DADOS ---
+        v_bruto = extrair_por_posicao("Valor Bruto", r"Valor dos negócios", texto_completo, 5, aceita_cd=True)
+        v_irrf_1 = extrair_por_posicao("IRRF Day Trade (1%)", r"IRRF Day Trade", texto_completo, 2, aceita_cd=False) 
+        v_taxas_b3 = extrair_por_posicao("Taxas B3", r"Total de custos operacionais", texto_completo, 5, aceita_cd=False)
 
+        print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS DO PREGÃO ---")
+        
+        # Líquido do Pregão
+        print(f"    Fórmula: Líquido Pregão = Bruto ({v_bruto}) - Taxas B3 ({v_taxas_b3}) - IRRF 1% ({v_irrf_1})")
         v_liquido_pregao = v_bruto - v_taxas_b3 - v_irrf_1
-        v_irrf_19 = v_liquido_pregao * 0.19 if v_liquido_pregao > 0 else 0.0
+        print(f"    Resultado Líquido Pregão: {v_liquido_pregao}")
+        
+        # IRRF 19%
+        if v_liquido_pregao > 0:
+            v_irrf_19 = v_liquido_pregao * 0.19
+            print(f"    Fórmula: IRRF 19% = {v_liquido_pregao} * 0.19 = {v_irrf_19}")
+        else:
+            v_irrf_19 = 0.0
+            print(f"    Fórmula: IRRF 19% = 0.00 (Pregão foi LOSS)")
+            
+        # Líquido do Dia
         v_liquido_dia = v_liquido_pregao - v_irrf_19
+        print(f"    Fórmula: Líquido do Dia = {v_liquido_pregao} - {v_irrf_19} = {v_liquido_dia}")
         
-        # O REPASSE ZERA AUTOMATICAMENTE SE FOR LOSS
-        v_repasse = v_liquido_dia * 0.30 if v_liquido_dia > 0 else 0.0
-        
-        print(f"[XP_PARSER] Valores capturados: Bruto={v_bruto}, Taxas={v_taxas_b3}, Repasse={v_repasse}")
+        # Repasse DW
+        if v_liquido_dia > 0:
+            v_repasse = v_liquido_dia * 0.30
+            print(f"    Fórmula: Repasse DW = {v_liquido_dia} * 0.30 = {v_repasse}")
+        else:
+            v_repasse = 0.0
+            print(f"    Fórmula: Repasse DW = 0.00 (Sem repasse no Loss)")
+
+        print("  [MATEMÁTICA] --- FIM DOS CÁLCULOS ---\n")
 
         return {
             'data_pregao': data_pregao,
