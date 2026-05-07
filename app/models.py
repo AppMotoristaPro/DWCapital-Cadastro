@@ -13,6 +13,10 @@ class User(db.Model, UserMixin):
     nome = db.Column(db.String(100))
     role = db.Column(db.String(10), default='cliente')
     status_acesso = db.Column(db.String(20), default='pendente_cadastro')
+    
+    # NOVA COLUNA: Define se o cliente/parceiro é isento da cobrança de repasse (30%)
+    is_isento = db.Column(db.Boolean, default=False)
+    
     endereco = db.Column(db.Text)
     email = db.Column(db.String(120))
     celular = db.Column(db.String(20))
