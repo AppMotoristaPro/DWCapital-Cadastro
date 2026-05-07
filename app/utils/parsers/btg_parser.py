@@ -3,7 +3,7 @@ from pypdf import PdfReader
 
 def extrair_dados_btg(caminho_arquivo):
     print(f"\n==================================================")
-    print(f"[BTG_PARSER] INICIANDO ROBÔ BTG (POSIÇÃO + LETRA)")
+    print(f"[BTG_PARSER] INICIANDO ROBÔ BTG (POSIÇÃO + LETRA + JANELA)")
     print(f"==================================================")
     print(f"[BTG_PARSER] Arquivo alvo: {caminho_arquivo}")
     try:
@@ -20,71 +20,90 @@ def extrair_dados_btg(caminho_arquivo):
         data_pregao = match_data.group(1) if match_data else None
         print(f"[BTG_PARSER] Data encontrada: {data_pregao}\n")
 
-        def extrair_por_posicao(nome_campo, padrao, texto, posicao, aceita_cd=False):
+        def extrair_por_posicao(nome_campo, padrao, texto, posicao, aceita_cd=False, janela_tras=0, janela_frente=200):
             print(f"\n  [BUSCA] Analisando Campo: '{nome_campo}'")
-            print(f"  [BUSCA] Padrão (Regex): '{padrao}' | Posição-Alvo: {posicao}")
+            print(f"  [BUSCA] Padrão (Regex): '{padrao}' | Posição-Alvo: {posicao} | Janela: -{janela_tras} a +{janela_frente}")
             
             match = re.search(padrao, texto, re.IGNORECASE)
             if match:
-                # Pega um bloco maior (300 caracteres) após a palavra-chave
-                bloco_depois = texto[match.end():match.end()+300]
-                print(f"    -> [TEXTO CRU LIDO LOGO APÓS A PALAVRA]:")
-                print(f"       {repr(bloco_depois[:100])}...")
+                # O Pulo do Gato: Captura o texto ANTES e DEPOIS da palavra-chave
+                inicio = max(0, match.start() - janela_tras)
+                fim = min(len(texto), match.end() + janela_frente)
+                bloco = texto[inicio:fim]
                 
-                # LIMPEZA DO CAOS DO BTG ANTES DE PROCURAR OS NÚMEROS:
-                # 1. Troca a barra vertical '|' por um espaço para não ser lida como o número '1'
-                bloco_limpo = bloco_depois.replace('|', ' ')
+                print(f"    -> [TEXTO CRU LIDO]:")
+                print(f"       {repr(bloco)}")
                 
-                # 2. Arruma letras grudadas nos números (ex: 123,00D vira 123,00 D)
-                bloco_limpo = re.sub(r'(,\d{2})([CDcd])\b', r'\1 \2', bloco_limpo)
+                # 1. Limpeza do Caos B3/PDF
+                bloco_limpo = bloco.replace('|', ' ')
+                # Se o leitor do PDF transformou a barra '|' em '1' antes das letras:
+                bloco_limpo = re.sub(r'\b1\s+D\b', ' D', bloco_limpo, flags=re.IGNORECASE)
+                bloco_limpo = re.sub(r'\b1\s+C\b', ' C', bloco_limpo, flags=re.IGNORECASE)
+                bloco_limpo = re.sub(r'(,\d{2})1\s*([CDcd])\b', r'\1 \2', bloco_limpo) # Limpa 184,101 D -> 184,10 D
+                bloco_limpo = re.sub(r'(,\d{2})\s*([CDcd])\b', r'\1 \2', bloco_limpo)
                 
-                print(f"    -> [TEXTO LIMPO (Sem '|' e separado)]:")
-                print(f"       {repr(bloco_limpo[:100])}...")
+                print(f"    -> [TEXTO LIMPO (Tratamento de Letras e Pipes)]:")
+                print(f"       {repr(bloco_limpo)}")
 
-                # 3. A REGEX PREDADORA: Procura o número e Opcionalmente o C ou D logo na frente
+                # 2. A REGEX PREDADORA: Procura o número e Opcionalmente o C ou D logo na frente
                 regex_numeros = r"(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})\s*([CDcd])?"
                 matches = re.findall(regex_numeros, bloco_limpo)
                 
-                print(f"    -> Valores e Letras localizados na ordem em que aparecem:")
+                print(f"    -> Valores e Letras localizados na janela:")
                 for i, m in enumerate(matches):
-                    print(f"       [{i+1}] {m[0]} {m[1]}")
+                    # Mostra a posição da esquerda pra direita (Positiva) e da direita pra esquerda (Negativa)
+                    idx_rev = i - len(matches)
+                    letra_print = m[1] if m[1] else "(Sem Letra)"
+                    print(f"       [Pos: {i+1} | Rev: {idx_rev}] -> {m[0]} {letra_print}")
                 
-                if matches and len(matches) >= posicao:
-                    valor_str, letra = matches[posicao - 1]
-                    
-                    # Converte para float matemático
-                    num_str = valor_str.replace('.', '').replace(',', '.')
-                    num = float(num_str)
-                    
-                    if aceita_cd:
-                        if letra and letra.upper() == 'D':
-                            num = -num
-                            print(f"    -> [SUCESSO] Letra 'D' aplicada. Retornando LOSS (Negativo): {num}")
-                        elif letra and letra.upper() == 'C':
-                            print(f"    -> [SUCESSO] Letra 'C' aplicada. Retornando GAIN (Positivo): {num}")
+                if matches:
+                    try:
+                        if posicao > 0:
+                            alvo = matches[posicao - 1]
                         else:
-                            print(f"    -> [SUCESSO] Nenhuma letra detectada. Retornando Positivo: {num}")
-                    else:
-                        num = abs(num) 
-                        print(f"    -> [SUCESSO] Campo de Despesa/Taxa. Forçado Absoluto: {num}")
+                            alvo = matches[posicao] # Se for negativo, pega de trás pra frente
+                            
+                        valor_str, letra = alvo
                         
-                    return num
+                        # Converte para float matemático
+                        num_str = valor_str.replace('.', '').replace(',', '.')
+                        num = float(num_str)
+                        
+                        if aceita_cd:
+                            if letra and letra.upper() == 'D':
+                                num = -num
+                                print(f"    -> [SUCESSO] Letra 'D' aplicada. Retornando LOSS (Negativo): {num}")
+                            elif letra and letra.upper() == 'C':
+                                print(f"    -> [SUCESSO] Letra 'C' aplicada. Retornando GAIN (Positivo): {num}")
+                            else:
+                                print(f"    -> [SUCESSO] Nenhuma letra C/D detectada. Assumindo Positivo: {num}")
+                        else:
+                            num = abs(num) 
+                            print(f"    -> [SUCESSO] Campo de Despesa/Taxa. Forçado Absoluto: {num}")
+                            
+                        return num
+                    except IndexError:
+                        print(f"    -> [ERRO] A posição {posicao} não existe na lista acima.")
                 else:
-                    print(f"    -> [ERRO] O PDF só tem {len(matches)} valores, mas você pediu a posição {posicao}.")
+                    print(f"    -> [ERRO] Nenhum número encontrado na janela.")
             else:
                 print(f"    -> [ERRO] A palavra-chave '{padrao}' sumiu do PDF.")
             return 0.0
 
         # --- EXTRAÇÃO DE DADOS POR POSIÇÃO NO BTG ---
-        # No BTG (BM&F), o Bruto não fica no "Valor dos negócios". Fica no "Ajuste day trade".
-        # Vamos testar olhar para a palavra 'Ajuste day trade' e pegar a posição 1.
-        v_bruto = extrair_por_posicao("Valor Bruto (Ajuste Day Trade)", r"Ajuste day trade", texto_completo, 1, aceita_cd=True)
         
-        # O IRRF 1% no BTG fica depois de 'IRRF Day Trade (proj.)'. A posição varia, vamos testar a 2.
-        v_irrf_1 = extrair_por_posicao("IRRF Day Trade (1%)", r"IRRF Day Trade \(proj\.\)", texto_completo, 2, aceita_cd=False)
+        # 1. Bruto (Ajuste Day Trade)
+        # Olhando apenas para a frente. O log anterior mostrou que o valor 1.230,00 caiu na posição 10.
+        v_bruto = extrair_por_posicao("Valor Bruto", r"Ajuste day trade", texto_completo, 10, aceita_cd=True, janela_tras=0, janela_frente=300)
         
-        # Total das Despesas
-        v_taxas_b3 = extrair_por_posicao("Taxas B3", r"Total das despesas", texto_completo, 1, aceita_cd=False)
+        # 2. IRRF Day Trade (1%)
+        # Como o BTG cola o número nas costas da palavra ("10,45IRRF Day Trade (proj.)"),
+        # vamos olhar 40 caracteres para trás e pegar a posição -1 (O último número lido antes da palavra).
+        v_irrf_1 = extrair_por_posicao("IRRF Day Trade (1%)", r"IRRF Day Trade \(proj\.\)", texto_completo, -1, aceita_cd=False, janela_tras=40, janela_frente=0)
+        
+        # 3. Taxas B3
+        # Como o BTG também cola nas costas ("184,10Total das despesas"), usamos a mesma lógica de olhar para trás.
+        v_taxas_b3 = extrair_por_posicao("Taxas B3", r"Total das despesas", texto_completo, -1, aceita_cd=False, janela_tras=40, janela_frente=0)
 
         print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS DO PREGÃO ---")
         
