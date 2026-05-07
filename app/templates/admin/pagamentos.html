@@ -16,12 +16,12 @@
             <thead class="bg-ice text-gray-400 text-[10px] font-black uppercase tracking-wider">
                 <tr>
                     <th class="px-6 py-4">Cliente Ativo</th>
-                    <th class="px-6 py-4">Status da Semana ({{ clientes[0].inicio_ciclo.strftime('%d/%m') if clientes else '' }})</th>
+                    <th class="px-6 py-4">Status da Semana ({{ clientes_dados[0].inicio_ciclo.strftime('%d/%m') if clientes_dados else '' }})</th>
                     <th class="px-6 py-4 text-right">Ação</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
-                {% for item in clientes %}
+                {% for item in clientes_dados %}
                 <tr class="hover:bg-gray-50 transition">
                     <td class="px-6 py-5 font-bold text-navy text-sm">{{ item.info.nome }}</td>
                     <td class="px-6 py-5">

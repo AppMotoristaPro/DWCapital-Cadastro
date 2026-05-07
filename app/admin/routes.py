@@ -31,8 +31,8 @@ def dashboard():
     if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
     
     filtro_dia = request.args.get('dia')
-    filtro_semana = request.args.get('semana')
-    filtro_mes = request.args.get('mes')
+    filtro_semana_dia = request.args.get('semana_dia') # Novo input do Ciclo Semanal
+    filtro_ano = request.args.get('ano') # Novo select Anual
     
     # FILTRO APLICADO: Ignora clientes que estão marcados como ISENTOS, mas aceita os False e os NULLs antigos
     faturas_base = Fatura.query.join(User).filter(
@@ -47,21 +47,22 @@ def dashboard():
         faturas_filtradas = faturas_base.filter(Fatura.data_inicio <= dt_dia, Fatura.data_fim >= dt_dia).all()
         label_periodo = f"Dia {dt_dia.strftime('%d/%m/%Y')}"
         
-    elif filtro_semana:
-        dt_inicio_sem = datetime.strptime(filtro_semana + '-1', '%G-W%V-%u').date()
+    elif filtro_semana_dia:
+        # A MÁGICA DO CICLO: Pega qualquer dia, acha a Sexta anterior e a Quinta posterior
+        dt_ref = datetime.strptime(filtro_semana_dia, '%Y-%m-%d').date()
+        dias_para_sexta = (dt_ref.weekday() - 4) % 7
+        dt_inicio_sem = dt_ref - timedelta(days=dias_para_sexta)
         dt_fim_sem = dt_inicio_sem + timedelta(days=6)
-        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_sem, Fatura.data_inicio <= dt_fim_sem).all()
-        label_periodo = f"Semana {dt_inicio_sem.strftime('%d/%m')} a {dt_fim_sem.strftime('%d/%m')}"
         
-    elif filtro_mes:
-        dt_inicio_mes = datetime.strptime(filtro_mes + '-01', '%Y-%m-%d').date()
-        if dt_inicio_mes.month == 12:
-            dt_fim_mes = dt_inicio_mes.replace(year=dt_inicio_mes.year+1, month=1, day=1) - timedelta(days=1)
-        else:
-            dt_fim_mes = dt_inicio_mes.replace(month=dt_inicio_mes.month+1, day=1) - timedelta(days=1)
-            
-        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_mes, Fatura.data_inicio <= dt_fim_mes).all()
-        label_periodo = f"Mês {dt_inicio_mes.strftime('%m/%Y')}"
+        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_sem, Fatura.data_inicio <= dt_fim_sem).all()
+        label_periodo = f"Ciclo {dt_inicio_sem.strftime('%d/%m/%Y')} a {dt_fim_sem.strftime('%d/%m/%Y')}"
+        
+    elif filtro_ano:
+        ano = int(filtro_ano)
+        dt_inicio_ano = datetime(ano, 1, 1).date()
+        dt_fim_ano = datetime(ano, 12, 31).date()
+        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_ano, Fatura.data_inicio <= dt_fim_ano).all()
+        label_periodo = f"Ano {ano}"
         
     else:
         faturas_filtradas = faturas_base.all()
@@ -232,7 +233,7 @@ def pagamentos():
             'inicio_ciclo': inicio_ciclo
         })
         
-    return render_template('admin/pagamentos.html', clientes=clientes_dados, busca=busca)
+    return render_template('admin/pagamentos.html', clientes_dados=clientes_dados, busca=busca)
 
 @admin_bp.route('/pagamentos/<int:id>')
 @login_required
