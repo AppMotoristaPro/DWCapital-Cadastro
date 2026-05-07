@@ -4,7 +4,7 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash,
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import text  # IMPORTAÇÃO ADICIONADA PARA EXECUTAR SQL PURO
-from app.models import User, AlocacaoCorretora
+from app.models import User, AlocacaoCorretora, FaturaDiaria
 from app import db
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
@@ -158,6 +158,7 @@ def migracao_secreta():
         # 2. MIGRAÇÃO DE DADOS DOS CLIENTES
         usuarios = User.query.all()
         alocacoes_criadas = 0
+        faturas_corrigidas = 0
         
         for user in usuarios:
             # Pula clientes que não possuem corretora antiga cadastrada
@@ -178,9 +179,16 @@ def migracao_secreta():
                 )
                 db.session.add(nova_alocacao)
                 alocacoes_criadas += 1
+
+            # 3. CURATIVO PARA DADOS LEGADOS: Preencher o nome_corretora vazio (NULL) nas faturas velhas
+            for fatura in user.faturas:
+                for dia in fatura.dias:
+                    if dia.nome_corretora is None or dia.nome_corretora.strip() == '':
+                        dia.nome_corretora = user.corretora.upper()
+                        faturas_corrigidas += 1
         
         db.session.commit()
-        return f"✅ {msg_coluna} MIGRAÇÃO CONCLUÍDA! {alocacoes_criadas} alocações convertidas com sucesso. O histórico dos clientes está a salvo."
+        return f"✅ {msg_coluna} MIGRAÇÃO CONCLUÍDA! {alocacoes_criadas} alocações convertidas e {faturas_corrigidas} dias corrigidos com sucesso. O histórico dos clientes está a salvo."
         
     except Exception as e:
         db.session.rollback()
