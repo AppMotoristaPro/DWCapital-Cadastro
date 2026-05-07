@@ -4,13 +4,26 @@ import string
 from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app
 from flask_login import login_required, current_user
 from werkzeug.security import generate_password_hash
-from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora
+from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria
 from app import db
 from datetime import datetime, timedelta
 import pytz
 
 tz_br = pytz.timezone('America/Sao_Paulo')
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
+
+def registrar_log(acao, categoria):
+    """
+    Função interna para gravar as ações da diretoria no Cofre de Logs (LogAuditoria).
+    """
+    if current_user.is_authenticated:
+        novo_log = LogAuditoria(
+            admin_id=current_user.id,
+            admin_nome=current_user.nome,
+            acao_detalhada=acao,
+            categoria=categoria
+        )
+        db.session.add(novo_log)
 
 @admin_bp.route('/')
 @login_required
@@ -109,8 +122,8 @@ def liberar_cliente():
     fatura = Fatura(user_id=novo.id, data_inicio=inicio_ciclo, data_fim=fim_ciclo)
     db.session.add(fatura)
     
-    # As Faturas Diárias (por corretora) serão injetadas automaticamente 
-    # pelo routes.py do cliente quando ele configurar suas alocações no 1º acesso.
+    # GRAVAÇÃO DO LOG
+    registrar_log(f"Liberou novo acesso pré-cadastro para o CPF {cpf} (Nome provisório: {nome_temp}).", "Clientes")
     
     db.session.commit()
     flash('Acesso liberado e ciclo inicial preparado!', 'success')
@@ -125,11 +138,9 @@ def editar_cliente(id):
         cliente.email = request.form.get('email')
         cliente.celular = request.form.get('celular')
         
-        # GESTÃO DE MÚLTIPLAS CORRETORAS (Array)
         corretoras_selecionadas = request.form.getlist('corretora[]')
         capitais_alocados = request.form.getlist('capital[]')
         
-        # Remove as antigas para gravar o novo status
         AlocacaoCorretora.query.filter_by(user_id=cliente.id).delete()
         
         capital_soma = 0.0
@@ -143,8 +154,10 @@ def editar_cliente(id):
                 db.session.add(nova_alocacao)
                 capital_soma += float(capital)
                 
-        # Atualiza a soma total no perfil do usuário
         cliente.capital_alocado = capital_soma
+        
+        # GRAVAÇÃO DO LOG
+        registrar_log(f"Editou o cadastro e alocações do cliente {cliente.nome} (Novo Capital Total: R$ {capital_soma:,.2f}).", "Clientes")
         
         db.session.commit()
         flash('Dados e alocações atualizados com sucesso!', 'success')
@@ -157,6 +170,10 @@ def editar_cliente(id):
 def inativar_cliente(id):
     cliente = User.query.get_or_404(id)
     cliente.status_acesso = 'inativo'
+    
+    # GRAVAÇÃO DO LOG
+    registrar_log(f"Inativou o acesso do cliente {cliente.nome}.", "Clientes")
+    
     db.session.commit()
     flash(f'Cliente {cliente.nome} inativado com sucesso.', 'success')
     return redirect(url_for('admin.clientes_list'))
@@ -165,7 +182,13 @@ def inativar_cliente(id):
 @login_required
 def excluir_cliente(id):
     cliente = User.query.get_or_404(id)
+    nome_cliente = cliente.nome # Salva o nome antes de deletar
+    
     db.session.delete(cliente)
+    
+    # GRAVAÇÃO DO LOG
+    registrar_log(f"Excluiu permanentemente o cliente {nome_cliente} e todos os seus históricos.", "Segurança")
+    
     db.session.commit()
     flash('Cliente e todas as suas faturas foram excluídos permanentemente.', 'success')
     return redirect(url_for('admin.clientes_list'))
@@ -208,7 +231,13 @@ def pagamentos_cliente(id):
 @login_required
 def status_pagamento(fatura_id):
     fatura = Fatura.query.get_or_404(fatura_id)
-    fatura.status = request.form.get('status')
+    status_novo = request.form.get('status')
+    fatura.status = status_novo
+    
+    # GRAVAÇÃO DO LOG
+    periodo_str = f"{fatura.data_inicio.strftime('%d/%m')} a {fatura.data_fim.strftime('%d/%m/%Y')}"
+    registrar_log(f"Alterou o status da fatura de {fatura.cliente.nome} (Período: {periodo_str}) para {status_novo.upper()}.", "Pagamentos")
+    
     db.session.commit()
     flash('Status da fatura atualizado.', 'success')
     return redirect(url_for('admin.pagamentos_cliente', id=fatura.user_id))
@@ -217,6 +246,9 @@ def status_pagamento(fatura_id):
 @login_required
 def rejeitar_relatorio(dia_id):
     dia = FaturaDiaria.query.get_or_404(dia_id)
+    
+    # GRAVAÇÃO DO LOG (Antes de zerar os dados)
+    registrar_log(f"Rejeitou e excluiu o relatório de {dia.fatura_semanal.cliente.nome} do pregão {dia.data_pregao.strftime('%d/%m/%Y')} (Corretora: {dia.nome_corretora}).", "Pagamentos")
     
     dia.arquivo_pdf = None
     dia.status = 'pendente'
@@ -251,6 +283,9 @@ def rejeitar_relatorio(dia_id):
 @login_required
 def forcar_limpeza_dia(dia_id):
     dia = FaturaDiaria.query.get_or_404(dia_id)
+    
+    # GRAVAÇÃO DO LOG
+    registrar_log(f"Forçou a limpeza de valores fantasmas do pregão {dia.data_pregao.strftime('%d/%m/%Y')} (Corretora: {dia.nome_corretora}) do cliente {dia.fatura_semanal.cliente.nome}.", "Pagamentos")
     
     dia.arquivo_pdf = None
     dia.status = 'pendente'
@@ -288,7 +323,31 @@ def gerar_senha_temporaria(id):
     senha_temp = "DW@" + ''.join(random.choices(string.ascii_letters + string.digits, k=5))
     cliente.password_hash = generate_password_hash(senha_temp)
     cliente.precisa_trocar_senha = True
+    
+    # GRAVAÇÃO DO LOG
+    registrar_log(f"Gerou e forçou uma troca de senha temporária para o cliente {cliente.nome}.", "Segurança")
+    
     db.session.commit()
     flash(f'Senha gerada para {cliente.nome}: {senha_temp}', 'success')
     return redirect(url_for('admin.editar_cliente', id=cliente.id))
+
+@admin_bp.route('/atividades')
+@login_required
+def atividades():
+    if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
+    
+    busca = request.args.get('q', '')
+    query = LogAuditoria.query
+    
+    if busca:
+        query = query.filter(
+            (LogAuditoria.admin_nome.ilike(f'%{busca}%')) | 
+            (LogAuditoria.acao_detalhada.ilike(f'%{busca}%')) | 
+            (LogAuditoria.categoria.ilike(f'%{busca}%'))
+        )
+        
+    # Pega os últimos 200 logs mais recentes para não pesar o servidor
+    logs = query.order_by(LogAuditoria.timestamp.desc()).limit(200).all()
+    
+    return render_template('admin/atividades.html', logs=logs, busca=busca)
 

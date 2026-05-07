@@ -127,21 +127,41 @@ def primeiro_acesso():
 def setup_secreto():
     try:
         db.create_all()
-        admin = User.query.filter_by(username='dwcapital').first()
-        if not admin:
-            admin = User(
-                username='dwcapital', 
-                password_hash=generate_password_hash('dwadmin2026'), 
-                role='admin', 
-                status_acesso='ativo', 
-                nome='Admin DW'
-            )
-            db.session.add(admin)
-            db.session.commit()
-            return "✅ Admin injetado com sucesso! (Banco preservado)"
-        return "ℹ️ O Admin já existe. Nenhuma alteração foi necessária."
+        
+        # 1. Aposentar o usuário genérico antigo (dwcapital)
+        admin_antigo = User.query.filter_by(username='dwcapital').first()
+        if admin_antigo:
+            admin_antigo.status_acesso = 'inativo'
+            admin_antigo.username = 'dwcapital_inativo' # Libera o username
+            
+        # 2. Criar a nova estrutura de Sócios
+        novos_admins = [
+            {'username': 'dwigor', 'nome': 'Igor Mikael'},
+            {'username': 'dwwilliam', 'nome': 'William'},
+            {'username': 'dwthaynara', 'nome': 'Thaynara'},
+            {'username': 'dwdema', 'nome': 'Dermevaldo'}
+        ]
+        
+        criados = 0
+        for admin_data in novos_admins:
+            existe = User.query.filter_by(username=admin_data['username']).first()
+            if not existe:
+                novo_admin = User(
+                    username=admin_data['username'],
+                    nome=admin_data['nome'],
+                    password_hash=generate_password_hash('dwtemp2026'), # Senha temporária
+                    role='admin',
+                    status_acesso='ativo',
+                    precisa_trocar_senha=True # Obriga a criar senha pessoal no 1º login
+                )
+                db.session.add(novo_admin)
+                criados += 1
+                
+        db.session.commit()
+        return f"✅ Setup Corporativo Concluído! {criados} novos acessos administrativos foram gerados com sucesso."
     except Exception as e:
-        return f"❌ Erro: {e}"
+        db.session.rollback()
+        return f"❌ Erro no setup: {e}"
 
 @auth_bp.route('/migracao_secreta_dw')
 def migracao_secreta():

@@ -31,6 +31,9 @@ class User(db.Model, UserMixin):
     # RELACIONAMENTOS ATUALIZADOS
     faturas = db.relationship('Fatura', backref='cliente', lazy=True, cascade="all, delete-orphan")
     alocacoes = db.relationship('AlocacaoCorretora', backref='cliente', lazy=True, cascade="all, delete-orphan")
+    
+    # RELACIONAMENTO DE AUDITORIA (Logs gerados por este usuário/admin)
+    logs = db.relationship('LogAuditoria', backref='admin', lazy=True)
 
 # NOVA TABELA: Multi-Corretoras por Cliente
 class AlocacaoCorretora(db.Model):
@@ -74,6 +77,15 @@ class FaturaDiaria(db.Model):
     repasse = db.Column(db.Float, default=0.0)
     arquivo_pdf = db.Column(db.String(255), nullable=True)
     status = db.Column(db.String(20), default='pendente')
+
+# NOVA TABELA: Cofre de Logs (Auditoria)
+class LogAuditoria(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    admin_nome = db.Column(db.String(100), nullable=False)
+    acao_detalhada = db.Column(db.Text, nullable=False)
+    categoria = db.Column(db.String(50), nullable=False) # Ex: 'Pagamentos', 'Clientes', 'Segurança'
+    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
 
 @login_manager.user_loader
 def load_user(user_id):
