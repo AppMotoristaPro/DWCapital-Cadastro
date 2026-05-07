@@ -34,7 +34,11 @@ def dashboard():
     filtro_semana = request.args.get('semana')
     filtro_mes = request.args.get('mes')
     
-    faturas_base = Fatura.query.filter(Fatura.status.in_(['parcial', 'completo', 'pago', 'inadimplente']))
+    # FILTRO APLICADO: Ignora clientes que estão marcados como ISENTOS, mas aceita os False e os NULLs antigos
+    faturas_base = Fatura.query.join(User).filter(
+        Fatura.status.in_(['parcial', 'completo', 'pago', 'inadimplente']),
+        db.or_(User.is_isento == False, User.is_isento.is_(None))
+    )
     
     label_periodo = "Todo o Período"
     
@@ -67,7 +71,13 @@ def dashboard():
     clientes_ativos = User.query.filter_by(role='cliente', status_acesso='ativo').count()
     clientes_inativos = User.query.filter_by(role='cliente', status_acesso='inativo').count()
     
-    alocado_row = db.session.query(db.func.sum(User.capital_alocado)).filter_by(role='cliente', status_acesso='ativo').first()
+    # FILTRO APLICADO: Soma capital alocado apenas de clientes pagantes (is_isento=False ou NULL)
+    alocado_row = db.session.query(db.func.sum(User.capital_alocado)).filter(
+        User.role == 'cliente', 
+        User.status_acesso == 'ativo', 
+        db.or_(User.is_isento == False, User.is_isento.is_(None))
+    ).first()
+    
     capital_total = alocado_row[0] or 0.0
     
     qtd_faturas = len(faturas_filtradas)
@@ -137,6 +147,9 @@ def editar_cliente(id):
         cliente.email = request.form.get('email')
         cliente.celular = request.form.get('celular')
         
+        # SALVA A CONDIÇÃO DE ISENTO
+        cliente.is_isento = True if request.form.get('is_isento') else False
+        
         corretoras_selecionadas = request.form.getlist('corretora[]')
         capitais_alocados = request.form.getlist('capital[]')
         
@@ -155,7 +168,8 @@ def editar_cliente(id):
                 
         cliente.capital_alocado = capital_soma
         
-        registrar_log(f"Editou o cadastro e alocações do cliente {cliente.nome} (Novo Capital Total: R$ {capital_soma:,.2f}).", "Clientes")
+        status_isento = "Sim" if cliente.is_isento else "Não"
+        registrar_log(f"Editou o cadastro (Isento: {status_isento}) e alocações do cliente {cliente.nome} (Novo Capital: R$ {capital_soma:,.2f}).", "Clientes")
         
         db.session.commit()
         flash('Dados e alocações atualizados com sucesso!', 'success')
@@ -345,53 +359,4 @@ def atividades():
     logs = query.order_by(LogAuditoria.timestamp.desc()).limit(200).all()
     
     return render_template('admin/atividades.html', logs=logs, busca=busca)
-
-@admin_bp.route('/faxina_de_emergencia')
-@login_required
-def faxina_de_emergencia():
-    # Proteção dupla: só você (admin) pode rodar isso
-    if current_user.role != 'admin': 
-        return "Acesso Negado."
-
-    from sqlalchemy import func
-    from app.models import FaturaDiaria
-    from app import db
-
-    try:
-        # 1. Mapeia quem está duplicado
-        duplicatas = db.session.query(
-            FaturaDiaria.fatura_id, FaturaDiaria.data_pregao, FaturaDiaria.nome_corretora
-        ).group_by(
-            FaturaDiaria.fatura_id, FaturaDiaria.data_pregao, FaturaDiaria.nome_corretora
-        ).having(func.count(FaturaDiaria.id) > 1).all()
-
-        apagados = 0
-
-        for f_id, data, corretora in duplicatas:
-            # Pega todos os clones
-            regs = FaturaDiaria.query.filter_by(fatura_id=f_id, data_pregao=data, nome_corretora=corretora).all()
-            
-            # Escolhe o que tem PDF para manter
-            manter = next((r for r in regs if r.arquivo_pdf), regs[0])
-            
-            # Apaga os clones vazios
-            for r in regs:
-                if r.id != manter.id:
-                    db.session.delete(r)
-                    apagados += 1
-
-        db.session.commit()
-        return f"""
-            <div style="font-family: sans-serif; padding: 40px; text-align: center;">
-                <h1 style="color: green;">🧹 FAXINA CONCLUÍDA COM SUCESSO!</h1>
-                <h2>{apagados} dias duplicados foram apagados do banco de dados.</h2>
-                <p>Todos os PDFs dos clientes foram protegidos e mantidos intactos.</p>
-                <p><b>AGORA SIM:</b> Você já pode fazer o código do <i>models.py</i> com a trava de segurança e mandar para o GitHub!</p>
-                <br><br>
-                <a href="/admin">Voltar para o Dashboard Admin</a>
-            </div>
-        """
-    except Exception as e:
-        db.session.rollback()
-        return f"<h1>ERRO NA FAXINA:</h1> <p>{str(e)}</p>"
 

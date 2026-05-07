@@ -7,7 +7,12 @@
     <div class="mb-8 flex justify-between items-end">
         <div>
             <h1 class="text-3xl font-black text-navy tracking-tight">Gestão Semanal</h1>
-            <p class="text-gray-500 mt-1 font-medium">Investidor: <span class="font-bold text-royal">{{ cliente.nome }}</span></p>
+            <p class="text-gray-500 mt-1 font-medium flex items-center gap-2">
+                Investidor: <span class="font-bold text-royal">{{ cliente.nome }}</span>
+                {% if cliente.is_isento %}
+                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 border border-purple-200 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm">Isento</span>
+                {% endif %}
+            </p>
         </div>
     </div>
 
@@ -84,7 +89,7 @@
                                 </div>
                                 <div class="w-2/4 flex justify-end items-center gap-3">
                                     {% if dia.arquivo_pdf and dia.arquivo_pdf.startswith('http') %}
-                                        <a href="{{ dia.arquivo_pdf }}" target="_blank" class="bg-white border border-green-200 text-green-700 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-green-100 transition shadow-sm">Abrir Nuvem</a>
+                                        <a href="{{ dia.arquivo_pdf }}" target="_blank" class="bg-white border border-green-200 text-green-700 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-green-100 transition shadow-sm">Abrir PDF</a>
                                     {% else %}
                                         <span class="bg-gray-100 border border-gray-200 text-gray-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest cursor-not-allowed">PDF Antigo</span>
                                     {% endif %}

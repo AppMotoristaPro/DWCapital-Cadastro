@@ -9,6 +9,7 @@ from app import db
 from app.models import FaturaDiaria, Fatura, AlocacaoCorretora
 from app.utils.autentique import criar_documento_autentique, verificar_status_autentique
 from app.utils.parsers.gerenciador_pdf import processar_pdf
+from sqlalchemy.exc import IntegrityError
 
 tz_br = pytz.timezone('America/Sao_Paulo')
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
@@ -56,7 +57,12 @@ def auto_gerar_ciclo_atual(user):
             status='pendente'
         )
         db.session.add(nova_fatura)
-        db.session.commit()
+        
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            return # Se outro processo já criou a fatura, para por aqui.
 
         data_atual = inicio_ciclo
         dias_uteis = []
@@ -67,15 +73,20 @@ def auto_gerar_ciclo_atual(user):
 
         for data in dias_uteis:
             for alocacao in user.alocacoes:
-                novo_dia = FaturaDiaria(
-                    fatura_id=nova_fatura.id,
-                    data_pregao=data,
-                    nome_corretora=alocacao.nome_corretora,
-                    status='pendente'
-                )
-                db.session.add(novo_dia)
+                existe = FaturaDiaria.query.filter_by(fatura_id=nova_fatura.id, data_pregao=data, nome_corretora=alocacao.nome_corretora).first()
+                if not existe:
+                    novo_dia = FaturaDiaria(
+                        fatura_id=nova_fatura.id,
+                        data_pregao=data,
+                        nome_corretora=alocacao.nome_corretora,
+                        status='pendente'
+                    )
+                    db.session.add(novo_dia)
         
-        db.session.commit()
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback() # Se outro worker ganhou a corrida, o banco trava e a gente limpa a sessão.
 
 @client_bp.route('/dashboard')
 @login_required
@@ -161,7 +172,10 @@ def faturas():
                             status='pendente'
                         )
                         db.session.add(novo_dia)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback() # Ignora silenciosamente se o dia for duplicado
 
     if request.method == 'POST':
         dia_id = request.form.get('dia_id')
@@ -202,7 +216,13 @@ def faturas():
                 dia.liquido_pregao = dados.get('liquido_pregao')
                 dia.irrf_19 = dados.get('irrf_19')
                 dia.liquido = dados.get('liquido_dia')
-                dia.repasse = dados.get('repasse_dw')
+                
+                # VERIFICAÇÃO DE ISENÇÃO DE REPASSE (DW CAPITAL)
+                if getattr(current_user, 'is_isento', False):
+                    dia.repasse = 0.0
+                else:
+                    dia.repasse = dados.get('repasse_dw')
+                    
                 dia.status = 'relatorio_enviado'
                 
                 db.session.commit()

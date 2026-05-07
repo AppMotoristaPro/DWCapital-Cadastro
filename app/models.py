@@ -13,6 +13,10 @@ class User(db.Model, UserMixin):
     nome = db.Column(db.String(100))
     role = db.Column(db.String(10), default='cliente')
     status_acesso = db.Column(db.String(20), default='pendente_cadastro')
+    
+    # NOVA COLUNA: Define se o cliente/parceiro é isento da cobrança de repasse (30%)
+    is_isento = db.Column(db.Boolean, default=False)
+    
     endereco = db.Column(db.Text)
     email = db.Column(db.String(120))
     celular = db.Column(db.String(20))
@@ -61,6 +65,9 @@ class Fatura(db.Model):
     dias = db.relationship('FaturaDiaria', backref='fatura_semanal', lazy=True, cascade="all, delete-orphan", order_by="FaturaDiaria.data_pregao")
 
 class FaturaDiaria(db.Model):
+    # TRAVA DE SEGURANÇA: Impede duplicidade de corretora/data na mesma fatura no nível do banco
+    __table_args__ = (db.UniqueConstraint('fatura_id', 'data_pregao', 'nome_corretora', name='_fatura_dia_corretora_uc'),)
+    
     id = db.Column(db.Integer, primary_key=True)
     fatura_id = db.Column(db.Integer, db.ForeignKey('fatura.id'), nullable=False)
     

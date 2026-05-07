@@ -34,6 +34,18 @@
                     <input type="text" name="celular" value="{{ cliente.celular or '' }}" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none font-medium focus:border-royal">
                 </div>
             </div>
+
+            <div class="mt-4 p-5 bg-purple-50 border border-purple-100 rounded-xl flex items-center justify-between shadow-sm">
+                <div>
+                    <p class="text-sm font-black text-purple-900 uppercase tracking-widest">Conta Isenta de Repasse</p>
+                    <p class="text-[11px] text-purple-600/80 font-bold mt-1 leading-tight">Se ativado, o robô irá zerar (R$ 0,00) a cobrança de repasse deste parceiro, e ele não somará no faturamento.</p>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer ml-4 shrink-0">
+                    <input type="checkbox" name="is_isento" value="1" class="sr-only peer" {% if cliente.is_isento %}checked{% endif %}>
+                    <div class="w-14 h-7 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-purple-600 shadow-inner"></div>
+                </label>
+            </div>
+
         </div>
 
         <div class="space-y-4 pt-4">
