@@ -16,7 +16,7 @@ def extrair_dados_btg(caminho_arquivo):
         match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo)
         data_pregao = match_data.group(1) if match_data else None
 
-        def limpar_valor(resultado):
+        def limpar_valor(resultado, letra):
             if not resultado: return 0.0
             resultado = re.sub(r'[^\d,.]', '', resultado)
             if ',' in resultado:
@@ -24,7 +24,11 @@ def extrair_dados_btg(caminho_arquivo):
             else:
                 val = resultado
             try:
-                return float(val)
+                num = float(val)
+                # SE TIVER A LETRA D (DÉBITO), TRANSFORMA EM NEGATIVO (LOSS)
+                if letra and letra.upper() == 'D':
+                    num = num * -1
+                return num
             except:
                 return 0.0
 
@@ -32,9 +36,10 @@ def extrair_dados_btg(caminho_arquivo):
             match = re.search(padrao, texto, re.IGNORECASE)
             if match:
                 bloco_depois = texto[match.end():match.end()+200]
-                numeros = re.findall(r"(\d[\d\.,]*[\.,]\d{2})", bloco_depois)
+                # A Regex agora captura o número e a letra C ou D que estiver na frente
+                numeros = re.findall(r"(\d[\d\.,]*[\.,]\d{2})\s*([DCdc]?)", bloco_depois)
                 if numeros and len(numeros) >= posicao:
-                    return limpar_valor(numeros[posicao - 1])
+                    return limpar_valor(numeros[posicao - 1][0], numeros[posicao - 1][1])
             return 0.0
 
         v_bruto = extrair_por_posicao(r"Valor dos negócios", texto_completo, 1)
@@ -44,6 +49,8 @@ def extrair_dados_btg(caminho_arquivo):
         v_liquido_pregao = v_bruto - v_taxas_b3 - v_irrf_1
         v_irrf_19 = v_liquido_pregao * 0.19 if v_liquido_pregao > 0 else 0.0
         v_liquido_dia = v_liquido_pregao - v_irrf_19
+        
+        # O REPASSE ZERA AUTOMATICAMENTE SE FOR LOSS
         v_repasse = v_liquido_dia * 0.30 if v_liquido_dia > 0 else 0.0
 
         print(f"[BTG_PARSER] Valores extraídos: {v_bruto} / {v_taxas_b3}")

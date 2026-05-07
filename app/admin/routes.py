@@ -122,7 +122,6 @@ def liberar_cliente():
     fatura = Fatura(user_id=novo.id, data_inicio=inicio_ciclo, data_fim=fim_ciclo)
     db.session.add(fatura)
     
-    # GRAVAÇÃO DO LOG
     registrar_log(f"Liberou novo acesso pré-cadastro para o CPF {cpf} (Nome provisório: {nome_temp}).", "Clientes")
     
     db.session.commit()
@@ -156,7 +155,6 @@ def editar_cliente(id):
                 
         cliente.capital_alocado = capital_soma
         
-        # GRAVAÇÃO DO LOG
         registrar_log(f"Editou o cadastro e alocações do cliente {cliente.nome} (Novo Capital Total: R$ {capital_soma:,.2f}).", "Clientes")
         
         db.session.commit()
@@ -171,7 +169,6 @@ def inativar_cliente(id):
     cliente = User.query.get_or_404(id)
     cliente.status_acesso = 'inativo'
     
-    # GRAVAÇÃO DO LOG
     registrar_log(f"Inativou o acesso do cliente {cliente.nome}.", "Clientes")
     
     db.session.commit()
@@ -182,11 +179,10 @@ def inativar_cliente(id):
 @login_required
 def excluir_cliente(id):
     cliente = User.query.get_or_404(id)
-    nome_cliente = cliente.nome # Salva o nome antes de deletar
+    nome_cliente = cliente.nome 
     
     db.session.delete(cliente)
     
-    # GRAVAÇÃO DO LOG
     registrar_log(f"Excluiu permanentemente o cliente {nome_cliente} e todos os seus históricos.", "Segurança")
     
     db.session.commit()
@@ -234,7 +230,6 @@ def status_pagamento(fatura_id):
     status_novo = request.form.get('status')
     fatura.status = status_novo
     
-    # GRAVAÇÃO DO LOG
     periodo_str = f"{fatura.data_inicio.strftime('%d/%m')} a {fatura.data_fim.strftime('%d/%m/%Y')}"
     registrar_log(f"Alterou o status da fatura de {fatura.cliente.nome} (Período: {periodo_str}) para {status_novo.upper()}.", "Pagamentos")
     
@@ -247,7 +242,6 @@ def status_pagamento(fatura_id):
 def rejeitar_relatorio(dia_id):
     dia = FaturaDiaria.query.get_or_404(dia_id)
     
-    # GRAVAÇÃO DO LOG (Antes de zerar os dados)
     registrar_log(f"Rejeitou e excluiu o relatório de {dia.fatura_semanal.cliente.nome} do pregão {dia.data_pregao.strftime('%d/%m/%Y')} (Corretora: {dia.nome_corretora}).", "Pagamentos")
     
     dia.arquivo_pdf = None
@@ -261,13 +255,15 @@ def rejeitar_relatorio(dia_id):
     dia.repasse = 0.0
     
     fatura = dia.fatura_semanal
-    fatura.bruto = sum(d.bruto for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.taxas_b3 = sum(d.taxas_b3 for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.irrf_1 = sum(d.irrf_1 for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.liquido_pregao = sum(d.liquido_pregao for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.irrf_19 = sum(d.irrf_19 for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.liquido = sum(d.liquido for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.repasse = sum(d.repasse for d in fatura.dias if d.status == 'relatorio_enviado')
+    
+    # LÓGICA DE SOMA POSITIVA: Só soma os ganhos.
+    fatura.bruto = sum((d.bruto if d.bruto > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.taxas_b3 = sum((d.taxas_b3 if d.taxas_b3 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.irrf_1 = sum((d.irrf_1 if d.irrf_1 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.liquido_pregao = sum((d.liquido_pregao if d.liquido_pregao > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.irrf_19 = sum((d.irrf_19 if d.irrf_19 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.liquido = sum((d.liquido if d.liquido > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.repasse = sum((d.repasse if d.repasse > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     
     dias_enviados = sum(1 for d in fatura.dias if d.status == 'relatorio_enviado')
     if dias_enviados == 0:
@@ -284,7 +280,6 @@ def rejeitar_relatorio(dia_id):
 def forcar_limpeza_dia(dia_id):
     dia = FaturaDiaria.query.get_or_404(dia_id)
     
-    # GRAVAÇÃO DO LOG
     registrar_log(f"Forçou a limpeza de valores fantasmas do pregão {dia.data_pregao.strftime('%d/%m/%Y')} (Corretora: {dia.nome_corretora}) do cliente {dia.fatura_semanal.cliente.nome}.", "Pagamentos")
     
     dia.arquivo_pdf = None
@@ -298,13 +293,15 @@ def forcar_limpeza_dia(dia_id):
     dia.repasse = 0.0
     
     fatura = dia.fatura_semanal
-    fatura.bruto = sum(d.bruto for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.taxas_b3 = sum(d.taxas_b3 for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.irrf_1 = sum(d.irrf_1 for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.liquido_pregao = sum(d.liquido_pregao for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.irrf_19 = sum(d.irrf_19 for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.liquido = sum(d.liquido for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.repasse = sum(d.repasse for d in fatura.dias if d.status == 'relatorio_enviado')
+    
+    # LÓGICA DE SOMA POSITIVA: Só soma os ganhos.
+    fatura.bruto = sum((d.bruto if d.bruto > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.taxas_b3 = sum((d.taxas_b3 if d.taxas_b3 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.irrf_1 = sum((d.irrf_1 if d.irrf_1 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.liquido_pregao = sum((d.liquido_pregao if d.liquido_pregao > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.irrf_19 = sum((d.irrf_19 if d.irrf_19 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.liquido = sum((d.liquido if d.liquido > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.repasse = sum((d.repasse if d.repasse > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     
     dias_enviados = sum(1 for d in fatura.dias if d.status == 'relatorio_enviado')
     if dias_enviados == 0:
@@ -324,7 +321,6 @@ def gerar_senha_temporaria(id):
     cliente.password_hash = generate_password_hash(senha_temp)
     cliente.precisa_trocar_senha = True
     
-    # GRAVAÇÃO DO LOG
     registrar_log(f"Gerou e forçou uma troca de senha temporária para o cliente {cliente.nome}.", "Segurança")
     
     db.session.commit()
@@ -346,7 +342,6 @@ def atividades():
             (LogAuditoria.categoria.ilike(f'%{busca}%'))
         )
         
-    # Pega os últimos 200 logs mais recentes para não pesar o servidor
     logs = query.order_by(LogAuditoria.timestamp.desc()).limit(200).all()
     
     return render_template('admin/atividades.html', logs=logs, busca=busca)

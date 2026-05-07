@@ -24,8 +24,6 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
                 pdf_trancado.save(buffer_limpo)
                 buffer_limpo.seek(0)
             
-            # MAGIA ACONTECENDO AQUI: Substituímos o arquivo trancado pelo arquivo limpo no disco.
-            # Assim, quando a rota mandar o arquivo pro Cloudinary, ele já vai sem senha!
             with open(caminho_arquivo, "wb") as f_out:
                 f_out.write(buffer_limpo.getvalue())
             print("[XP_PARSER] Arquivo original sobrescrito com sucesso (Cadeado removido).")
@@ -62,7 +60,7 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
         data_pregao = match_data.group(1) if match_data else None
         print(f"[XP_PARSER] Data encontrada: {data_pregao}")
 
-        def limpar_valor(resultado):
+        def limpar_valor(resultado, letra):
             if not resultado: return 0.0
             resultado = re.sub(r'[^\d,.]', '', resultado)
             if ',' in resultado:
@@ -70,7 +68,11 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
             else:
                 val = resultado
             try:
-                return float(val)
+                num = float(val)
+                # SE TIVER A LETRA D (DÉBITO), TRANSFORMA EM NEGATIVO (LOSS)
+                if letra and letra.upper() == 'D':
+                    num = num * -1
+                return num
             except:
                 return 0.0
 
@@ -78,9 +80,10 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
             match = re.search(padrao, texto, re.IGNORECASE)
             if match:
                 bloco_depois = texto[match.end():match.end()+200]
-                numeros = re.findall(r"(\d[\d\.,]*[\.,]\d{2})", bloco_depois)
+                # A Regex agora captura o número e a letra C ou D que estiver na frente
+                numeros = re.findall(r"(\d[\d\.,]*[\.,]\d{2})\s*([DCdc]?)", bloco_depois)
                 if numeros and len(numeros) >= posicao:
-                    return limpar_valor(numeros[posicao - 1])
+                    return limpar_valor(numeros[posicao - 1][0], numeros[posicao - 1][1])
             return 0.0
 
         print("[XP_PARSER] Extraindo valores financeiros...")
@@ -91,6 +94,8 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
         v_liquido_pregao = v_bruto - v_taxas_b3 - v_irrf_1
         v_irrf_19 = v_liquido_pregao * 0.19 if v_liquido_pregao > 0 else 0.0
         v_liquido_dia = v_liquido_pregao - v_irrf_19
+        
+        # O REPASSE ZERA AUTOMATICAMENTE SE FOR LOSS
         v_repasse = v_liquido_dia * 0.30 if v_liquido_dia > 0 else 0.0
         
         print(f"[XP_PARSER] Valores capturados: Bruto={v_bruto}, Taxas={v_taxas_b3}, Repasse={v_repasse}")
