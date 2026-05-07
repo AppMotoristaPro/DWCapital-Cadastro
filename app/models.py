@@ -61,6 +61,9 @@ class Fatura(db.Model):
     dias = db.relationship('FaturaDiaria', backref='fatura_semanal', lazy=True, cascade="all, delete-orphan", order_by="FaturaDiaria.data_pregao")
 
 class FaturaDiaria(db.Model):
+    # TRAVA DE SEGURANÇA: Impede duplicidade de corretora/data na mesma fatura no nível do banco
+    __table_args__ = (db.UniqueConstraint('fatura_id', 'data_pregao', 'nome_corretora', name='_fatura_dia_corretora_uc'),)
+    
     id = db.Column(db.Integer, primary_key=True)
     fatura_id = db.Column(db.Integer, db.ForeignKey('fatura.id'), nullable=False)
     
