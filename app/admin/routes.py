@@ -115,12 +115,15 @@ def clientes_list():
 def liberar_cliente():
     cpf = ''.join(filter(str.isdigit, request.form.get('cpf')))
     nome_temp = request.form.get('nome_temp')
+    # CAPTURA SE O NOVO CLIENTE DEVE SER ISENTO
+    is_isento = True if request.form.get('is_isento') else False
     
     if User.query.filter_by(cpf=cpf).first():
         flash('CPF já cadastrado.', 'error')
         return redirect(url_for('admin.clientes_list'))
 
-    novo = User(cpf=cpf, nome=nome_temp, role='cliente', status_acesso='pendente_cadastro')
+    # CRIA O CLIENTE JÁ COM A CHAVE DE ISENÇÃO GRAVADA
+    novo = User(cpf=cpf, nome=nome_temp, role='cliente', status_acesso='pendente_cadastro', is_isento=is_isento)
     db.session.add(novo)
     db.session.flush()
     
@@ -132,7 +135,8 @@ def liberar_cliente():
     fatura = Fatura(user_id=novo.id, data_inicio=inicio_ciclo, data_fim=fim_ciclo)
     db.session.add(fatura)
     
-    registrar_log(f"Liberou novo acesso pré-cadastro para o CPF {cpf} (Nome provisório: {nome_temp}).", "Clientes")
+    status_isento_str = "Sim" if is_isento else "Não"
+    registrar_log(f"Liberou novo acesso pré-cadastro para o CPF {cpf} (Nome: {nome_temp}, Isento: {status_isento_str}).", "Clientes")
     
     db.session.commit()
     flash('Acesso liberado e ciclo inicial preparado!', 'success')
