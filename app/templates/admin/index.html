@@ -40,7 +40,12 @@
                     {% for cliente in clientes %}
                     <tr class="hover:bg-blue-50/30 transition {% if cliente.status_acesso == 'inativo' %}opacity-60{% endif %}">
                         <td class="px-6 py-5">
-                            <div class="font-bold text-navy text-sm">{{ cliente.nome }}</div>
+                            <div class="font-bold text-navy text-sm flex items-center gap-2">
+                                {{ cliente.nome }}
+                                {% if cliente.is_isento %}
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 border border-purple-200 rounded text-[9px] font-black uppercase tracking-widest">Isento</span>
+                                {% endif %}
+                            </div>
                             <div class="text-[10px] text-gray-400 font-medium">{{ cliente.cpf }} | ID: {{ cliente.matricula or 'PENDENTE' }}</div>
                         </td>
                         <td class="px-6 py-5">
