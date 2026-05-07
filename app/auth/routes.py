@@ -97,6 +97,7 @@ def primeiro_acesso():
             user.password_hash = generate_password_hash(request.form.get('senha'))
             user.matricula = gerar_matricula_unica() 
             user.status_acesso = 'ativo'
+            # O campo user.is_isento não é tocado aqui, garantindo que a escolha do Admin na liberação do CPF seja mantida intacta.
             
             # Limpeza de alocações antigas em caso de erro na tela (Prevenção)
             AlocacaoCorretora.query.filter_by(user_id=user.id).delete()
