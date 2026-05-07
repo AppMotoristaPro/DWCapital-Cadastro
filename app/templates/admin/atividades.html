@@ -30,8 +30,8 @@
                 {% for log in logs %}
                 <tr class="hover:bg-gray-50 transition">
                     <td class="px-6 py-5">
-                        <span class="text-xs font-bold text-navy">{{ log.timestamp.strftime('%d/%m/%Y') }}</span>
-                        <span class="text-[10px] text-gray-400 font-black ml-1">{{ log.timestamp.strftime('%H:%M') }}</span>
+                        <span class="text-xs font-bold text-navy">{{ (log.timestamp | to_tz_br).strftime('%d/%m/%Y') }}</span>
+                        <span class="text-[10px] text-gray-400 font-black ml-1">{{ (log.timestamp | to_tz_br).strftime('%H:%M') }}</span>
                     </td>
                     <td class="px-6 py-5">
                         <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border 
