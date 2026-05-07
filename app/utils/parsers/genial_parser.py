@@ -3,7 +3,7 @@ from pypdf import PdfReader
 
 def extrair_dados_genial(caminho_arquivo):
     print(f"\n==================================================")
-    print(f"[GENIAL_PARSER] INICIANDO ROBÔ GENIAL")
+    print(f"[GENIAL_PARSER] INICIANDO ROBÔ SNIPER GENIAL")
     print(f"==================================================")
     print(f"[GENIAL_PARSER] Arquivo alvo: {caminho_arquivo}")
     try:
@@ -13,82 +13,57 @@ def extrair_dados_genial(caminho_arquivo):
         print("[GENIAL_PARSER] Texto lido com sucesso.")
         
         if "GENIAL" not in texto_completo.upper():
-            print("[GENIAL_PARSER] ERRO: O PDF não pertence à Genial Investimentos.")
             return None
         
         match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo)
         data_pregao = match_data.group(1) if match_data else None
-        print(f"[GENIAL_PARSER] Data encontrada: {data_pregao}\n")
 
-        def extrair_por_posicao(nome_campo, padrao, texto, posicao, aceita_cd=False):
-            print(f"  [BUSCA] Campo: '{nome_campo}' | Padrão: '{padrao}' | Posição: {posicao}")
-            match = re.search(padrao, texto, re.IGNORECASE)
-            if match:
-                bloco_depois = texto[match.end():match.end()+200]
-                print(f"    -> Bloco extraído: {repr(bloco_depois[:60])}...")
-                
-                regex_numeros = r"(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})\s*([CDcd])?"
-                matches = re.findall(regex_numeros, bloco_depois)
-                
-                print(f"    -> Valores localizados: {matches}")
-                
-                if matches and len(matches) >= posicao:
-                    valor_str, letra = matches[posicao - 1]
-                    num_str = valor_str.replace('.', '').replace(',', '.')
-                    num = float(num_str)
-                    
-                    if aceita_cd:
-                        if letra and letra.upper() == 'D':
-                            num = -num
-                            print(f"    -> [!] Letra 'D' detectada. Convertido para LOSS (Negativo): {num}")
-                        elif letra and letra.upper() == 'C':
-                            print(f"    -> [!] Letra 'C' detectada. Mantido como GAIN (Positivo): {num}")
-                        else:
-                            print(f"    -> [!] Nenhuma letra C/D detectada. Assumindo POSITIVO: {num}")
-                    else:
-                        num = abs(num) 
-                        print(f"    -> [!] Campo de Despesa. Forçado para absoluto POSITIVO: {num}")
-                        
-                    return num
-                else:
-                    print(f"    -> [ERRO] Posição {posicao} não existe. Encontrados apenas {len(matches)} itens.")
-            else:
-                print(f"    -> [ERRO] Padrão não encontrado no PDF.")
-            return 0.0
+        # PREPARAÇÃO DO RESUMO
+        resumo = texto_completo[-2000:]
+        resumo_limpo = re.sub(r'[\n\r\|]', ' ', resumo)
 
-        # --- EXTRAÇÃO DE DADOS ---
-        v_bruto = extrair_por_posicao("Valor Bruto", r"Valor dos negócios", texto_completo, 1, aceita_cd=True)
-        v_irrf_1 = extrair_por_posicao("IRRF Day Trade (1%)", r"IRRF Day Trade", texto_completo, 2, aceita_cd=False)
-        v_taxas_b3 = extrair_por_posicao("Taxas B3", r"Total das despesas", texto_completo, 4, aceita_cd=False)
-
-        print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS DO PREGÃO ---")
+        # 1. Busca todos os valores com C/D
+        matches_cd = re.findall(r"(\d{1,3}(?:\.\d{3})*,\d{2})\s*([CDcd])\b", resumo_limpo)
+        validos_cd = [(val, letra) for val, letra in matches_cd if val != '0,00']
         
-        # Líquido do Pregão
-        print(f"    Fórmula: Líquido Pregão = Bruto ({v_bruto}) - Taxas B3 ({v_taxas_b3}) - IRRF 1% ({v_irrf_1})")
-        v_liquido_pregao = v_bruto - v_taxas_b3 - v_irrf_1
-        print(f"    Resultado Líquido Pregão: {v_liquido_pregao}")
+        v_bruto = 0.0
+        v_total_liquido = 0.0
         
-        # IRRF 19%
-        if v_liquido_pregao > 0:
-            v_irrf_19 = v_liquido_pregao * 0.19
-            print(f"    Fórmula: IRRF 19% = {v_liquido_pregao} * 0.19 = {v_irrf_19}")
-        else:
-            v_irrf_19 = 0.0
-            print(f"    Fórmula: IRRF 19% = 0.00 (Pregão foi LOSS)")
+        if validos_cd:
+            # O primeiro valor com C/D é sempre o Bruto
+            val_b, let_b = validos_cd[0]
+            v_bruto = float(val_b.replace('.', '').replace(',', '.'))
+            if let_b.upper() == 'D': v_bruto = -v_bruto
             
-        # Líquido do Dia
-        v_liquido_dia = v_liquido_pregao - v_irrf_19
-        print(f"    Fórmula: Líquido do Dia = {v_liquido_pregao} - {v_irrf_19} = {v_liquido_dia}")
-        
-        # Repasse DW
-        if v_liquido_dia > 0:
-            v_repasse = v_liquido_dia * 0.30
-            print(f"    Fórmula: Repasse DW = {v_liquido_dia} * 0.30 = {v_repasse}")
-        else:
-            v_repasse = 0.0
-            print(f"    Fórmula: Repasse DW = 0.00 (Sem repasse no Loss)")
+            # O último valor com C/D é sempre o Total Líquido
+            val_l, let_l = validos_cd[-1]
+            v_total_liquido = float(val_l.replace('.', '').replace(',', '.'))
+            if let_l.upper() == 'D': v_total_liquido = -v_total_liquido
 
-        print("  [MATEMÁTICA] --- FIM DOS CÁLCULOS ---\n")
+        # 2. Busca do IRRF (Genial também joga na 2ª posição após a palavra)
+        v_irrf_1 = 0.0
+        match_irrf = re.search(r"IRRF Day Trade", resumo_limpo, re.IGNORECASE)
+        if match_irrf:
+            bloco = resumo_limpo[match_irrf.end():match_irrf.end()+150]
+            nums = re.findall(r"(\d{1,3}(?:\.\d{3})*,\d{2})", bloco)
+            if len(nums) >= 2:
+                v_irrf_1 = float(nums[1].replace('.', '').replace(',', '.'))
+
+        # 3. DEDUÇÃO MATEMÁTICA DAS TAXAS B3
+        v_taxas_b3 = round(abs(v_bruto - v_total_liquido) - v_irrf_1, 2)
+        v_taxas_b3 = max(0.0, v_taxas_b3)
+
+        print(f"\n  [SNIPER] MATEMÁTICA DEDUTIVA B3:")
+        print(f"    -> Bruto Encontrado: {v_bruto}")
+        print(f"    -> Total Líquido Encontrado: {v_total_liquido}")
+        print(f"    -> IRRF 1% Encontrado: {v_irrf_1}")
+        print(f"    -> Taxas B3 Deduzidas: |({v_bruto}) - ({v_total_liquido})| - {v_irrf_1} = {v_taxas_b3}")
+
+        # REPASSE ZERO NO LOSS
+        v_liquido_pregao = v_bruto - v_taxas_b3 - v_irrf_1
+        v_irrf_19 = v_liquido_pregao * 0.19 if v_liquido_pregao > 0 else 0.0
+        v_liquido_dia = v_liquido_pregao - v_irrf_19
+        v_repasse = v_liquido_dia * 0.30 if v_liquido_dia > 0 else 0.0
 
         return {
             'data_pregao': data_pregao,
