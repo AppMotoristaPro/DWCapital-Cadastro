@@ -24,6 +24,10 @@ def upgrade():
     with op.batch_alter_table('user', schema=None) as batch_op:
         batch_op.add_column(sa.Column('is_isento', sa.Boolean(), nullable=True))
 
+    # --- CORREÇÃO DE DADOS LEGADOS: Preenche NULL com False ---
+    op.execute('UPDATE "user" SET is_isento = FALSE WHERE is_isento IS NULL')
+    # ----------------------------------------------------------
+
     # ### end Alembic commands ###
 
 
@@ -36,3 +40,4 @@ def downgrade():
         batch_op.drop_constraint('_fatura_dia_corretora_uc', type_='unique')
 
     # ### end Alembic commands ###
+

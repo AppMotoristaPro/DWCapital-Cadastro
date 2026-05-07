@@ -34,10 +34,10 @@ def dashboard():
     filtro_semana = request.args.get('semana')
     filtro_mes = request.args.get('mes')
     
-    # FILTRO APLICADO: Ignora clientes que estão marcados como ISENTOS (is_isento == True)
+    # FILTRO APLICADO: Ignora clientes que estão marcados como ISENTOS, mas aceita os False e os NULLs antigos
     faturas_base = Fatura.query.join(User).filter(
         Fatura.status.in_(['parcial', 'completo', 'pago', 'inadimplente']),
-        User.is_isento == False
+        db.or_(User.is_isento == False, User.is_isento.is_(None))
     )
     
     label_periodo = "Todo o Período"
@@ -71,8 +71,13 @@ def dashboard():
     clientes_ativos = User.query.filter_by(role='cliente', status_acesso='ativo').count()
     clientes_inativos = User.query.filter_by(role='cliente', status_acesso='inativo').count()
     
-    # FILTRO APLICADO: Soma capital alocado apenas de clientes pagantes (is_isento=False)
-    alocado_row = db.session.query(db.func.sum(User.capital_alocado)).filter_by(role='cliente', status_acesso='ativo', is_isento=False).first()
+    # FILTRO APLICADO: Soma capital alocado apenas de clientes pagantes (is_isento=False ou NULL)
+    alocado_row = db.session.query(db.func.sum(User.capital_alocado)).filter(
+        User.role == 'cliente', 
+        User.status_acesso == 'ativo', 
+        db.or_(User.is_isento == False, User.is_isento.is_(None))
+    ).first()
+    
     capital_total = alocado_row[0] or 0.0
     
     qtd_faturas = len(faturas_filtradas)
