@@ -31,7 +31,7 @@
                 <thead>
                     <tr class="bg-ice text-gray-400 text-[10px] font-black uppercase tracking-wider border-b border-gray-100">
                         <th class="px-6 py-4">Investidor</th>
-                        <th class="px-6 py-4">ID</th>
+                        <th class="px-6 py-4">Alocações (Corretoras)</th>
                         <th class="px-6 py-4">Status</th>
                         <th class="px-6 py-4 text-right">Ações</th>
                     </tr>
@@ -41,9 +41,19 @@
                     <tr class="hover:bg-blue-50/30 transition {% if cliente.status_acesso == 'inativo' %}opacity-60{% endif %}">
                         <td class="px-6 py-5">
                             <div class="font-bold text-navy text-sm">{{ cliente.nome }}</div>
-                            <div class="text-[10px] text-gray-400 font-medium">{{ cliente.cpf }}</div>
+                            <div class="text-[10px] text-gray-400 font-medium">{{ cliente.cpf }} | ID: {{ cliente.matricula or 'PENDENTE' }}</div>
                         </td>
-                        <td class="px-6 py-5 text-xs font-black text-royal tracking-widest">{{ cliente.matricula or 'PENDENTE' }}</td>
+                        <td class="px-6 py-5">
+                            <div class="flex flex-wrap gap-2">
+                                {% if cliente.alocacoes %}
+                                    {% for aloc in cliente.alocacoes %}
+                                        <span class="px-2 py-1 bg-blue-50 text-royal border border-blue-100 rounded text-[9px] font-black uppercase tracking-widest">{{ aloc.nome_corretora }}</span>
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Nenhuma Alocação</span>
+                                {% endif %}
+                            </div>
+                        </td>
                         <td class="px-6 py-5">
                             <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase border 
                                 {% if cliente.status_acesso == 'ativo' %}bg-green-100 text-green-700
@@ -84,16 +94,22 @@
                                 </div>
                                 <div class="bg-gray-50 p-3 rounded-xl"><span class="block text-[10px] uppercase font-black text-gray-400">Endereço Completo</span><span class="text-navy font-bold">{{ cliente.endereco or 'Não preenchido' }}</span></div>
                                 
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div class="bg-blue-50 p-3 rounded-xl"><span class="block text-[10px] uppercase font-black text-blue-400">Corretora</span><span class="text-royal font-bold">{{ cliente.corretora or 'Não preenchido' }}</span></div>
-                                    <div class="bg-blue-50 p-3 rounded-xl"><span class="block text-[10px] uppercase font-black text-blue-400">Capital Alocado</span><span class="text-royal font-bold">R$ {{ cliente.capital_alocado|format_brl }}</span></div>
+                                <div class="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                                    <span class="block text-[10px] uppercase font-black text-blue-400 mb-2">Corretoras Alocadas</span>
+                                    {% if cliente.alocacoes %}
+                                        <div class="space-y-2">
+                                        {% for aloc in cliente.alocacoes %}
+                                            <div class="flex justify-between items-center bg-white p-2 rounded-lg border border-blue-50">
+                                                <span class="text-royal font-black text-xs tracking-widest">{{ aloc.nome_corretora }}</span>
+                                                <span class="text-green-600 font-black text-xs">R$ {{ aloc.capital_alocado|format_brl }}</span>
+                                            </div>
+                                        {% endfor %}
+                                        </div>
+                                    {% else %}
+                                        <span class="text-royal font-bold">Nenhuma corretora cadastrada</span>
+                                    {% endif %}
                                 </div>
                                 
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div class="bg-gray-50 p-3 rounded-xl"><span class="block text-[10px] uppercase font-black text-gray-400">Perfil de Risco</span><span class="text-navy font-bold">{{ cliente.perfil_risco or 'Não preenchido' }}</span></div>
-                                    <div class="bg-gray-50 p-3 rounded-xl"><span class="block text-[10px] uppercase font-black text-gray-400">ID / Matrícula</span><span class="text-navy font-bold">{{ cliente.matricula or 'Pendente' }}</span></div>
-                                </div>
-
                                 <div class="grid grid-cols-2 gap-4">
                                     <div class="bg-gray-50 p-3 rounded-xl"><span class="block text-[10px] uppercase font-black text-gray-400">Termo Assinado?</span><span class="text-navy font-bold">{{ 'Sim' if cliente.termo_assinado else 'Não' }}</span></div>
                                     <div class="bg-gray-50 p-3 rounded-xl"><span class="block text-[10px] uppercase font-black text-gray-400">Data de Cadastro</span><span class="text-navy font-bold">{{ cliente.data_cadastro.strftime('%d/%m/%Y') if cliente.data_cadastro else 'N/A' }}</span></div>

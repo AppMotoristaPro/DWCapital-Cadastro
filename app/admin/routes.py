@@ -4,7 +4,7 @@ import string
 from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app
 from flask_login import login_required, current_user
 from werkzeug.security import generate_password_hash
-from app.models import User, Fatura, FaturaDiaria
+from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora
 from app import db
 from datetime import datetime, timedelta
 import pytz
@@ -17,7 +17,6 @@ admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 def dashboard():
     if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
     
-    # ATUALIZAÇÃO: Captura de todos os filtros do formulário
     filtro_dia = request.args.get('dia')
     filtro_semana = request.args.get('semana')
     filtro_mes = request.args.get('mes')
@@ -26,15 +25,12 @@ def dashboard():
     
     label_periodo = "Todo o Período"
     
-    # Lógica Dinâmica de Filtros
     if filtro_dia:
         dt_dia = datetime.strptime(filtro_dia, '%Y-%m-%d').date()
-        # Pega as faturas em que este dia está contido no ciclo
         faturas_filtradas = faturas_base.filter(Fatura.data_inicio <= dt_dia, Fatura.data_fim >= dt_dia).all()
         label_periodo = f"Dia {dt_dia.strftime('%d/%m/%Y')}"
         
     elif filtro_semana:
-        # O HTML envia '2026-W18'. O '-1' no final indica a segunda-feira daquela semana
         dt_inicio_sem = datetime.strptime(filtro_semana + '-1', '%G-W%V-%u').date()
         dt_fim_sem = dt_inicio_sem + timedelta(days=6)
         faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_sem, Fatura.data_inicio <= dt_fim_sem).all()
@@ -42,7 +38,6 @@ def dashboard():
         
     elif filtro_mes:
         dt_inicio_mes = datetime.strptime(filtro_mes + '-01', '%Y-%m-%d').date()
-        # Descobre o último dia do mês
         if dt_inicio_mes.month == 12:
             dt_fim_mes = dt_inicio_mes.replace(year=dt_inicio_mes.year+1, month=1, day=1) - timedelta(days=1)
         else:
@@ -113,16 +108,12 @@ def liberar_cliente():
     
     fatura = Fatura(user_id=novo.id, data_inicio=inicio_ciclo, data_fim=fim_ciclo)
     db.session.add(fatura)
-    db.session.flush()
     
-    for i in range(7):
-        data_atual = inicio_ciclo + timedelta(days=i)
-        if data_atual.weekday() < 5: 
-            fd = FaturaDiaria(fatura_id=fatura.id, data_pregao=data_atual)
-            db.session.add(fd)
-
+    # As Faturas Diárias (por corretora) serão injetadas automaticamente 
+    # pelo routes.py do cliente quando ele configurar suas alocações no 1º acesso.
+    
     db.session.commit()
-    flash('Acesso liberado e ciclos gerados!', 'success')
+    flash('Acesso liberado e ciclo inicial preparado!', 'success')
     return redirect(url_for('admin.clientes_list'))
 
 @admin_bp.route('/editar/<int:id>', methods=['GET', 'POST'])
@@ -131,10 +122,34 @@ def editar_cliente(id):
     cliente = User.query.get_or_404(id)
     if request.method == 'POST':
         cliente.nome = request.form.get('nome')
-        cliente.capital_alocado = float(request.form.get('capital') or 0.0)
+        cliente.email = request.form.get('email')
+        cliente.celular = request.form.get('celular')
+        
+        # GESTÃO DE MÚLTIPLAS CORRETORAS (Array)
+        corretoras_selecionadas = request.form.getlist('corretora[]')
+        capitais_alocados = request.form.getlist('capital[]')
+        
+        # Remove as antigas para gravar o novo status
+        AlocacaoCorretora.query.filter_by(user_id=cliente.id).delete()
+        
+        capital_soma = 0.0
+        for corretora, capital in zip(corretoras_selecionadas, capitais_alocados):
+            if corretora and capital:
+                nova_alocacao = AlocacaoCorretora(
+                    user_id=cliente.id,
+                    nome_corretora=corretora.upper(),
+                    capital_alocado=float(capital)
+                )
+                db.session.add(nova_alocacao)
+                capital_soma += float(capital)
+                
+        # Atualiza a soma total no perfil do usuário
+        cliente.capital_alocado = capital_soma
+        
         db.session.commit()
-        flash('Dados atualizados!', 'success')
+        flash('Dados e alocações atualizados com sucesso!', 'success')
         return redirect(url_for('admin.clientes_list'))
+        
     return render_template('admin/editar.html', cliente=cliente)
 
 @admin_bp.route('/inativar_cliente/<int:id>', methods=['POST'])
@@ -225,9 +240,7 @@ def rejeitar_relatorio(dia_id):
     dias_enviados = sum(1 for d in fatura.dias if d.status == 'relatorio_enviado')
     if dias_enviados == 0:
         fatura.status = 'pendente'
-    elif dias_enviados == 5:
-        fatura.status = 'completo'
-    else:
+    elif dias_enviados > 0:
         fatura.status = 'parcial'
         
     db.session.commit()
@@ -261,9 +274,7 @@ def forcar_limpeza_dia(dia_id):
     dias_enviados = sum(1 for d in fatura.dias if d.status == 'relatorio_enviado')
     if dias_enviados == 0:
         fatura.status = 'pendente'
-    elif dias_enviados == 5:
-        fatura.status = 'completo'
-    else:
+    elif dias_enviados > 0:
         fatura.status = 'parcial'
         
     db.session.commit()

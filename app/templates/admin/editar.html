@@ -16,27 +16,82 @@
       {% endif %}
     {% endwith %}
 
-    <form method="POST" action="{{ url_for('admin.editar_cliente', id=cliente.id) }}" class="space-y-4">
-        <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase">Nome</label>
-            <input type="text" name="nome" value="{{ cliente.nome }}" class="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none font-medium">
+    <form method="POST" action="{{ url_for('admin.editar_cliente', id=cliente.id) }}" class="space-y-6">
+        
+        <div class="space-y-4">
+            <h3 class="text-sm font-black text-navy uppercase tracking-widest border-b border-gray-100 pb-2">Dados Cadastrais</h3>
+            <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase">Nome</label>
+                <input type="text" name="nome" value="{{ cliente.nome }}" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none font-medium focus:border-royal">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase">Email</label>
+                    <input type="email" name="email" value="{{ cliente.email or '' }}" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none font-medium focus:border-royal">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase">Celular</label>
+                    <input type="text" name="celular" value="{{ cliente.celular or '' }}" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none font-medium focus:border-royal">
+                </div>
+            </div>
         </div>
-        <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase">Email</label>
-            <input type="email" name="email" value="{{ cliente.email or '' }}" class="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none font-medium">
+
+        <div class="space-y-4 pt-4">
+            <h3 class="text-sm font-black text-navy uppercase tracking-widest border-b border-gray-100 pb-2">Alocações (Corretoras)</h3>
+            
+            <div id="corretoras-container" class="space-y-4">
+                {% if cliente.alocacoes %}
+                    {% for aloc in cliente.alocacoes %}
+                    <div class="corretora-card bg-blue-50/50 border border-blue-100 rounded-2xl p-5 relative group transition-all">
+                        <button type="button" onclick="removerCorretora(this)" class="absolute -top-3 -right-3 bg-red-500 hover:bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm font-black shadow-md z-20">×</button>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-500 uppercase">Corretora</label>
+                                <select name="corretora[]" required class="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none font-black text-sm text-navy focus:border-royal">
+                                    <option value="GENIAL" {% if aloc.nome_corretora == 'GENIAL' %}selected{% endif %}>GENIAL INVESTIMENTOS</option>
+                                    <option value="BTG" {% if aloc.nome_corretora == 'BTG' %}selected{% endif %}>BTG PACTUAL</option>
+                                    <option value="XP" {% if aloc.nome_corretora == 'XP' %}selected{% endif %}>XP INVESTIMENTOS</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-green-600 uppercase">Capital (R$)</label>
+                                <input type="number" step="0.01" name="capital[]" value="{{ aloc.capital_alocado }}" required class="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none font-black text-sm text-green-600 focus:border-green-400">
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="corretora-card bg-blue-50/50 border border-blue-100 rounded-2xl p-5 relative group transition-all">
+                        <button type="button" onclick="removerCorretora(this)" class="absolute -top-3 -right-3 bg-red-500 hover:bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm font-black shadow-md z-20">×</button>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-500 uppercase">Corretora</label>
+                                <select name="corretora[]" required class="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none font-black text-sm text-navy focus:border-royal">
+                                    <option value="" disabled selected>Selecione</option>
+                                    <option value="GENIAL">GENIAL INVESTIMENTOS</option>
+                                    <option value="BTG">BTG PACTUAL</option>
+                                    <option value="XP">XP INVESTIMENTOS</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-green-600 uppercase">Capital (R$)</label>
+                                <input type="number" step="0.01" name="capital[]" required class="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none font-black text-sm text-green-600 focus:border-green-400">
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+            
+            <button type="button" onclick="adicionarCorretora()" class="w-full py-3 border-2 border-dashed border-gray-200 text-gray-500 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-gray-50 transition-all flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 4v16m8-8H4"></path></svg>
+                Adicionar Corretora
+            </button>
         </div>
-        <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase">Celular</label>
-            <input type="text" name="celular" value="{{ cliente.celular or '' }}" class="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none font-medium">
-        </div>
-        <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase">Capital Alocado</label>
-            <input type="number" step="0.01" name="capital" value="{{ cliente.capital_alocado }}" class="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none font-medium">
-        </div>
-        <button type="submit" class="w-full py-4 bg-royal text-white font-black uppercase rounded-xl mt-4">Salvar Alterações</button>
+
+        <button type="submit" class="w-full py-4 bg-royal text-white font-black uppercase tracking-widest rounded-xl mt-6 shadow-md hover:bg-royal-dark transition">Salvar Todas as Alterações</button>
     </form>
 
-    <div class="mt-8 pt-8 border-t border-gray-100">
+    <div class="mt-10 pt-8 border-t border-gray-100">
         <h3 class="text-lg font-black text-navy mb-2">Segurança de Acesso</h3>
         <p class="text-xs text-gray-500 mb-6 font-medium leading-relaxed">Caso o cliente tenha perdido o acesso, você pode resetar a senha dele. O sistema criará uma senha temporária e o cliente será obrigado a cadastrar uma nova assim que entrar na plataforma.</p>
         
@@ -50,5 +105,31 @@
 
     <a href="{{ url_for('admin.dashboard') }}" class="block text-center mt-8 text-sm font-bold text-gray-500 hover:text-gray-800 transition">Voltar para o Painel</a>
 </div>
+
+<script>
+function adicionarCorretora() {
+    const container = document.getElementById('corretoras-container');
+    const cards = container.querySelectorAll('.corretora-card');
+    
+    if (cards.length >= 3) {
+        alert('O cliente já atingiu o limite de corretoras suportadas (3).');
+        return;
+    }
+    
+    const clone = cards[0].cloneNode(true);
+    clone.querySelector('select').value = "";
+    clone.querySelector('input[type="number"]').value = "";
+    container.appendChild(clone);
+}
+
+function removerCorretora(btn) {
+    const container = document.getElementById('corretoras-container');
+    if (container.querySelectorAll('.corretora-card').length > 1) {
+        btn.closest('.corretora-card').remove();
+    } else {
+        alert('O cliente precisa ter pelo menos uma corretora alocada.');
+    }
+}
+</script>
 {% endblock %}
 

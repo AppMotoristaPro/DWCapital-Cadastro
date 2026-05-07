@@ -1,17 +1,17 @@
 import os
 import urllib.parse
+from datetime import timedelta
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify
 from flask_login import login_required, current_user
 import cloudinary.uploader
 from app import db
 from app.models import FaturaDiaria, Fatura
 from app.utils.autentique import criar_documento_autentique, verificar_status_autentique
-from app.utils.pdf_parser import extrair_dados_nota_corretagem
+from app.utils.parsers.gerenciador_pdf import processar_pdf
 
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
 
 def atualizar_totais_semana(fatura):
-    """Calcula os totais financeiros e define o status da semana (Pendente, Parcial ou Completo)"""
     fatura.bruto = sum(d.bruto for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.taxas_b3 = sum(d.taxas_b3 for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.irrf_1 = sum(d.irrf_1 for d in fatura.dias if d.status == 'relatorio_enviado')
@@ -24,8 +24,6 @@ def atualizar_totais_semana(fatura):
     
     if dias_enviados == 0:
         fatura.status = 'pendente'
-    elif dias_enviados == 5:
-        fatura.status = 'completo'
     else:
         fatura.status = 'parcial'
         
@@ -81,32 +79,83 @@ def dados_pessoais():
 @client_bp.route('/faturas', methods=['GET', 'POST'])
 @login_required
 def faturas():
+    if request.method == 'GET':
+        for fatura in current_user.faturas:
+            # FAXINA AUTOMÁTICA: Remove dias antigos de final de semana (5=Sábado, 6=Domingo)
+            for dia in list(fatura.dias):
+                if dia.data_pregao.weekday() >= 5:
+                    db.session.delete(dia)
+            db.session.commit()
+
+            # LÓGICA DE DIAS ÚTEIS: Garante 5 dias, ignorando Sábado (5) e Domingo (6)
+            datas_da_semana = []
+            data_atual = fatura.data_inicio
+            while len(datas_da_semana) < 5:
+                if data_atual.weekday() < 5:
+                    datas_da_semana.append(data_atual)
+                data_atual += timedelta(days=1)
+                
+            for data in datas_da_semana:
+                for alocacao in current_user.alocacoes:
+                    dia_existente = FaturaDiaria.query.filter_by(
+                        fatura_id=fatura.id, 
+                        data_pregao=data, 
+                        nome_corretora=alocacao.nome_corretora
+                    ).first()
+                    if not dia_existente:
+                        novo_dia = FaturaDiaria(
+                            fatura_id=fatura.id, 
+                            data_pregao=data, 
+                            nome_corretora=alocacao.nome_corretora, 
+                            status='pendente'
+                        )
+                        db.session.add(novo_dia)
+        db.session.commit()
+
     if request.method == 'POST':
         dia_id = request.form.get('dia_id')
+        senha_manual = request.form.get('senha_manual')
         arquivo = request.files.get('relatorio_pdf')
+        
+        print(f"\n[ROUTES] --- INÍCIO DE UPLOAD ---")
+        print(f"[ROUTES] FaturaDiaria ID: {dia_id} | Senha Manual: {'Sim' if senha_manual else 'Não'}")
+        
         if arquivo and arquivo.filename:
+            print(f"[ROUTES] Arquivo recebido: {arquivo.filename}")
             upload_folder = os.path.join(current_app.root_path, 'static', 'uploads')
             os.makedirs(upload_folder, exist_ok=True)
             file_path = os.path.join(upload_folder, arquivo.filename)
             arquivo.save(file_path)
             
             dia = FaturaDiaria.query.get(dia_id)
-            dados = extrair_dados_nota_corretagem(file_path)
-            
-            print(f"[ROUTE LOG] Processando PDF para ID {dia_id}...")
-            
-            if not dados or dados.get('data_pregao') != dia.data_pregao.strftime('%d/%m/%Y'):
-                print(f"[ROUTE ERROR] Divergência de data: PDF={dados.get('data_pregao') if dados else 'ERRO'} vs Banco={dia.data_pregao.strftime('%d/%m/%Y')}")
-                if os.path.exists(file_path): os.remove(file_path)
-                flash('PDF Inválido ou data incorreta.', 'danger')
-                return redirect(url_for('client.faturas'))
             
             try:
-                # Upload seguro para o Cloudinary renderizado como imagem para burlar erros de visualização direta de PDF
-                upload_res = cloudinary.uploader.upload(file_path, folder="dwcapital/relatorios", resource_type="image")
-                dia.arquivo_pdf = upload_res.get('secure_url')
+                print(f"[ROUTES] Chamando processar_pdf para {dia.nome_corretora}...")
+                dados = processar_pdf(file_path, dia.nome_corretora, current_user.cpf, senha_manual)
                 
-                # Persistência dos valores financeiros extraídos pelo robô
+                # VARIÁVEL DE AMBIENTE: Controle de Bloqueio de Data
+                bloq_data_env = os.environ.get('BLOQ_DATA', 'False').lower()
+                bloquear_data = bloq_data_env in ('true', '1', 't')
+                
+                if not dados:
+                    print("[ROUTES] ERRO: Retorno do processar_pdf foi None.")
+                    if os.path.exists(file_path): os.remove(file_path)
+                    return jsonify({'success': False, 'error': 'RELATORIO_INVALIDO', 'message': 'Não foi possível ler os dados do PDF.'})
+
+                data_pdf = dados.get('data_pregao')
+                data_esperada = dia.data_pregao.strftime('%d/%m/%Y')
+                
+                if bloquear_data and data_pdf != data_esperada:
+                    print(f"[ROUTES] ERRO DE DATA: PDF={data_pdf} | Esperada={data_esperada}")
+                    if os.path.exists(file_path): os.remove(file_path)
+                    return jsonify({'success': False, 'error': 'RELATORIO_INVALIDO', 'message': f'Data incorreta. Esperado: {data_esperada}.'})
+
+                print("[ROUTES] Sucesso na leitura do robô! Arquivo local destrancado.")
+                print("[ROUTES] Iniciando envio para o Cloudinary (versão sem senha)...")
+                upload_res = cloudinary.uploader.upload(file_path, folder="dwcapital/relatorios")
+                print("[ROUTES] Envio Cloudinary finalizado.")
+                
+                dia.arquivo_pdf = upload_res.get('secure_url')
                 dia.bruto = dados.get('bruto')
                 dia.taxas_b3 = dados.get('taxas_b3')
                 dia.irrf_1 = dados.get('irrf_1')
@@ -116,17 +165,23 @@ def faturas():
                 dia.repasse = dados.get('repasse_dw')
                 dia.status = 'relatorio_enviado'
                 
-                print(f"[ROUTE LOG] Sucesso! Salvando Bruto: R$ {dia.bruto} | Repasse: R$ {dia.repasse}")
                 db.session.commit()
-                
-                if os.path.exists(file_path): os.remove(file_path)
                 atualizar_totais_semana(dia.fatura_semanal)
-                flash('Relatório processado e salvo com sucesso!', 'success')
-            except Exception as e:
-                print(f"[ROUTE ERROR] Falha no upload/salvamento: {str(e)}")
-                if os.path.exists(file_path): os.remove(file_path)
-                flash(f'Erro técnico no processamento: {str(e)}', 'danger')
+                print("[ROUTES] Dados gravados no banco. Processo concluído.")
                 
+                if os.path.exists(file_path): os.remove(file_path)
+                return jsonify({'success': True})
+
+            except Exception as e:
+                print(f"[ROUTES] EXCEÇÃO NO FLUXO: {str(e)}")
+                if os.path.exists(file_path): os.remove(file_path)
+                
+                if "SENHA_INCORRETA" in str(e):
+                    print("[ROUTES] Disparando alerta de REQUER_SENHA para o Frontend.")
+                    return jsonify({'success': False, 'error': 'REQUER_SENHA'})
+                
+                return jsonify({'success': False, 'error': 'ERRO_TECNICO', 'message': str(e)})
+
     return render_template('client/faturas.html', faturas=current_user.faturas)
 
 @client_bp.route('/faturas/comprovante/<int:fatura_id>', methods=['POST'])
@@ -136,20 +191,20 @@ def enviar_comprovante(fatura_id):
     arquivo = request.files.get('comprovante')
     if arquivo:
         try:
-            # Comprovantes também são enviados como image para garantir visualização no navegador
             res = cloudinary.uploader.upload(arquivo, folder="dwcapital/comprovantes", resource_type="image")
             fatura.comprovante_pix = res.get('secure_url')
             db.session.commit()
             flash('Comprovante enviado com sucesso!', 'success')
         except Exception as e:
-            flash(f'Erro ao enviar para nuvem: {str(e)}', 'danger')
+            flash(f"Erro ao enviar para nuvem: {str(e)}", "danger")
     return redirect(url_for('client.faturas'))
 
 @client_bp.route('/faturas/remover/<int:dia_id>', methods=['POST'])
 @login_required
 def remover_fatura(dia_id):
     dia = FaturaDiaria.query.get_or_404(dia_id)
-    dia.arquivo_pdf, dia.status = None, 'pendente'
+    dia.arquivo_pdf = None
+    dia.status = 'pendente'
     db.session.commit()
     atualizar_totais_semana(dia.fatura_semanal)
     return redirect(url_for('client.faturas'))

@@ -16,15 +16,29 @@ class User(db.Model, UserMixin):
     endereco = db.Column(db.Text)
     email = db.Column(db.String(120))
     celular = db.Column(db.String(20))
-    corretora = db.Column(db.String(50))
+    
+    # MANTIDOS TEMPORARIAMENTE PARA A MIGRAÇÃO SEGURA
+    corretora = db.Column(db.String(50), nullable=True)
     capital_alocado = db.Column(db.Float, default=0.0)
+    
     perfil_risco = db.Column(db.String(20))
     data_cadastro = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     matricula = db.Column(db.String(20), unique=True, nullable=True)
     precisa_trocar_senha = db.Column(db.Boolean, default=False)
     termo_assinado = db.Column(db.Boolean, default=False)
     docusign_envelope_id = db.Column(db.String(100), nullable=True)
+    
+    # RELACIONAMENTOS ATUALIZADOS
     faturas = db.relationship('Fatura', backref='cliente', lazy=True, cascade="all, delete-orphan")
+    alocacoes = db.relationship('AlocacaoCorretora', backref='cliente', lazy=True, cascade="all, delete-orphan")
+
+# NOVA TABELA: Multi-Corretoras por Cliente
+class AlocacaoCorretora(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    nome_corretora = db.Column(db.String(50), nullable=False)
+    capital_alocado = db.Column(db.Float, default=0.0)
+    data_criacao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
 
 class Fatura(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -46,6 +60,10 @@ class Fatura(db.Model):
 class FaturaDiaria(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     fatura_id = db.Column(db.Integer, db.ForeignKey('fatura.id'), nullable=False)
+    
+    # NOVA COLUNA: Para saber de qual corretora é este PDF
+    nome_corretora = db.Column(db.String(50), nullable=True, default='GENIAL') 
+    
     data_pregao = db.Column(db.Date, nullable=False)
     bruto = db.Column(db.Float, default=0.0)
     taxas_b3 = db.Column(db.Float, default=0.0)
