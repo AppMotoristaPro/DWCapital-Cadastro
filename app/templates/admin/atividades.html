@@ -1,0 +1,61 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_content %}
+<div class="max-w-7xl mx-auto relative z-10 pb-20">
+    <div class="flex justify-between items-end mb-8">
+        <div>
+            <h1 class="text-4xl font-black text-navy tracking-tight">Registro de Atividades</h1>
+            <p class="text-gray-500 mt-2 font-medium">Histórico de auditoria e segurança de ações da diretoria.</p>
+        </div>
+    </div>
+
+    <form method="GET" action="{{ url_for('admin.atividades') }}" class="mb-6 flex flex-wrap gap-4 bg-white p-2 rounded-2xl shadow-sm border border-gray-100 max-w-2xl">
+        <input type="text" name="q" value="{{ busca }}" placeholder="Buscar por administrador, ação ou corretora..." class="flex-1 px-4 py-2 outline-none text-sm font-bold text-navy bg-transparent min-w-[200px]">
+        <button type="submit" class="px-6 py-3 bg-navy text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition">Pesquisar</button>
+        {% if busca %}
+        <a href="{{ url_for('admin.atividades') }}" class="px-4 py-3 text-gray-400 hover:text-red-500 font-bold text-xs flex items-center">Limpar</a>
+        {% endif %}
+    </form>
+
+    <div class="bg-white rounded-3xl shadow-lg border border-gray-100 overflow-hidden">
+        <table class="w-full text-left border-collapse">
+            <thead class="bg-ice text-gray-400 text-[10px] font-black uppercase tracking-wider">
+                <tr>
+                    <th class="px-6 py-4 w-48 border-b border-gray-100">Data e Hora</th>
+                    <th class="px-6 py-4 w-32 border-b border-gray-100">Categoria</th>
+                    <th class="px-6 py-4 border-b border-gray-100">Detalhes da Ação</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for log in logs %}
+                <tr class="hover:bg-gray-50 transition">
+                    <td class="px-6 py-5">
+                        <span class="text-xs font-bold text-navy">{{ log.timestamp.strftime('%d/%m/%Y') }}</span>
+                        <span class="text-[10px] text-gray-400 font-black ml-1">{{ log.timestamp.strftime('%H:%M') }}</span>
+                    </td>
+                    <td class="px-6 py-5">
+                        <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border 
+                            {% if log.categoria == 'Segurança' %}bg-red-50 text-red-600 border-red-100
+                            {% elif log.categoria == 'Pagamentos' %}bg-green-50 text-green-600 border-green-100
+                            {% else %}bg-blue-50 text-royal border-blue-100{% endif %}">
+                            {{ log.categoria }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-5">
+                        <p class="text-sm text-gray-600 font-medium leading-relaxed">
+                            <span class="font-black text-navy">{{ log.admin_nome }}</span> 
+                            {{ log.acao_detalhada }}
+                        </p>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="3" class="px-6 py-10 text-center text-gray-400 font-medium">Nenhum registro de atividade encontrado na base.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+

@@ -24,7 +24,10 @@
             </a>
         </nav>
         
-        <div class="p-6 border-t border-navy-light">
+        <div class="p-6 border-t border-navy-light space-y-3">
+            <a href="{{ url_for('admin.atividades') }}" class="flex items-center justify-center w-full px-4 py-3 rounded-xl transition duration-300 {% if request.endpoint == 'admin.atividades' %}bg-royal text-white shadow-lg shadow-royal/30 font-bold border border-transparent{% else %}bg-navy-light/50 text-blue-200 hover:bg-navy-light hover:text-white font-medium border border-white/5{% endif %} text-sm">
+                Registro de Atividades
+            </a>
             <a href="{{ url_for('auth.logout') }}" class="flex items-center justify-center w-full px-4 py-3 text-red-400 bg-red-400/10 hover:bg-red-500 hover:text-white rounded-xl transition duration-300 font-bold text-sm border border-red-400/20 hover:border-transparent">
                 Sair do Sistema
             </a>

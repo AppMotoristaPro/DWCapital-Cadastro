@@ -331,3 +331,23 @@ def gerar_senha_temporaria(id):
     flash(f'Senha gerada para {cliente.nome}: {senha_temp}', 'success')
     return redirect(url_for('admin.editar_cliente', id=cliente.id))
 
+@admin_bp.route('/atividades')
+@login_required
+def atividades():
+    if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
+    
+    busca = request.args.get('q', '')
+    query = LogAuditoria.query
+    
+    if busca:
+        query = query.filter(
+            (LogAuditoria.admin_nome.ilike(f'%{busca}%')) | 
+            (LogAuditoria.acao_detalhada.ilike(f'%{busca}%')) | 
+            (LogAuditoria.categoria.ilike(f'%{busca}%'))
+        )
+        
+    # Pega os últimos 200 logs mais recentes para não pesar o servidor
+    logs = query.order_by(LogAuditoria.timestamp.desc()).limit(200).all()
+    
+    return render_template('admin/atividades.html', logs=logs, busca=busca)
+
