@@ -5,7 +5,7 @@ from pypdf import PdfReader
 
 def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
     print(f"\n==================================================")
-    print(f"[XP_PARSER] INICIANDO ROBÔ XP (HÍBRIDO + JANELA)")
+    print(f"[XP_PARSER] INICIANDO ROBÔ XP (ALVO: AJUSTE DAY TRADE)")
     print(f"==================================================")
     print(f"[XP_PARSER] Arquivo alvo: {caminho_arquivo}")
     try:
@@ -18,7 +18,7 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
             senha_final = cpf_limpo[-3:] if len(cpf_limpo) >= 3 else ""
             print(f"[XP_PARSER] Tentando senha automática: {senha_final}")
         
-        # 2. Desbloqueio e Leitura
+        # 2. [span_2](start_span)[span_3](start_span)Desbloqueio e Leitura[span_2](end_span)[span_3](end_span)
         try:
             with pikepdf.open(caminho_arquivo, password=senha_final) as pdf_trancado:
                 buffer_limpo = io.BytesIO()
@@ -63,13 +63,13 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
                 fim = min(len(texto), match.end() + janela_frente)
                 bloco = texto[inicio:fim]
 
-                # LIMPEZA ESPECÍFICA XP: Remove barras verticais | e inclinadas / que separam valor da letra
+                # LIMPEZA ESPECÍFICA XP: Remove barras verticais | e inclinadas /
                 bloco_limpo = re.sub(r'[\|/]', ' ', bloco)
                 
-                # Arruma letras grudadas (Ex: 25,80D -> 25,80 D)
+                # Arruma letras grudadas (Ex: 75,00C -> 75,00 C)
                 bloco_limpo = re.sub(r'(,\d{2})\s*([CDcd])\b', r'\1 \2', bloco_limpo)
 
-                # A REGEX PREDADORA
+                # [span_4](start_span)REGEX PARA NÚMEROS E LETRAS[span_4](end_span)
                 regex_numeros = r"(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})\s*([CDcd])?"
                 matches = re.findall(regex_numeros, bloco_limpo)
 
@@ -99,27 +99,28 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
                         print(f"    -> [ERRO] Posição {posicao} inexistente.")
             return 0.0
 
-        # --- MAPEAMENTO XP BASEADO NOS LOGS ---
-        # 1. Bruto: Usamos 'Valor dos negócios' ou 'Ajuste day trade' conforme a nota. 
-        # No seu log, 'Valor dos negócios' na posição 5 trouxe o Bruto (25,80 D).
-        v_bruto = extrair_por_posicao("Valor Bruto", r"Valor dos negócios", texto_completo, 5, aceita_cd=True)
+        # --- NOVA CONFIGURAÇÃO DE ALVOS XP ---
         
-        # 2. IRRF 1%: Na XP, o valor 0,36 caiu na posição 2 após a palavra-chave.
+        # 1. Bruto: Alterado para 'Ajuste day trade' na Posição 1 para pegar o lucro real (75,00 C)
+        v_bruto = extrair_por_posicao("Valor Bruto", r"Ajuste day trade", texto_completo, 1, aceita_cd=True)
+        
+        # 2. IRRF 1%: Mantido na posição 2 após a palavra-chave
         v_irrf_1 = extrair_por_posicao("IRRF Day Trade (1%)", r"IRRF Day Trade", texto_completo, 2, aceita_cd=False)
         
-        # 3. Taxas B3: Na XP, o valor das taxas operacionais consolidado caiu na posição 5.
+        # 3. Taxas B3: Mantido na posição 5 de custos operacionais consolidado (38,89 D)
         v_taxas_b3 = extrair_por_posicao("Taxas B3", r"Total de custos operacionais", texto_completo, 5, aceita_cd=False)
 
-        print("\n  [MATEMÁTICA] --- PROCESSAMENTO ---")
+        print("\n  [MATEMÁTICA] --- PROCESSAMENTO FINAL ---")
+        # Líquido do Pregão considera o Ajuste Day Trade menos taxas e IRRF
         v_liquido_pregao = round(v_bruto - v_taxas_b3 - v_irrf_1, 2)
-        print(f"    Líquido Pregão: {v_liquido_pregao}")
+        print(f"    Líquido Pregão (Day Trade): {v_liquido_pregao}")
         
         v_irrf_19 = round(v_liquido_pregao * 0.19, 2) if v_liquido_pregao > 0 else 0.0
         v_liquido_dia = round(v_liquido_pregao - v_irrf_19, 2)
         
-        # REPASSE ZERO NO LOSS (Regra de Negócio DW Capital)
+        # [span_5](start_span)REPASSE DE 30% SOBRE O RESULTADO DO DAY TRADE[span_5](end_span)
         v_repasse = round(v_liquido_dia * 0.30, 2) if v_liquido_dia > 0 else 0.0
-        print(f"    Repasse DW Final: {v_repasse}")
+        print(f"    Repasse DW Calculado: R$ {v_repasse}")
 
         return {
             'data_pregao': data_pregao,
