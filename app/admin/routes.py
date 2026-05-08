@@ -24,6 +24,10 @@ def registrar_log(acao, categoria):
         db.session.add(novo_log)
 
 def atualizar_totais_semana_admin(fatura):
+    """
+    Função centralizada para recalcular os valores da semana.
+    Dias isentos NÃO contam como notas enviadas, mas sim REDUZEM o total exigido na semana.
+    """
     fatura.bruto = sum((d.bruto if d.bruto > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.taxas_b3 = sum((d.taxas_b3 if d.taxas_b3 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.irrf_1 = sum((d.irrf_1 if d.irrf_1 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
@@ -32,12 +36,16 @@ def atualizar_totais_semana_admin(fatura):
     fatura.liquido = sum((d.liquido if d.liquido > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.repasse = sum((d.repasse if d.repasse > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     
-    dias_ok = sum(1 for d in fatura.dias if d.status in ['relatorio_enviado', 'isento'])
-    total_dias = len(fatura.dias)
+    dias_enviados = sum(1 for d in fatura.dias if d.status == 'relatorio_enviado')
+    dias_isentos = sum(1 for d in fatura.dias if d.status == 'isento')
+    total_exigido = len(fatura.dias) - dias_isentos
     
-    if dias_ok == 0:
-        fatura.status = 'pendente'
-    elif dias_ok == total_dias and total_dias > 0:
+    if dias_enviados == 0:
+        if total_exigido == 0 and len(fatura.dias) > 0:
+            fatura.status = 'completo'
+        else:
+            fatura.status = 'pendente'
+    elif dias_enviados >= total_exigido and total_exigido > 0:
         fatura.status = 'completo'
     else:
         fatura.status = 'parcial'
@@ -45,9 +53,6 @@ def atualizar_totais_semana_admin(fatura):
     db.session.commit()
 
 def auto_gerar_ciclo_admin(user, data_base=None):
-    """
-    Força a criação do ciclo e dias pendentes para o usuário, acionado pelo Admin.
-    """
     if not user.alocacoes:
         return
 
@@ -310,7 +315,6 @@ def pagamentos():
         
         clientes_dados = []
         for c in ativos:
-            # GATILHO: Força criação das gavetas deste ciclo para o cliente caso não existam
             auto_gerar_ciclo_admin(c, data_base=inicio_ciclo)
             
             fatura_atual = Fatura.query.filter_by(user_id=c.id, data_inicio=inicio_ciclo).first()
@@ -320,9 +324,14 @@ def pagamentos():
                 status_atual = fatura_atual.status
                 for aloc in c.alocacoes:
                     dias_corretora = [d for d in fatura_atual.dias if d.nome_corretora == aloc.nome_corretora]
-                    dias_ok = sum(1 for d in dias_corretora if d.status in ['relatorio_enviado', 'isento'])
-                    total_dias = len(dias_corretora) if dias_corretora else 5
-                    detalhes_corretoras[aloc.nome_corretora] = f"{dias_ok}/{total_dias}"
+                    
+                    # LÓGICA CORRIGIDA DA FRAÇÃO: Só conta ENVIADOS (X) de um TOTAL REDUZIDO pelos isentos (Y)
+                    dias_enviados = sum(1 for d in dias_corretora if d.status == 'relatorio_enviado')
+                    dias_isentos = sum(1 for d in dias_corretora if d.status == 'isento')
+                    total_base = len(dias_corretora) if dias_corretora else 5
+                    total_exigido = total_base - dias_isentos
+                    
+                    detalhes_corretoras[aloc.nome_corretora] = f"{dias_enviados}/{total_exigido}"
             else:
                 status_atual = 'sem_fatura'
                 
@@ -369,7 +378,6 @@ def pagamentos_cliente(id):
     if ciclo:
         try:
             dt_inicio = datetime.strptime(ciclo, '%Y-%m-%d').date()
-            # GATILHO: Garante a criação ao entrar no cliente diretamente também
             auto_gerar_ciclo_admin(cliente, data_base=dt_inicio)
             query = Fatura.query.filter_by(user_id=cliente.id, data_inicio=dt_inicio)
         except ValueError:
