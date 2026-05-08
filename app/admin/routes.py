@@ -69,7 +69,13 @@ def dashboard():
         
     faturamento_total = sum(f.repasse for f in faturas_filtradas)
     
-    clientes_ativos = User.query.filter_by(role='cliente', status_acesso='ativo').count()
+    # FILTRO APLICADO: Conta apenas clientes pagantes como ativos (is_isento=False ou NULL)
+    clientes_ativos = User.query.filter(
+        User.role == 'cliente', 
+        User.status_acesso == 'ativo',
+        db.or_(User.is_isento == False, User.is_isento.is_(None))
+    ).count()
+    
     clientes_inativos = User.query.filter_by(role='cliente', status_acesso='inativo').count()
     
     # FILTRO APLICADO: Soma capital alocado apenas de clientes pagantes (is_isento=False ou NULL)
@@ -107,7 +113,8 @@ def clientes_list():
     if status_filtro:
         query = query.filter_by(status_acesso=status_filtro)
         
-    clientes = query.order_by(User.id.desc()).all()
+    # ORDEM ALFABÉTICA APLICADA AQUI
+    clientes = query.order_by(User.nome.asc()).all()
     
     return render_template('admin/index.html', clientes=clientes, busca=busca, status_filtro=status_filtro)
 
@@ -217,7 +224,9 @@ def pagamentos():
     query = User.query.filter_by(role='cliente', status_acesso='ativo')
     if busca:
         query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
-    ativos = query.all()
+    
+    # ORDEM ALFABÉTICA APLICADA AQUI TAMBÉM
+    ativos = query.order_by(User.nome.asc()).all()
     
     hoje = datetime.now(tz_br).date()
     dias_para_sexta = (hoje.weekday() - 4) % 7
