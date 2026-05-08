@@ -14,7 +14,7 @@ class User(db.Model, UserMixin):
     role = db.Column(db.String(10), default='cliente')
     status_acesso = db.Column(db.String(20), default='pendente_cadastro')
     
-    # NOVA COLUNA: Define se o cliente/parceiro é isento da cobrança de repasse (30%)
+    # Define se o cliente/parceiro é isento da cobrança de repasse (30%)
     is_isento = db.Column(db.Boolean, default=False)
     
     endereco = db.Column(db.Text)
@@ -71,10 +71,14 @@ class FaturaDiaria(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     fatura_id = db.Column(db.Integer, db.ForeignKey('fatura.id'), nullable=False)
     
-    # NOVA COLUNA: Para saber de qual corretora é este PDF
+    # Para saber de qual corretora é este PDF
     nome_corretora = db.Column(db.String(50), nullable=True, default='GENIAL') 
     
     data_pregao = db.Column(db.Date, nullable=False)
+    
+    # NOVA COLUNA: Define se este pregão específico foi perdoado (ex: Feriado)
+    is_isento = db.Column(db.Boolean, default=False)
+    
     bruto = db.Column(db.Float, default=0.0)
     taxas_b3 = db.Column(db.Float, default=0.0)
     irrf_1 = db.Column(db.Float, default=0.0)

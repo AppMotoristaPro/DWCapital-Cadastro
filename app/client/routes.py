@@ -15,7 +15,7 @@ tz_br = pytz.timezone('America/Sao_Paulo')
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
 
 def atualizar_totais_semana(fatura):
-    # LÓGICA DE SOMA POSITIVA: Se o valor do dia for negativo (Loss), ele soma 0 na fatura semanal.
+    # LÓGICA DE SOMA POSITIVA
     fatura.bruto = sum((d.bruto if d.bruto > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.taxas_b3 = sum((d.taxas_b3 if d.taxas_b3 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.irrf_1 = sum((d.irrf_1 if d.irrf_1 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
@@ -24,21 +24,20 @@ def atualizar_totais_semana(fatura):
     fatura.liquido = sum((d.liquido if d.liquido > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.repasse = sum((d.repasse if d.repasse > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     
-    dias_enviados = sum(1 for d in fatura.dias if d.status == 'relatorio_enviado')
+    # DIAS ISENTOS (FERIADOS) E ENVIADOS CONTAM COMO CONCLUÍDOS
+    dias_ok = sum(1 for d in fatura.dias if d.status in ['relatorio_enviado', 'isento'])
+    total_dias = len(fatura.dias)
     
-    if dias_enviados == 0:
+    if dias_ok == 0:
         fatura.status = 'pendente'
+    elif dias_ok == total_dias and total_dias > 0:
+        fatura.status = 'completo'
     else:
         fatura.status = 'parcial'
         
     db.session.commit()
 
 def auto_gerar_ciclo_atual(user):
-    """
-    ETAPA 1: Gerador Preditivo de Ciclos
-    Verifica silenciosamente se a gaveta desta semana (Sexta a Quinta) existe.
-    Se não existir, cria a gaveta e os dias úteis instantaneamente.
-    """
     if not user.alocacoes:
         return
 
@@ -62,7 +61,7 @@ def auto_gerar_ciclo_atual(user):
             db.session.commit()
         except IntegrityError:
             db.session.rollback()
-            return # Se outro processo já criou a fatura, para por aqui.
+            return
 
         data_atual = inicio_ciclo
         dias_uteis = []
@@ -86,7 +85,7 @@ def auto_gerar_ciclo_atual(user):
         try:
             db.session.commit()
         except IntegrityError:
-            db.session.rollback() # Se outro worker ganhou a corrida, o banco trava e a gente limpa a sessão.
+            db.session.rollback()
 
 @client_bp.route('/dashboard')
 @login_required
@@ -175,7 +174,7 @@ def faturas():
         try:
             db.session.commit()
         except IntegrityError:
-            db.session.rollback() # Ignora silenciosamente se o dia for duplicado
+            db.session.rollback()
 
     if request.method == 'POST':
         dia_id = request.form.get('dia_id')
@@ -217,7 +216,6 @@ def faturas():
                 dia.irrf_19 = dados.get('irrf_19')
                 dia.liquido = dados.get('liquido_dia')
                 
-                # VERIFICAÇÃO DE ISENÇÃO DE REPASSE (DW CAPITAL)
                 if getattr(current_user, 'is_isento', False):
                     dia.repasse = 0.0
                 else:
