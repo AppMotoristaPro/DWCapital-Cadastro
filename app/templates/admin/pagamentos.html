@@ -39,10 +39,52 @@
     </div>
 
     {% else %}
+    
     <div class="mb-6 flex items-center gap-4 border-b border-gray-200 pb-4">
         <a href="{{ url_for('admin.pagamentos') }}" class="px-4 py-2 bg-white text-xs font-black text-gray-500 uppercase tracking-widest rounded-xl hover:text-navy hover:shadow-md transition duration-200 border border-gray-200">< Voltar para Gavetas</a>
         <h2 class="text-2xl font-black text-navy tracking-tight">Semana: <span class="text-royal">{{ ciclo_data.strftime('%d/%m/%Y') }}</span></h2>
     </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}{% for category, message in messages %}
+        <div class="p-4 mb-8 rounded-2xl font-bold shadow-sm {% if category == 'error' %}bg-red-50 text-red-700 border-red-100{% else %}bg-green-50 text-green-700 border-green-100{% endif %} border">{{ message }}</div>
+      {% endfor %}{% endif %}
+    {% endwith %}
+
+    {% if not busca %}
+    <div class="mb-8 flex items-center gap-4 bg-purple-50 rounded-2xl border border-purple-100 px-6 py-4 shadow-sm w-max">
+        <div>
+            <p class="text-xs font-black text-purple-900 uppercase tracking-widest">Isentar Dia?</p>
+            <p class="text-[10px] text-purple-600 font-bold mt-0.5">Aplica a todos deste ciclo.</p>
+        </div>
+        
+        <form action="{{ url_for('admin.isentar_dia_global') }}" method="POST" id="form-isentar-global" class="flex items-center m-0">
+            <input type="hidden" name="ciclo_atual" value="{{ ciclo_data.strftime('%Y-%m-%d') }}">
+            <select name="data_isencao" id="select-dia-isencao" class="bg-white border border-purple-200 text-purple-800 text-xs font-bold rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full px-3 py-2 cursor-pointer outline-none shadow-sm transition">
+                <option value="" selected disabled>Escolha o dia...</option>
+                {% for dia_util in dias_uteis %}
+                <option value="{{ dia_util.strftime('%Y-%m-%d') }}">{{ ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'][dia_util.weekday()] }} ({{ dia_util.strftime('%d/%m') }})</option>
+                {% endfor %}
+            </select>
+        </form>
+        
+        <script>
+            document.getElementById('select-dia-isencao').addEventListener('change', function() {
+                var select = this;
+                var form = document.getElementById('form-isentar-global');
+                var diaEscolhido = select.options[select.selectedIndex].text;
+                
+                if (select.value) {
+                    if (confirm('ATENÇÃO: Deseja realmente isentar TODOS os clientes na ' + diaEscolhido + '? Isso apagará qualquer nota já enviada nesse dia.')) {
+                        form.submit();
+                    } else {
+                        select.value = ""; // Reseta caso o admin cancele
+                    }
+                }
+            });
+        </script>
+    </div>
+    {% endif %}
 
     {% if busca %}
     <div class="mb-6 flex items-center justify-between">
@@ -87,7 +129,7 @@
                         {% endif %}
                     </td>
                     <td class="px-6 py-5 text-right">
-                        <a href="{{ url_for('admin.pagamentos_cliente', id=item.info.id) }}" class="px-4 py-2 bg-blue-50 text-[10px] font-black text-royal uppercase tracking-widest rounded-lg hover:bg-blue-100 transition border border-blue-100 shadow-sm">Auditar Extratos -></a>
+                        <a href="{{ url_for('admin.pagamentos_cliente', id=item.info.id, ciclo=ciclo_data.strftime('%Y-%m-%d')) }}" class="px-4 py-2 bg-blue-50 text-[10px] font-black text-royal uppercase tracking-widest rounded-lg hover:bg-blue-100 transition border border-blue-100 shadow-sm">Auditar Extratos -></a>
                     </td>
                 </tr>
                 {% else %}
