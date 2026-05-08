@@ -31,8 +31,8 @@ def dashboard():
     if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
     
     filtro_dia = request.args.get('dia')
-    filtro_semana = request.args.get('semana')
-    filtro_mes = request.args.get('mes')
+    filtro_semana_dia = request.args.get('semana_dia') # Novo input do Ciclo Semanal
+    filtro_ano = request.args.get('ano') # Novo select Anual
     
     # FILTRO APLICADO: Ignora clientes que estão marcados como ISENTOS, mas aceita os False e os NULLs antigos
     faturas_base = Fatura.query.join(User).filter(
@@ -47,28 +47,35 @@ def dashboard():
         faturas_filtradas = faturas_base.filter(Fatura.data_inicio <= dt_dia, Fatura.data_fim >= dt_dia).all()
         label_periodo = f"Dia {dt_dia.strftime('%d/%m/%Y')}"
         
-    elif filtro_semana:
-        dt_inicio_sem = datetime.strptime(filtro_semana + '-1', '%G-W%V-%u').date()
+    elif filtro_semana_dia:
+        # A MÁGICA DO CICLO: Pega qualquer dia, acha a Sexta anterior e a Quinta posterior
+        dt_ref = datetime.strptime(filtro_semana_dia, '%Y-%m-%d').date()
+        dias_para_sexta = (dt_ref.weekday() - 4) % 7
+        dt_inicio_sem = dt_ref - timedelta(days=dias_para_sexta)
         dt_fim_sem = dt_inicio_sem + timedelta(days=6)
-        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_sem, Fatura.data_inicio <= dt_fim_sem).all()
-        label_periodo = f"Semana {dt_inicio_sem.strftime('%d/%m')} a {dt_fim_sem.strftime('%d/%m')}"
         
-    elif filtro_mes:
-        dt_inicio_mes = datetime.strptime(filtro_mes + '-01', '%Y-%m-%d').date()
-        if dt_inicio_mes.month == 12:
-            dt_fim_mes = dt_inicio_mes.replace(year=dt_inicio_mes.year+1, month=1, day=1) - timedelta(days=1)
-        else:
-            dt_fim_mes = dt_inicio_mes.replace(month=dt_inicio_mes.month+1, day=1) - timedelta(days=1)
-            
-        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_mes, Fatura.data_inicio <= dt_fim_mes).all()
-        label_periodo = f"Mês {dt_inicio_mes.strftime('%m/%Y')}"
+        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_sem, Fatura.data_inicio <= dt_fim_sem).all()
+        label_periodo = f"Ciclo {dt_inicio_sem.strftime('%d/%m/%Y')} a {dt_fim_sem.strftime('%d/%m/%Y')}"
+        
+    elif filtro_ano:
+        ano = int(filtro_ano)
+        dt_inicio_ano = datetime(ano, 1, 1).date()
+        dt_fim_ano = datetime(ano, 12, 31).date()
+        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_ano, Fatura.data_inicio <= dt_fim_ano).all()
+        label_periodo = f"Ano {ano}"
         
     else:
         faturas_filtradas = faturas_base.all()
         
     faturamento_total = sum(f.repasse for f in faturas_filtradas)
     
-    clientes_ativos = User.query.filter_by(role='cliente', status_acesso='ativo').count()
+    # FILTRO APLICADO: Conta apenas clientes pagantes como ativos (is_isento=False ou NULL)
+    clientes_ativos = User.query.filter(
+        User.role == 'cliente', 
+        User.status_acesso == 'ativo',
+        db.or_(User.is_isento == False, User.is_isento.is_(None))
+    ).count()
+    
     clientes_inativos = User.query.filter_by(role='cliente', status_acesso='inativo').count()
     
     # FILTRO APLICADO: Soma capital alocado apenas de clientes pagantes (is_isento=False ou NULL)
@@ -106,7 +113,8 @@ def clientes_list():
     if status_filtro:
         query = query.filter_by(status_acesso=status_filtro)
         
-    clientes = query.order_by(User.id.desc()).all()
+    # ORDEM ALFABÉTICA APLICADA AQUI
+    clientes = query.order_by(User.nome.asc()).all()
     
     return render_template('admin/index.html', clientes=clientes, busca=busca, status_filtro=status_filtro)
 
@@ -216,7 +224,9 @@ def pagamentos():
     query = User.query.filter_by(role='cliente', status_acesso='ativo')
     if busca:
         query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
-    ativos = query.all()
+    
+    # ORDEM ALFABÉTICA APLICADA AQUI TAMBÉM
+    ativos = query.order_by(User.nome.asc()).all()
     
     hoje = datetime.now(tz_br).date()
     dias_para_sexta = (hoje.weekday() - 4) % 7
@@ -232,7 +242,7 @@ def pagamentos():
             'inicio_ciclo': inicio_ciclo
         })
         
-    return render_template('admin/pagamentos.html', clientes=clientes_dados, busca=busca)
+    return render_template('admin/pagamentos.html', clientes_dados=clientes_dados, busca=busca)
 
 @admin_bp.route('/pagamentos/<int:id>')
 @login_required

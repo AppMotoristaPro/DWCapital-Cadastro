@@ -16,14 +16,21 @@
             <thead class="bg-ice text-gray-400 text-[10px] font-black uppercase tracking-wider">
                 <tr>
                     <th class="px-6 py-4">Cliente Ativo</th>
-                    <th class="px-6 py-4">Status da Semana ({{ clientes[0].inicio_ciclo.strftime('%d/%m') if clientes else '' }})</th>
+                    <th class="px-6 py-4">Status da Semana ({{ clientes_dados[0].inicio_ciclo.strftime('%d/%m') if clientes_dados else '' }})</th>
                     <th class="px-6 py-4 text-right">Ação</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
-                {% for item in clientes %}
+                {% for item in clientes_dados %}
                 <tr class="hover:bg-gray-50 transition">
-                    <td class="px-6 py-5 font-bold text-navy text-sm">{{ item.info.nome }}</td>
+                    <td class="px-6 py-5">
+                        <div class="font-bold text-navy text-sm flex items-center gap-2">
+                            {{ item.info.nome }}
+                            {% if item.info.is_isento %}
+                            <span class="px-2 py-0.5 bg-purple-100 text-purple-700 border border-purple-200 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">Isento</span>
+                            {% endif %}
+                        </div>
+                    </td>
                     <td class="px-6 py-5">
                         {% if item.status_semana == 'pendente' %}
                             <span class="px-3 py-1 bg-gray-100 text-gray-500 rounded-full text-[10px] font-black uppercase tracking-wider">Pendente (0/5)</span>

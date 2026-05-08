@@ -7,18 +7,37 @@
             <h1 class="text-4xl font-black text-navy tracking-tight">Visão Geral</h1>
             <p class="text-gray-500 mt-2 font-medium">Indicadores financeiros e operacionais da plataforma.</p>
         </div>
-        
-        <form method="GET" action="{{ url_for('admin.dashboard') }}" class="flex gap-2">
-            <div class="flex items-center bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden text-sm font-bold text-navy">
-                <input type="date" id="data_inicio" name="dia" class="px-4 py-3 outline-none hover:bg-gray-50 border-r border-gray-100" title="Data Inicial da Semana">
-                <span class="px-3 text-gray-400 text-[10px] font-black uppercase tracking-widest">Até</span>
-                <input type="date" id="data_fim" class="px-4 py-3 outline-none bg-gray-50 border-r border-gray-100 text-gray-500 pointer-events-none" title="Data Final Automática" readonly>
-                <input type="month" name="mes" class="px-4 py-3 outline-none hover:bg-gray-50" title="Escolha o Mês">
-            </div>
-            <button type="submit" class="px-6 py-3 bg-navy text-white rounded-xl font-black uppercase tracking-widest text-xs hover:bg-gray-900 transition shadow-md">Filtrar</button>
-            <a href="{{ url_for('admin.dashboard') }}" class="px-4 py-3 text-gray-400 hover:text-red-500 font-bold text-xs flex items-center transition">Limpar</a>
-        </form>
     </div>
+
+    <form method="GET" action="{{ url_for('admin.dashboard') }}" class="mb-8 flex flex-wrap lg:flex-nowrap gap-4 items-end bg-white p-4 rounded-3xl shadow-sm border border-gray-100">
+        
+        <div class="flex flex-col flex-1 min-w-[150px]">
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 pl-1">Por Dia</label>
+            <input type="date" name="dia" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 outline-none text-sm font-bold text-navy focus:bg-white focus:border-royal transition cursor-pointer" title="Selecione um dia específico">
+        </div>
+
+        <div class="flex flex-col flex-1 min-w-[150px]">
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 pl-1">Por Ciclo Semanal</label>
+            <input type="date" name="semana_dia" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 outline-none text-sm font-bold text-navy focus:bg-white focus:border-royal transition cursor-pointer" title="Selecione QUALQUER dia para puxar o ciclo de Sexta a Quinta">
+        </div>
+
+        <div class="flex flex-col flex-1 min-w-[150px]">
+            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 pl-1">Por Ano</label>
+            <select name="ano" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 outline-none text-sm font-bold text-navy focus:bg-white focus:border-royal transition cursor-pointer">
+                <option value="">Selecione o Ano</option>
+                <option value="2024">2024</option>
+                <option value="2025">2025</option>
+                <option value="2026">2026</option>
+                <option value="2027">2027</option>
+                <option value="2028">2028</option>
+            </select>
+        </div>
+
+        <div class="flex gap-2 w-full lg:w-auto mt-2 lg:mt-0">
+            <button type="submit" class="flex-1 lg:flex-none px-8 py-3 bg-navy hover:bg-gray-900 text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">Filtrar</button>
+            <a href="{{ url_for('admin.dashboard') }}" class="px-6 py-3 bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-500 border border-transparent hover:border-red-100 rounded-xl font-black uppercase tracking-widest text-xs transition shadow-sm flex items-center justify-center">Limpar</a>
+        </div>
+    </form>
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         
@@ -47,31 +66,5 @@
         </div>
     </div>
 </div>
-
-<script>
-// SCRIPT DE AUTOMAÇÃO DE CALENDÁRIO: Preenche a "Data Final" com +6 dias
-document.addEventListener('DOMContentLoaded', function() {
-    const inputInicio = document.getElementById('data_inicio');
-    const inputFim = document.getElementById('data_fim');
-    
-    if (inputInicio && inputFim) {
-        inputInicio.addEventListener('change', function() {
-            if (this.value) {
-                const date = new Date(this.value);
-                // Como o fuso local do navegador pode interferir, extraímos e setamos dias manualmente
-                date.setUTCDate(date.getUTCDate() + 6);
-                
-                const yyyy = date.getUTCFullYear();
-                const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
-                const dd = String(date.getUTCDate()).padStart(2, '0');
-                
-                inputFim.value = `${yyyy}-${mm}-${dd}`;
-            } else {
-                inputFim.value = '';
-            }
-        });
-    }
-});
-</script>
 {% endblock %}
 
