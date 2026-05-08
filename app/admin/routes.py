@@ -240,11 +240,22 @@ def pagamentos():
         ativos = query.order_by(User.nome.asc()).all()
         
         if ciclo:
-            inicio_ciclo = datetime.strptime(ciclo, '%Y-%m-%d').date()
+            try:
+                inicio_ciclo = datetime.strptime(ciclo, '%Y-%m-%d').date()
+            except ValueError:
+                inicio_ciclo = datetime.now(tz_br).date()
         else:
             hoje = datetime.now(tz_br).date()
             dias_para_sexta = (hoje.weekday() - 4) % 7
             inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
+            
+        # Pega os dias úteis dessa semana específica para o painel de isenção global
+        dias_uteis = []
+        data_atual = inicio_ciclo
+        while len(dias_uteis) < 5 and data_atual <= (inicio_ciclo + timedelta(days=6)):
+            if data_atual.weekday() < 5:
+                dias_uteis.append(data_atual)
+            data_atual += timedelta(days=1)
         
         clientes_dados = []
         for c in ativos:
@@ -256,7 +267,7 @@ def pagamentos():
                 'inicio_ciclo': inicio_ciclo
             })
             
-        return render_template('admin/pagamentos.html', clientes_dados=clientes_dados, busca=busca, exibe_clientes=True, ciclo_data=inicio_ciclo)
+        return render_template('admin/pagamentos.html', clientes_dados=clientes_dados, busca=busca, exibe_clientes=True, ciclo_data=inicio_ciclo, dias_uteis=dias_uteis)
     
     else:
         # Puxa os ciclos/gavetas (As últimas 15 semanas)
@@ -287,9 +298,23 @@ def pagamentos():
 @admin_bp.route('/pagamentos/<int:id>')
 @login_required
 def pagamentos_cliente(id):
+    """ Agora ele recebe a gaveta/ciclo na URL para travar a visão apenas nela """
     cliente = User.query.get_or_404(id)
-    faturas = Fatura.query.filter_by(user_id=cliente.id).order_by(Fatura.data_inicio.desc()).all()
-    return render_template('admin/pagamentos_cliente.html', cliente=cliente, faturas=faturas)
+    ciclo = request.args.get('ciclo')
+    
+    query = Fatura.query.filter_by(user_id=cliente.id)
+    
+    # SE VEIO DA GAVETA, TRAVA A CONSULTA APENAS NELA
+    if ciclo:
+        try:
+            dt_inicio = datetime.strptime(ciclo, '%Y-%m-%d').date()
+            query = query.filter_by(data_inicio=dt_inicio)
+        except ValueError:
+            pass
+            
+    faturas = query.order_by(Fatura.data_inicio.desc()).all()
+    
+    return render_template('admin/pagamentos_cliente.html', cliente=cliente, faturas=faturas, ciclo_voltar=ciclo)
 
 @admin_bp.route('/pagamentos/status/<int:fatura_id>', methods=['POST'])
 @login_required
@@ -303,7 +328,47 @@ def status_pagamento(fatura_id):
     
     db.session.commit()
     flash('Status da fatura atualizado.', 'success')
-    return redirect(url_for('admin.pagamentos_cliente', id=fatura.user_id))
+    # Volta para o ciclo de onde ele veio
+    return redirect(url_for('admin.pagamentos_cliente', id=fatura.user_id, ciclo=fatura.data_inicio.strftime('%Y-%m-%d')))
+
+@admin_bp.route('/pagamentos/isentar_dia_global', methods=['POST'])
+@login_required
+def isentar_dia_global():
+    """ ROTA NOVA: Isenta todos os clientes no mesmo dia com um clique """
+    data_str = request.form.get('data_isencao')
+    ciclo_str = request.form.get('ciclo_atual')
+    
+    try:
+        data_alvo = datetime.strptime(data_str, '%Y-%m-%d').date()
+        
+        # Puxa todos os pregões pendentes/enviados daquela data e isenta
+        dias_afetados = FaturaDiaria.query.filter_by(data_pregao=data_alvo).all()
+        
+        faturas_afetadas = set()
+        for dia in dias_afetados:
+            dia.is_isento = True
+            dia.status = 'isento'
+            dia.arquivo_pdf = None
+            dia.bruto = 0.0
+            dia.taxas_b3 = 0.0
+            dia.irrf_1 = 0.0
+            dia.liquido_pregao = 0.0
+            dia.irrf_19 = 0.0
+            dia.liquido = 0.0
+            dia.repasse = 0.0
+            faturas_afetadas.add(dia.fatura_semanal)
+            
+        # Recalcula as faturas de todo mundo para atualizar status de "pendente" para "completo"
+        for fatura in faturas_afetadas:
+            atualizar_totais_semana_admin(fatura)
+            
+        registrar_log(f"Isentou globalmente o dia {data_alvo.strftime('%d/%m/%Y')} para toda a base.", "Pagamentos")
+        flash(f'O dia {data_alvo.strftime("%d/%m/%Y")} foi isentado para todos os clientes!', 'success')
+        
+    except Exception as e:
+        flash(f'Erro ao isentar dia: {str(e)}', 'error')
+        
+    return redirect(url_for('admin.pagamentos', ciclo=ciclo_str))
 
 @admin_bp.route('/pagamentos/isentar_dia/<int:dia_id>', methods=['POST'])
 @login_required
@@ -321,11 +386,11 @@ def isentar_dia(dia_id):
     dia.liquido = 0.0
     dia.repasse = 0.0
     
-    registrar_log(f"Marcou como Isento/Feriado o dia {dia.data_pregao.strftime('%d/%m/%Y')} (Corretora: {dia.nome_corretora}) do cliente {dia.fatura_semanal.cliente.nome}.", "Pagamentos")
+    registrar_log(f"Marcou como Isento o dia {dia.data_pregao.strftime('%d/%m/%Y')} (Corretora: {dia.nome_corretora}) do cliente {dia.fatura_semanal.cliente.nome}.", "Pagamentos")
     
     atualizar_totais_semana_admin(dia.fatura_semanal)
     flash('Dia marcado como isento! O cliente não precisará enviar nota para esta data.', 'success')
-    return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id))
+    return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id, ciclo=dia.fatura_semanal.data_inicio.strftime('%Y-%m-%d')))
 
 @admin_bp.route('/pagamentos/remover_isencao/<int:dia_id>', methods=['POST'])
 @login_required
@@ -335,11 +400,11 @@ def remover_isencao_dia(dia_id):
     dia.is_isento = False
     dia.status = 'pendente'
     
-    registrar_log(f"Removeu a isenção de Feriado do dia {dia.data_pregao.strftime('%d/%m/%Y')} (Corretora: {dia.nome_corretora}) do cliente {dia.fatura_semanal.cliente.nome}.", "Pagamentos")
+    registrar_log(f"Removeu a isenção do dia {dia.data_pregao.strftime('%d/%m/%Y')} (Corretora: {dia.nome_corretora}) do cliente {dia.fatura_semanal.cliente.nome}.", "Pagamentos")
     
     atualizar_totais_semana_admin(dia.fatura_semanal)
     flash('Isenção removida. O dia voltou a ficar pendente de nota.', 'success')
-    return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id))
+    return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id, ciclo=dia.fatura_semanal.data_inicio.strftime('%Y-%m-%d')))
 
 @admin_bp.route('/pagamentos/rejeitar/<int:dia_id>', methods=['POST'])
 @login_required
@@ -360,7 +425,7 @@ def rejeitar_relatorio(dia_id):
     
     atualizar_totais_semana_admin(dia.fatura_semanal)
     flash('Relatório rejeitado e valores recalculados.', 'success')
-    return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id))
+    return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id, ciclo=dia.fatura_semanal.data_inicio.strftime('%Y-%m-%d')))
 
 @admin_bp.route('/pagamentos/forcar_limpeza/<int:dia_id>', methods=['POST'])
 @login_required
@@ -381,7 +446,7 @@ def forcar_limpeza_dia(dia_id):
     
     atualizar_totais_semana_admin(dia.fatura_semanal)
     flash('Limpeza forçada! Todos os valores fantasmas deste dia foram zerados.', 'success')
-    return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id))
+    return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id, ciclo=dia.fatura_semanal.data_inicio.strftime('%Y-%m-%d')))
 
 @admin_bp.route('/gerar_senha_temporaria/<int:id>', methods=['POST'])
 @login_required

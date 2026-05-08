@@ -39,10 +39,35 @@
     </div>
 
     {% else %}
+    
     <div class="mb-6 flex items-center gap-4 border-b border-gray-200 pb-4">
         <a href="{{ url_for('admin.pagamentos') }}" class="px-4 py-2 bg-white text-xs font-black text-gray-500 uppercase tracking-widest rounded-xl hover:text-navy hover:shadow-md transition duration-200 border border-gray-200">< Voltar para Gavetas</a>
         <h2 class="text-2xl font-black text-navy tracking-tight">Semana: <span class="text-royal">{{ ciclo_data.strftime('%d/%m/%Y') }}</span></h2>
     </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}{% for category, message in messages %}
+        <div class="p-4 mb-8 rounded-2xl font-bold shadow-sm {% if category == 'error' %}bg-red-50 text-red-700 border-red-100{% else %}bg-green-50 text-green-700 border-green-100{% endif %} border">{{ message }}</div>
+      {% endfor %}{% endif %}
+    {% endwith %}
+
+    {% if not busca %}
+    <div class="mb-8 bg-purple-50 rounded-3xl border border-purple-100 p-6 shadow-sm">
+        <h3 class="text-lg font-black text-purple-900 mb-2">Controle de Feriados / Isenção Global</h3>
+        <p class="text-xs text-purple-700 mb-4 font-medium">Selecione um dia da semana para isentar TODOS os clientes de enviarem nota simultaneamente.</p>
+        <div class="flex flex-wrap gap-3">
+            {% for dia_util in dias_uteis %}
+            <form action="{{ url_for('admin.isentar_dia_global') }}" method="POST" onsubmit="return confirm('ATENÇÃO: Deseja isentar TODOS os clientes no dia {{ dia_util.strftime('%d/%m/%Y') }}? Isso apagará qualquer nota já enviada nesse dia para aplicar a isenção geral.')">
+                <input type="hidden" name="data_isencao" value="{{ dia_util.strftime('%Y-%m-%d') }}">
+                <input type="hidden" name="ciclo_atual" value="{{ ciclo_data.strftime('%Y-%m-%d') }}">
+                <button type="submit" class="bg-white border border-purple-200 text-purple-700 hover:bg-purple-600 hover:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition">
+                    Isentar {{ ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'][dia_util.weekday()] }} ({{ dia_util.strftime('%d/%m') }})
+                </button>
+            </form>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 
     {% if busca %}
     <div class="mb-6 flex items-center justify-between">
@@ -87,7 +112,7 @@
                         {% endif %}
                     </td>
                     <td class="px-6 py-5 text-right">
-                        <a href="{{ url_for('admin.pagamentos_cliente', id=item.info.id) }}" class="px-4 py-2 bg-blue-50 text-[10px] font-black text-royal uppercase tracking-widest rounded-lg hover:bg-blue-100 transition border border-blue-100 shadow-sm">Auditar Extratos -></a>
+                        <a href="{{ url_for('admin.pagamentos_cliente', id=item.info.id, ciclo=ciclo_data.strftime('%Y-%m-%d')) }}" class="px-4 py-2 bg-blue-50 text-[10px] font-black text-royal uppercase tracking-widest rounded-lg hover:bg-blue-100 transition border border-blue-100 shadow-sm">Auditar Extratos -></a>
                     </td>
                 </tr>
                 {% else %}
