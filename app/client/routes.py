@@ -15,6 +15,10 @@ tz_br = pytz.timezone('America/Sao_Paulo')
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
 
 def atualizar_totais_semana(fatura):
+    """
+    Função atualizada: Dias isentos não contam como nota enviada.
+    Eles diminuem o Total Exigido para a semana do cliente.
+    """
     fatura.bruto = sum((d.bruto if d.bruto > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.taxas_b3 = sum((d.taxas_b3 if d.taxas_b3 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.irrf_1 = sum((d.irrf_1 if d.irrf_1 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
@@ -23,12 +27,16 @@ def atualizar_totais_semana(fatura):
     fatura.liquido = sum((d.liquido if d.liquido > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.repasse = sum((d.repasse if d.repasse > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     
-    dias_ok = sum(1 for d in fatura.dias if d.status in ['relatorio_enviado', 'isento'])
-    total_dias = len(fatura.dias)
+    dias_enviados = sum(1 for d in fatura.dias if d.status == 'relatorio_enviado')
+    dias_isentos = sum(1 for d in fatura.dias if d.status == 'isento')
+    total_exigido = len(fatura.dias) - dias_isentos
     
-    if dias_ok == 0:
-        fatura.status = 'pendente'
-    elif dias_ok == total_dias and total_dias > 0:
+    if dias_enviados == 0:
+        if total_exigido == 0 and len(fatura.dias) > 0:
+            fatura.status = 'completo'
+        else:
+            fatura.status = 'pendente'
+    elif dias_enviados >= total_exigido and total_exigido > 0:
         fatura.status = 'completo'
     else:
         fatura.status = 'parcial'
