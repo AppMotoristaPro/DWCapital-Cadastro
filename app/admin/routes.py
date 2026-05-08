@@ -13,9 +13,6 @@ tz_br = pytz.timezone('America/Sao_Paulo')
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 def registrar_log(acao, categoria):
-    """
-    Função interna para gravar as ações da diretoria no Cofre de Logs (LogAuditoria).
-    """
     if current_user.is_authenticated:
         novo_log = LogAuditoria(
             admin_id=current_user.id,
@@ -25,16 +22,40 @@ def registrar_log(acao, categoria):
         )
         db.session.add(novo_log)
 
+def atualizar_totais_semana_admin(fatura):
+    """
+    Função centralizada para recalcular os valores da semana toda vez que o admin exclui ou isenta um PDF.
+    Conta dias isentos (feriados) como "concluídos" para o status não travar em 'pendente'.
+    """
+    fatura.bruto = sum((d.bruto if d.bruto > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.taxas_b3 = sum((d.taxas_b3 if d.taxas_b3 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.irrf_1 = sum((d.irrf_1 if d.irrf_1 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.liquido_pregao = sum((d.liquido_pregao if d.liquido_pregao > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.irrf_19 = sum((d.irrf_19 if d.irrf_19 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.liquido = sum((d.liquido if d.liquido > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    fatura.repasse = sum((d.repasse if d.repasse > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
+    
+    dias_ok = sum(1 for d in fatura.dias if d.status in ['relatorio_enviado', 'isento'])
+    total_dias = len(fatura.dias)
+    
+    if dias_ok == 0:
+        fatura.status = 'pendente'
+    elif dias_ok == total_dias and total_dias > 0:
+        fatura.status = 'completo'
+    else:
+        fatura.status = 'parcial'
+        
+    db.session.commit()
+
 @admin_bp.route('/')
 @login_required
 def dashboard():
     if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
     
     filtro_dia = request.args.get('dia')
-    filtro_semana_dia = request.args.get('semana_dia') # Novo input do Ciclo Semanal
-    filtro_ano = request.args.get('ano') # Novo select Anual
+    filtro_semana_dia = request.args.get('semana_dia') 
+    filtro_ano = request.args.get('ano') 
     
-    # FILTRO APLICADO: Ignora clientes que estão marcados como ISENTOS, mas aceita os False e os NULLs antigos
     faturas_base = Fatura.query.join(User).filter(
         Fatura.status.in_(['parcial', 'completo', 'pago', 'inadimplente']),
         db.or_(User.is_isento == False, User.is_isento.is_(None))
@@ -48,7 +69,6 @@ def dashboard():
         label_periodo = f"Dia {dt_dia.strftime('%d/%m/%Y')}"
         
     elif filtro_semana_dia:
-        # A MÁGICA DO CICLO: Pega qualquer dia, acha a Sexta anterior e a Quinta posterior
         dt_ref = datetime.strptime(filtro_semana_dia, '%Y-%m-%d').date()
         dias_para_sexta = (dt_ref.weekday() - 4) % 7
         dt_inicio_sem = dt_ref - timedelta(days=dias_para_sexta)
@@ -69,7 +89,6 @@ def dashboard():
         
     faturamento_total = sum(f.repasse for f in faturas_filtradas)
     
-    # FILTRO APLICADO: Conta apenas clientes pagantes como ativos (is_isento=False ou NULL)
     clientes_ativos = User.query.filter(
         User.role == 'cliente', 
         User.status_acesso == 'ativo',
@@ -78,7 +97,6 @@ def dashboard():
     
     clientes_inativos = User.query.filter_by(role='cliente', status_acesso='inativo').count()
     
-    # FILTRO APLICADO: Soma capital alocado apenas de clientes pagantes (is_isento=False ou NULL)
     alocado_row = db.session.query(db.func.sum(User.capital_alocado)).filter(
         User.role == 'cliente', 
         User.status_acesso == 'ativo', 
@@ -113,7 +131,6 @@ def clientes_list():
     if status_filtro:
         query = query.filter_by(status_acesso=status_filtro)
         
-    # ORDEM ALFABÉTICA APLICADA AQUI
     clientes = query.order_by(User.nome.asc()).all()
     
     return render_template('admin/index.html', clientes=clientes, busca=busca, status_filtro=status_filtro)
@@ -123,14 +140,12 @@ def clientes_list():
 def liberar_cliente():
     cpf = ''.join(filter(str.isdigit, request.form.get('cpf')))
     nome_temp = request.form.get('nome_temp')
-    # CAPTURA SE O NOVO CLIENTE DEVE SER ISENTO
     is_isento = True if request.form.get('is_isento') else False
     
     if User.query.filter_by(cpf=cpf).first():
         flash('CPF já cadastrado.', 'error')
         return redirect(url_for('admin.clientes_list'))
 
-    # CRIA O CLIENTE JÁ COM A CHAVE DE ISENÇÃO GRAVADA
     novo = User(cpf=cpf, nome=nome_temp, role='cliente', status_acesso='pendente_cadastro', is_isento=is_isento)
     db.session.add(novo)
     db.session.flush()
@@ -158,8 +173,6 @@ def editar_cliente(id):
         cliente.nome = request.form.get('nome')
         cliente.email = request.form.get('email')
         cliente.celular = request.form.get('celular')
-        
-        # SALVA A CONDIÇÃO DE ISENTO
         cliente.is_isento = True if request.form.get('is_isento') else False
         
         corretoras_selecionadas = request.form.getlist('corretora[]')
@@ -194,9 +207,7 @@ def editar_cliente(id):
 def inativar_cliente(id):
     cliente = User.query.get_or_404(id)
     cliente.status_acesso = 'inativo'
-    
     registrar_log(f"Inativou o acesso do cliente {cliente.nome}.", "Clientes")
-    
     db.session.commit()
     flash(f'Cliente {cliente.nome} inativado com sucesso.', 'success')
     return redirect(url_for('admin.clientes_list'))
@@ -206,11 +217,8 @@ def inativar_cliente(id):
 def excluir_cliente(id):
     cliente = User.query.get_or_404(id)
     nome_cliente = cliente.nome 
-    
     db.session.delete(cliente)
-    
     registrar_log(f"Excluiu permanentemente o cliente {nome_cliente} e todos os seus históricos.", "Segurança")
-    
     db.session.commit()
     flash('Cliente e todas as suas faturas foram excluídos permanentemente.', 'success')
     return redirect(url_for('admin.clientes_list'))
@@ -218,31 +226,63 @@ def excluir_cliente(id):
 @admin_bp.route('/pagamentos')
 @login_required
 def pagamentos():
+    """ Rota Híbrida: Mostra as Gavetas de Ciclo OU os Clientes do Ciclo Selecionado """
     if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
     
     busca = request.args.get('q', '')
-    query = User.query.filter_by(role='cliente', status_acesso='ativo')
-    if busca:
-        query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
+    ciclo = request.args.get('ciclo')
     
-    # ORDEM ALFABÉTICA APLICADA AQUI TAMBÉM
-    ativos = query.order_by(User.nome.asc()).all()
-    
-    hoje = datetime.now(tz_br).date()
-    dias_para_sexta = (hoje.weekday() - 4) % 7
-    inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
-    
-    clientes_dados = []
-    for c in ativos:
-        fatura_atual = Fatura.query.filter_by(user_id=c.id, data_inicio=inicio_ciclo).first()
-        status_atual = fatura_atual.status if fatura_atual else 'sem_fatura'
-        clientes_dados.append({
-            'info': c, 
-            'status_semana': status_atual, 
-            'inicio_ciclo': inicio_ciclo
-        })
+    if busca or ciclo:
+        query = User.query.filter_by(role='cliente', status_acesso='ativo')
+        if busca:
+            query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
         
-    return render_template('admin/pagamentos.html', clientes_dados=clientes_dados, busca=busca)
+        ativos = query.order_by(User.nome.asc()).all()
+        
+        if ciclo:
+            inicio_ciclo = datetime.strptime(ciclo, '%Y-%m-%d').date()
+        else:
+            hoje = datetime.now(tz_br).date()
+            dias_para_sexta = (hoje.weekday() - 4) % 7
+            inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
+        
+        clientes_dados = []
+        for c in ativos:
+            fatura_atual = Fatura.query.filter_by(user_id=c.id, data_inicio=inicio_ciclo).first()
+            status_atual = fatura_atual.status if fatura_atual else 'sem_fatura'
+            clientes_dados.append({
+                'info': c, 
+                'status_semana': status_atual, 
+                'inicio_ciclo': inicio_ciclo
+            })
+            
+        return render_template('admin/pagamentos.html', clientes_dados=clientes_dados, busca=busca, exibe_clientes=True, ciclo_data=inicio_ciclo)
+    
+    else:
+        # Puxa os ciclos/gavetas (As últimas 15 semanas)
+        ciclos_db = db.session.query(
+            Fatura.data_inicio, Fatura.data_fim
+        ).distinct().order_by(Fatura.data_inicio.desc()).limit(15).all()
+        
+        gavetas = []
+        for dt_ini, dt_fim in ciclos_db:
+            todas_faturas = Fatura.query.join(User).filter(
+                Fatura.data_inicio == dt_ini,
+                User.status_acesso == 'ativo',
+                db.or_(User.is_isento == False, User.is_isento.is_(None))
+            ).all()
+            
+            total = len(todas_faturas)
+            if total > 0:
+                pendentes = sum(1 for f in todas_faturas if f.status in ['pendente', 'parcial'])
+                gavetas.append({
+                    'data_inicio': dt_ini,
+                    'data_fim': dt_fim,
+                    'total_clientes': total,
+                    'pendentes': pendentes
+                })
+                
+        return render_template('admin/pagamentos.html', gavetas=gavetas, exibe_clientes=False)
 
 @admin_bp.route('/pagamentos/<int:id>')
 @login_required
@@ -265,6 +305,42 @@ def status_pagamento(fatura_id):
     flash('Status da fatura atualizado.', 'success')
     return redirect(url_for('admin.pagamentos_cliente', id=fatura.user_id))
 
+@admin_bp.route('/pagamentos/isentar_dia/<int:dia_id>', methods=['POST'])
+@login_required
+def isentar_dia(dia_id):
+    dia = FaturaDiaria.query.get_or_404(dia_id)
+    
+    dia.is_isento = True
+    dia.status = 'isento'
+    dia.arquivo_pdf = None
+    dia.bruto = 0.0
+    dia.taxas_b3 = 0.0
+    dia.irrf_1 = 0.0
+    dia.liquido_pregao = 0.0
+    dia.irrf_19 = 0.0
+    dia.liquido = 0.0
+    dia.repasse = 0.0
+    
+    registrar_log(f"Marcou como Isento/Feriado o dia {dia.data_pregao.strftime('%d/%m/%Y')} (Corretora: {dia.nome_corretora}) do cliente {dia.fatura_semanal.cliente.nome}.", "Pagamentos")
+    
+    atualizar_totais_semana_admin(dia.fatura_semanal)
+    flash('Dia marcado como isento! O cliente não precisará enviar nota para esta data.', 'success')
+    return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id))
+
+@admin_bp.route('/pagamentos/remover_isencao/<int:dia_id>', methods=['POST'])
+@login_required
+def remover_isencao_dia(dia_id):
+    dia = FaturaDiaria.query.get_or_404(dia_id)
+    
+    dia.is_isento = False
+    dia.status = 'pendente'
+    
+    registrar_log(f"Removeu a isenção de Feriado do dia {dia.data_pregao.strftime('%d/%m/%Y')} (Corretora: {dia.nome_corretora}) do cliente {dia.fatura_semanal.cliente.nome}.", "Pagamentos")
+    
+    atualizar_totais_semana_admin(dia.fatura_semanal)
+    flash('Isenção removida. O dia voltou a ficar pendente de nota.', 'success')
+    return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id))
+
 @admin_bp.route('/pagamentos/rejeitar/<int:dia_id>', methods=['POST'])
 @login_required
 def rejeitar_relatorio(dia_id):
@@ -282,26 +358,9 @@ def rejeitar_relatorio(dia_id):
     dia.liquido = 0.0
     dia.repasse = 0.0
     
-    fatura = dia.fatura_semanal
-    
-    # LÓGICA DE SOMA POSITIVA: Só soma os ganhos.
-    fatura.bruto = sum((d.bruto if d.bruto > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.taxas_b3 = sum((d.taxas_b3 if d.taxas_b3 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.irrf_1 = sum((d.irrf_1 if d.irrf_1 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.liquido_pregao = sum((d.liquido_pregao if d.liquido_pregao > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.irrf_19 = sum((d.irrf_19 if d.irrf_19 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.liquido = sum((d.liquido if d.liquido > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.repasse = sum((d.repasse if d.repasse > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    
-    dias_enviados = sum(1 for d in fatura.dias if d.status == 'relatorio_enviado')
-    if dias_enviados == 0:
-        fatura.status = 'pendente'
-    elif dias_enviados > 0:
-        fatura.status = 'parcial'
-        
-    db.session.commit()
+    atualizar_totais_semana_admin(dia.fatura_semanal)
     flash('Relatório rejeitado e valores recalculados.', 'success')
-    return redirect(url_for('admin.pagamentos_cliente', id=fatura.user_id))
+    return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id))
 
 @admin_bp.route('/pagamentos/forcar_limpeza/<int:dia_id>', methods=['POST'])
 @login_required
@@ -320,26 +379,9 @@ def forcar_limpeza_dia(dia_id):
     dia.liquido = 0.0
     dia.repasse = 0.0
     
-    fatura = dia.fatura_semanal
-    
-    # LÓGICA DE SOMA POSITIVA: Só soma os ganhos.
-    fatura.bruto = sum((d.bruto if d.bruto > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.taxas_b3 = sum((d.taxas_b3 if d.taxas_b3 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.irrf_1 = sum((d.irrf_1 if d.irrf_1 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.liquido_pregao = sum((d.liquido_pregao if d.liquido_pregao > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.irrf_19 = sum((d.irrf_19 if d.irrf_19 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.liquido = sum((d.liquido if d.liquido > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.repasse = sum((d.repasse if d.repasse > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    
-    dias_enviados = sum(1 for d in fatura.dias if d.status == 'relatorio_enviado')
-    if dias_enviados == 0:
-        fatura.status = 'pendente'
-    elif dias_enviados > 0:
-        fatura.status = 'parcial'
-        
-    db.session.commit()
+    atualizar_totais_semana_admin(dia.fatura_semanal)
     flash('Limpeza forçada! Todos os valores fantasmas deste dia foram zerados.', 'success')
-    return redirect(url_for('admin.pagamentos_cliente', id=fatura.user_id))
+    return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id))
 
 @admin_bp.route('/gerar_senha_temporaria/<int:id>', methods=['POST'])
 @login_required
