@@ -15,7 +15,6 @@ tz_br = pytz.timezone('America/Sao_Paulo')
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
 
 def atualizar_totais_semana(fatura):
-    # LÓGICA DE SOMA POSITIVA
     fatura.bruto = sum((d.bruto if d.bruto > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.taxas_b3 = sum((d.taxas_b3 if d.taxas_b3 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.irrf_1 = sum((d.irrf_1 if d.irrf_1 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
@@ -24,7 +23,6 @@ def atualizar_totais_semana(fatura):
     fatura.liquido = sum((d.liquido if d.liquido > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.repasse = sum((d.repasse if d.repasse > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     
-    # DIAS ISENTOS (FERIADOS) E ENVIADOS CONTAM COMO CONCLUÍDOS
     dias_ok = sum(1 for d in fatura.dias if d.status in ['relatorio_enviado', 'isento'])
     total_dias = len(fatura.dias)
     

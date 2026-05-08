@@ -4,6 +4,7 @@ import string
 from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app
 from flask_login import login_required, current_user
 from werkzeug.security import generate_password_hash
+from sqlalchemy.exc import IntegrityError
 from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria
 from app import db
 from datetime import datetime, timedelta
@@ -23,10 +24,6 @@ def registrar_log(acao, categoria):
         db.session.add(novo_log)
 
 def atualizar_totais_semana_admin(fatura):
-    """
-    Função centralizada para recalcular os valores da semana toda vez que o admin exclui ou isenta um PDF.
-    Conta dias isentos (feriados) como "concluídos" para o status não travar em 'pendente'.
-    """
     fatura.bruto = sum((d.bruto if d.bruto > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.taxas_b3 = sum((d.taxas_b3 if d.taxas_b3 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.irrf_1 = sum((d.irrf_1 if d.irrf_1 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
@@ -46,6 +43,62 @@ def atualizar_totais_semana_admin(fatura):
         fatura.status = 'parcial'
         
     db.session.commit()
+
+def auto_gerar_ciclo_admin(user, data_base=None):
+    """
+    Força a criação do ciclo e dias pendentes para o usuário, acionado pelo Admin.
+    """
+    if not user.alocacoes:
+        return
+
+    hoje = data_base if data_base else datetime.now(tz_br).date()
+    dias_para_sexta = (hoje.weekday() - 4) % 7
+    inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
+    fim_ciclo = inicio_ciclo + timedelta(days=6)
+
+    fatura_existente = Fatura.query.filter_by(user_id=user.id, data_inicio=inicio_ciclo).first()
+
+    if not fatura_existente:
+        nova_fatura = Fatura(
+            user_id=user.id,
+            data_inicio=inicio_ciclo,
+            data_fim=fim_ciclo,
+            status='pendente'
+        )
+        db.session.add(nova_fatura)
+        
+        try:
+            db.session.commit()
+            fatura_existente = nova_fatura
+        except IntegrityError:
+            db.session.rollback()
+            fatura_existente = Fatura.query.filter_by(user_id=user.id, data_inicio=inicio_ciclo).first()
+            if not fatura_existente:
+                return
+
+    if fatura_existente:
+        dias_uteis = []
+        data_atual = inicio_ciclo
+        while len(dias_uteis) < 5 and data_atual <= fim_ciclo:
+            if data_atual.weekday() < 5:
+                dias_uteis.append(data_atual)
+            data_atual += timedelta(days=1)
+
+        for data in dias_uteis:
+            for alocacao in user.alocacoes:
+                existe = FaturaDiaria.query.filter_by(fatura_id=fatura_existente.id, data_pregao=data, nome_corretora=alocacao.nome_corretora).first()
+                if not existe:
+                    novo_dia = FaturaDiaria(
+                        fatura_id=fatura_existente.id,
+                        data_pregao=data,
+                        nome_corretora=alocacao.nome_corretora,
+                        status='pendente'
+                    )
+                    db.session.add(novo_dia)
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
 
 @admin_bp.route('/')
 @login_required
@@ -226,7 +279,6 @@ def excluir_cliente(id):
 @admin_bp.route('/pagamentos')
 @login_required
 def pagamentos():
-    """ Rota Híbrida: Mostra as Gavetas de Ciclo OU os Clientes do Ciclo Selecionado """
     if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
     
     busca = request.args.get('q', '')
@@ -249,7 +301,6 @@ def pagamentos():
             dias_para_sexta = (hoje.weekday() - 4) % 7
             inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
             
-        # Pega os dias úteis dessa semana específica para o painel de isenção global
         dias_uteis = []
         data_atual = inicio_ciclo
         while len(dias_uteis) < 5 and data_atual <= (inicio_ciclo + timedelta(days=6)):
@@ -259,18 +310,32 @@ def pagamentos():
         
         clientes_dados = []
         for c in ativos:
+            # GATILHO: Força criação das gavetas deste ciclo para o cliente caso não existam
+            auto_gerar_ciclo_admin(c, data_base=inicio_ciclo)
+            
             fatura_atual = Fatura.query.filter_by(user_id=c.id, data_inicio=inicio_ciclo).first()
-            status_atual = fatura_atual.status if fatura_atual else 'sem_fatura'
+            detalhes_corretoras = {}
+            
+            if fatura_atual:
+                status_atual = fatura_atual.status
+                for aloc in c.alocacoes:
+                    dias_corretora = [d for d in fatura_atual.dias if d.nome_corretora == aloc.nome_corretora]
+                    dias_ok = sum(1 for d in dias_corretora if d.status in ['relatorio_enviado', 'isento'])
+                    total_dias = len(dias_corretora) if dias_corretora else 5
+                    detalhes_corretoras[aloc.nome_corretora] = f"{dias_ok}/{total_dias}"
+            else:
+                status_atual = 'sem_fatura'
+                
             clientes_dados.append({
                 'info': c, 
                 'status_semana': status_atual, 
-                'inicio_ciclo': inicio_ciclo
+                'inicio_ciclo': inicio_ciclo,
+                'detalhes_corretoras': detalhes_corretoras
             })
             
         return render_template('admin/pagamentos.html', clientes_dados=clientes_dados, busca=busca, exibe_clientes=True, ciclo_data=inicio_ciclo, dias_uteis=dias_uteis)
     
     else:
-        # Puxa os ciclos/gavetas (As últimas 15 semanas)
         ciclos_db = db.session.query(
             Fatura.data_inicio, Fatura.data_fim
         ).distinct().order_by(Fatura.data_inicio.desc()).limit(15).all()
@@ -298,19 +363,20 @@ def pagamentos():
 @admin_bp.route('/pagamentos/<int:id>')
 @login_required
 def pagamentos_cliente(id):
-    """ Agora ele recebe a gaveta/ciclo na URL para travar a visão apenas nela """
     cliente = User.query.get_or_404(id)
     ciclo = request.args.get('ciclo')
     
-    query = Fatura.query.filter_by(user_id=cliente.id)
-    
-    # SE VEIO DA GAVETA, TRAVA A CONSULTA APENAS NELA
     if ciclo:
         try:
             dt_inicio = datetime.strptime(ciclo, '%Y-%m-%d').date()
-            query = query.filter_by(data_inicio=dt_inicio)
+            # GATILHO: Garante a criação ao entrar no cliente diretamente também
+            auto_gerar_ciclo_admin(cliente, data_base=dt_inicio)
+            query = Fatura.query.filter_by(user_id=cliente.id, data_inicio=dt_inicio)
         except ValueError:
-            pass
+            query = Fatura.query.filter_by(user_id=cliente.id)
+    else:
+        auto_gerar_ciclo_admin(cliente)
+        query = Fatura.query.filter_by(user_id=cliente.id)
             
     faturas = query.order_by(Fatura.data_inicio.desc()).all()
     
@@ -328,20 +394,16 @@ def status_pagamento(fatura_id):
     
     db.session.commit()
     flash('Status da fatura atualizado.', 'success')
-    # Volta para o ciclo de onde ele veio
     return redirect(url_for('admin.pagamentos_cliente', id=fatura.user_id, ciclo=fatura.data_inicio.strftime('%Y-%m-%d')))
 
 @admin_bp.route('/pagamentos/isentar_dia_global', methods=['POST'])
 @login_required
 def isentar_dia_global():
-    """ ROTA NOVA: Isenta todos os clientes no mesmo dia com um clique """
     data_str = request.form.get('data_isencao')
     ciclo_str = request.form.get('ciclo_atual')
     
     try:
         data_alvo = datetime.strptime(data_str, '%Y-%m-%d').date()
-        
-        # Puxa todos os pregões pendentes/enviados daquela data e isenta
         dias_afetados = FaturaDiaria.query.filter_by(data_pregao=data_alvo).all()
         
         faturas_afetadas = set()
@@ -358,7 +420,6 @@ def isentar_dia_global():
             dia.repasse = 0.0
             faturas_afetadas.add(dia.fatura_semanal)
             
-        # Recalcula as faturas de todo mundo para atualizar status de "pendente" para "completo"
         for fatura in faturas_afetadas:
             atualizar_totais_semana_admin(fatura)
             
