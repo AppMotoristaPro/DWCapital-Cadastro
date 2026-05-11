@@ -192,12 +192,11 @@ def faturas():
         
         dia = FaturaDiaria.query.get(dia_id)
         
-        # ESCUDO DE SEGURANÇA 1 (IDOR): Impede que o cliente envie/altere dados de uma fatura que não é dele
+        # ESCUDO DE SEGURANÇA 1 (IDOR)
         if not dia or dia.fatura_semanal.user_id != current_user.id:
             return jsonify({'success': False, 'error': 'ERRO_SEGURANCA', 'message': 'Acesso negado. Você não tem permissão para alterar esta fatura.'})
 
         if arquivo and arquivo.filename:
-            # ESCUDO DE SEGURANÇA 2 (Path Traversal): Limpa o nome do arquivo para impedir injeção de vírus (.py, .sh, etc.)
             nome_seguro = secure_filename(arquivo.filename)
             upload_folder = os.path.join(current_app.root_path, 'static', 'uploads')
             os.makedirs(upload_folder, exist_ok=True)
@@ -259,7 +258,7 @@ def faturas():
 def enviar_comprovante(fatura_id):
     fatura = Fatura.query.get_or_404(fatura_id)
     
-    # ESCUDO DE SEGURANÇA 3 (IDOR): Impede anexar comprovantes em contas de terceiros
+    # ESCUDO DE SEGURANÇA 3 (IDOR)
     if fatura.user_id != current_user.id:
         flash('Acesso negado. Ação não autorizada.', 'danger')
         return redirect(url_for('client.faturas'))
@@ -280,7 +279,7 @@ def enviar_comprovante(fatura_id):
 def remover_fatura(dia_id):
     dia = FaturaDiaria.query.get_or_404(dia_id)
     
-    # ESCUDO DE SEGURANÇA 4 (IDOR): Impede excluir a nota de outra pessoa
+    # ESCUDO DE SEGURANÇA 4 (IDOR)
     if dia.fatura_semanal.user_id != current_user.id:
         flash('Acesso negado. Ação não autorizada.', 'danger')
         return redirect(url_for('client.faturas'))
@@ -294,20 +293,36 @@ def remover_fatura(dia_id):
 @client_bp.route('/documentos')
 @login_required
 def documentos():
-    pendentes = DocumentoCliente.query.filter_by(user_id=current_user.id, status='pendente').all()
-    atualizou_algum = False
+    # Agora carrega direto (super rápido). O polling no Frontend cuida do Autentique.
+    meus_docs = DocumentoCliente.query.filter_by(user_id=current_user.id).order_by(DocumentoCliente.data_envio.desc()).all()
+    return render_template('client/documentos.html', documentos=meus_docs)
+
+# ==========================================
+# NOVA ROTA: API para Polling de Assinatura
+# ==========================================
+@client_bp.route('/api/status_documento/<int:doc_id>')
+@login_required
+def api_status_documento(doc_id):
+    doc = DocumentoCliente.query.get_or_404(doc_id)
     
-    for doc in pendentes:
+    # Escudo IDOR: Um cliente não pode ver o status do documento de outro
+    if doc.user_id != current_user.id:
+        return jsonify({"assinado": False})
+    
+    # Se já foi marcado como assinado no banco, nem precisamos bater na API do Autentique
+    if doc.status == 'assinado':
+        return jsonify({"assinado": True})
+        
+    try:
         if verificar_status_autentique(doc.autentique_document_id):
             doc.status = 'assinado'
             doc.data_assinatura = datetime.now(tz_br)
-            atualizou_algum = True
-            
-    if atualizou_algum:
-        db.session.commit()
+            db.session.commit()
+            return jsonify({"assinado": True})
+    except:
+        pass
         
-    meus_docs = DocumentoCliente.query.filter_by(user_id=current_user.id).order_by(DocumentoCliente.data_envio.desc()).all()
-    return render_template('client/documentos.html', documentos=meus_docs)
+    return jsonify({"assinado": False})
 
 @client_bp.route('/ajuda')
 @login_required
