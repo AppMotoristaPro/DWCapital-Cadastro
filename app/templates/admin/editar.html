@@ -8,7 +8,7 @@
       {% if messages %}
         <div class="mb-6 space-y-2">
             {% for category, message in messages %}
-                <div class="p-4 rounded-xl font-bold text-sm shadow-sm bg-green-50 text-green-700 border border-green-100">
+                <div class="p-4 rounded-xl font-bold text-sm shadow-sm {% if category == 'error' %}bg-red-50 text-red-700 border-red-100{% else %}bg-green-50 text-green-700 border-green-100{% endif %} border">
                     {{ message }}
                 </div>
             {% endfor %}
@@ -22,7 +22,7 @@
             <h3 class="text-sm font-black text-navy uppercase tracking-widest border-b border-gray-100 pb-2">Dados Cadastrais</h3>
             <div>
                 <label class="block text-xs font-bold text-gray-500 uppercase">Nome</label>
-                <input type="text" name="nome" value="{{ cliente.nome }}" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none font-medium focus:border-royal">
+                <input type="text" name="nome" id="nome-edit" value="{{ cliente.nome }}" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none font-medium focus:border-royal">
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
@@ -67,7 +67,7 @@
                             </div>
                             <div>
                                 <label class="block text-[10px] font-bold text-green-600 uppercase">Capital (R$)</label>
-                                <input type="number" step="0.01" name="capital[]" value="{{ aloc.capital_alocado }}" required class="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none font-black text-sm text-green-600 focus:border-green-400">
+                                <input type="number" step="0.01" min="10000" name="capital[]" value="{{ aloc.capital_alocado }}" required class="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none font-black text-sm text-green-600 focus:border-green-400">
                             </div>
                         </div>
                     </div>
@@ -87,7 +87,7 @@
                             </div>
                             <div>
                                 <label class="block text-[10px] font-bold text-green-600 uppercase">Capital (R$)</label>
-                                <input type="number" step="0.01" name="capital[]" required class="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none font-black text-sm text-green-600 focus:border-green-400">
+                                <input type="number" step="0.01" min="10000" name="capital[]" required class="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none font-black text-sm text-green-600 focus:border-green-400">
                             </div>
                         </div>
                     </div>
@@ -119,6 +119,27 @@
 </div>
 
 <script>
+// AUTO-CAPITALIZE NO PAINEL ADMIN
+const inputNomeEdit = document.getElementById('nome-edit');
+if(inputNomeEdit) {
+    inputNomeEdit.addEventListener('input', function(e) {
+        let cursorPosition = this.selectionStart;
+        let partes = e.target.value.split(' ');
+        let formatado = partes.map((palavra, index) => {
+            if(palavra.length > 0) {
+                const preposicoes = ["de", "da", "do", "dos", "das", "e"];
+                if(preposicoes.includes(palavra.toLowerCase()) && index !== 0) {
+                    return palavra.toLowerCase();
+                }
+                return palavra.charAt(0).toUpperCase() + palavra.slice(1).toLowerCase();
+            }
+            return "";
+        }).join(' ');
+        e.target.value = formatado;
+        this.setSelectionRange(cursorPosition, cursorPosition);
+    });
+}
+
 function adicionarCorretora() {
     const container = document.getElementById('corretoras-container');
     const cards = container.querySelectorAll('.corretora-card');

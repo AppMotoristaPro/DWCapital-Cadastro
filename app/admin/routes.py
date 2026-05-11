@@ -24,10 +24,6 @@ def registrar_log(acao, categoria):
         db.session.add(novo_log)
 
 def atualizar_totais_semana_admin(fatura):
-    """
-    Função centralizada para recalcular os valores da semana.
-    Dias isentos NÃO contam como notas enviadas, mas sim REDUZEM o total exigido na semana.
-    """
     fatura.bruto = sum((d.bruto if d.bruto > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.taxas_b3 = sum((d.taxas_b3 if d.taxas_b3 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.irrf_1 = sum((d.irrf_1 if d.irrf_1 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
@@ -228,13 +224,22 @@ def liberar_cliente():
 def editar_cliente(id):
     cliente = User.query.get_or_404(id)
     if request.method == 'POST':
-        cliente.nome = request.form.get('nome')
+        corretoras_selecionadas = request.form.getlist('corretora[]')
+        capitais_alocados = request.form.getlist('capital[]')
+        
+        # VALIDAÇÃO DE SEGURANÇA (Backend): Bloqueia capital < R$ 10.000,00 na edição
+        for cap in capitais_alocados:
+            if cap and float(cap) < 10000:
+                flash('Operação cancelada: O capital mínimo exigido por corretora é de R$ 10.000,00.', 'error')
+                return redirect(url_for('admin.editar_cliente', id=cliente.id))
+
+        # FORMATAÇÃO DE NOME (Capitalize global) na edição
+        nome_raw = request.form.get('nome', '')
+        cliente.nome = nome_raw.strip().title()
+        
         cliente.email = request.form.get('email')
         cliente.celular = request.form.get('celular')
         cliente.is_isento = True if request.form.get('is_isento') else False
-        
-        corretoras_selecionadas = request.form.getlist('corretora[]')
-        capitais_alocados = request.form.getlist('capital[]')
         
         AlocacaoCorretora.query.filter_by(user_id=cliente.id).delete()
         
@@ -324,8 +329,6 @@ def pagamentos():
                 status_atual = fatura_atual.status
                 for aloc in c.alocacoes:
                     dias_corretora = [d for d in fatura_atual.dias if d.nome_corretora == aloc.nome_corretora]
-                    
-                    # LÓGICA CORRIGIDA DA FRAÇÃO: Só conta ENVIADOS (X) de um TOTAL REDUZIDO pelos isentos (Y)
                     dias_enviados = sum(1 for d in dias_corretora if d.status == 'relatorio_enviado')
                     dias_isentos = sum(1 for d in dias_corretora if d.status == 'isento')
                     total_base = len(dias_corretora) if dias_corretora else 5

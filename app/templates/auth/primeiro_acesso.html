@@ -13,6 +13,16 @@
             <div id="progress-inner" class="h-full bg-royal transition-all duration-500 rounded-full shadow-[0_0_10px_rgba(65,105,225,0.8)]" style="width: 0%"></div>
         </div>
 
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+                <div class="mb-4 p-4 rounded-xl text-xs font-bold text-red-200 bg-red-500/20 border border-red-500/30 backdrop-blur-sm text-center">
+                    {{ message }}
+                </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
         <form id="multi-step-form" action="{{ url_for('auth.primeiro_acesso') }}" method="POST">
             
             <div class="step transition-all duration-300" id="step-1">
@@ -84,7 +94,7 @@
 
             <div class="step hidden transition-all duration-300" id="step-3">
                 <h2 class="text-3xl font-black text-white mb-2 tracking-tight">Investimento</h2>
-                <p class="text-blue-200 text-sm mb-6 font-medium">Adicione as corretoras onde você irá operar e o capital alocado em cada uma delas.</p>
+                <p class="text-blue-200 text-sm mb-6 font-medium">Adicione as corretoras onde você irá operar e o capital alocado em cada uma delas (Min. R$ 10.000,00).</p>
                 
                 <div id="corretoras-container" class="space-y-4">
                     
@@ -103,7 +113,7 @@
                                 <label class="absolute text-xs text-blue-300 duration-300 transform -translate-y-2 scale-75 top-3 z-10 origin-[0] left-4 font-bold uppercase tracking-widest pointer-events-none">Selecione a Corretora</label>
                             </div>
                             <div class="relative">
-                                <input type="number" step="0.01" name="capital[]" required class="block rounded-xl px-4 pb-2 pt-5 w-full text-xl font-black text-green-400 bg-green-500/10 border border-green-500/30 appearance-none focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 peer transition-colors" placeholder=" " />
+                                <input type="number" step="0.01" min="10000" name="capital[]" required class="block rounded-xl px-4 pb-2 pt-5 w-full text-xl font-black text-green-400 bg-green-500/10 border border-green-500/30 appearance-none focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 peer transition-colors" placeholder=" " />
                                 <label class="absolute text-xs text-green-400/80 duration-300 transform -translate-y-2 scale-75 top-3 z-10 origin-[0] left-4 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-2 font-bold uppercase tracking-widest pointer-events-none">Capital Alocado (R$)</label>
                             </div>
                         </div>
@@ -115,7 +125,7 @@
                     Adicionar Outra Corretora
                 </button>
                 
-                <p id="error-step-3" class="hidden text-xs font-bold text-red-200 mt-4 p-3 bg-red-500/20 rounded-xl border border-red-500/30 backdrop-blur-sm">Selecione a corretora e informe o capital em todos os campos.</p>
+                <p id="error-step-3" class="hidden text-xs font-bold text-red-200 mt-4 p-3 bg-red-500/20 rounded-xl border border-red-500/30 backdrop-blur-sm">Verifique se as corretoras estão preenchidas e o capital é no mínimo R$ 10.000,00.</p>
                 <button type="button" onclick="validarEAvançar(3, 4)" class="w-full mt-6 py-4 bg-white/10 text-white border border-white/20 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-white/20 transition-colors">Próximo Passo</button>
             </div>
 
@@ -157,7 +167,27 @@
 </div>
 
 <script>
-// FUNÇÕES PARA ADICIONAR E REMOVER CARDS DE CORRETORA DINAMICAMENTE
+// AUTO-CAPITALIZE: Formata o nome em tempo real enquanto o usuário digita
+const inputNome = document.getElementById('nome');
+if(inputNome) {
+    inputNome.addEventListener('input', function(e) {
+        let cursorPosition = this.selectionStart;
+        let partes = e.target.value.split(' ');
+        let formatado = partes.map((palavra, index) => {
+            if(palavra.length > 0) {
+                const preposicoes = ["de", "da", "do", "dos", "das", "e"];
+                if(preposicoes.includes(palavra.toLowerCase()) && index !== 0) {
+                    return palavra.toLowerCase();
+                }
+                return palavra.charAt(0).toUpperCase() + palavra.slice(1).toLowerCase();
+            }
+            return "";
+        }).join(' ');
+        e.target.value = formatado;
+        this.setSelectionRange(cursorPosition, cursorPosition);
+    });
+}
+
 function adicionarCorretora() {
     const container = document.getElementById('corretoras-container');
     const cards = container.querySelectorAll('.corretora-card');
@@ -167,14 +197,10 @@ function adicionarCorretora() {
         return;
     }
     
-    // Clona o primeiro card
     const clone = cards[0].cloneNode(true);
-    
-    // Limpa os valores inseridos pelo usuário no clone
     clone.querySelector('select').value = "";
     clone.querySelector('input[type="number"]').value = "";
     
-    // Remove classes de erro se houver
     clone.querySelectorAll('select, input').forEach(el => {
         el.classList.remove('border-red-500', 'bg-red-500/10');
         el.classList.add('border-white/10', 'bg-navy/60');
@@ -234,6 +260,12 @@ function validarEAvançar(passoAtual, proximoPasso) {
                 isInputValido = false;
                 alert('Atenção: Você não pode selecionar a mesma corretora mais de uma vez.');
                 valido = false;
+            }
+
+            // Validação local de capital mínimo (10.000)
+            const inputCapital = input.name === 'capital[]' ? input : null;
+            if (inputCapital && parseFloat(inputCapital.value) < 10000) {
+                isInputValido = false;
             }
         }
 
