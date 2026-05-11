@@ -1,0 +1,140 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_content %}
+<div class="max-w-7xl mx-auto relative z-10 pb-20">
+    <div class="flex justify-between items-end mb-8">
+        <div>
+            <h1 class="text-4xl font-black text-navy tracking-tight">Central de Contratos</h1>
+            <p class="text-gray-500 mt-2 font-medium">Gerencie modelos do Autentique e dispare documentos digitais em lote.</p>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}{% for category, message in messages %}
+        <div class="p-4 mb-8 rounded-2xl font-bold shadow-sm {% if category == 'error' %}bg-red-50 text-red-700 border-red-100{% else %}bg-green-50 text-green-700 border-green-100{% endif %} border">{{ message }}</div>
+      {% endfor %}{% endif %}
+    {% endwith %}
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <div class="lg:col-span-1 space-y-8">
+            
+            <div class="bg-white p-6 rounded-3xl shadow-lg border border-purple-100">
+                <div class="flex items-center gap-3 mb-6 border-b border-gray-100 pb-4">
+                    <div class="w-10 h-10 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center shadow-sm">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                    </div>
+                    <h2 class="text-lg font-black text-navy uppercase tracking-widest">Novo Disparo</h2>
+                </div>
+
+                <form method="POST" action="{{ url_for('admin.disparar_documento') }}" onsubmit="return confirm('Tem certeza que deseja disparar este contrato para os parceiros selecionados?')" class="space-y-5">
+                    
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Modelo de Contrato (Template)</label>
+                        <select name="template_id" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none font-bold text-sm text-navy focus:border-purple-400 focus:bg-white transition cursor-pointer">
+                            <option value="" disabled selected>Selecione o documento...</option>
+                            {% for temp in templates %}
+                                <option value="{{ temp.id }}">{{ temp.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Selecionar Parceiros</label>
+                        <div class="bg-gray-50 border border-gray-200 rounded-xl h-48 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                            {% for cliente in clientes %}
+                            <label class="flex items-center p-3 hover:bg-white rounded-lg cursor-pointer border border-transparent hover:border-gray-200 transition group">
+                                <input type="checkbox" name="clientes[]" value="{{ cliente.id }}" class="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500 cursor-pointer">
+                                <span class="ml-3 text-xs font-bold text-navy group-hover:text-purple-700 transition">{{ cliente.nome }}</span>
+                            </label>
+                            {% else %}
+                            <p class="text-xs text-gray-400 font-medium p-3 text-center">Nenhum parceiro ativo encontrado.</p>
+                            {% endfor %}
+                        </div>
+                        <p class="text-[9px] text-gray-400 mt-2 font-bold uppercase tracking-widest text-right">*Múltipla seleção permitida</p>
+                    </div>
+
+                    <button type="submit" class="w-full py-4 bg-gradient-to-r from-purple-600 to-royal text-white font-black uppercase tracking-widest rounded-xl text-xs shadow-md hover:shadow-lg hover:-translate-y-0.5 transition">Disparar Contratos Digitais</button>
+                </form>
+            </div>
+
+            <div class="bg-gray-50 p-6 rounded-3xl border border-gray-200 border-dashed">
+                <h2 class="text-sm font-black text-gray-600 uppercase tracking-widest mb-4">Adicionar Novo Modelo</h2>
+                <form method="POST" action="{{ url_for('admin.cadastrar_template') }}" class="space-y-4">
+                    <div>
+                        <input type="text" name="nome" placeholder="Nome do Documento (Ex: Aditivo de Capital)" required class="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none font-bold text-xs text-navy focus:border-gray-400 transition placeholder:text-gray-400">
+                    </div>
+                    <div>
+                        <input type="text" name="autentique_id" placeholder="ID do Template no Autentique" required class="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none font-bold text-xs text-navy focus:border-gray-400 transition placeholder:text-gray-400 font-mono">
+                    </div>
+                    <button type="submit" class="w-full py-3 bg-gray-200 text-gray-600 hover:bg-gray-300 hover:text-navy font-black uppercase tracking-widest rounded-xl text-[10px] transition">Salvar Modelo no Sistema</button>
+                </form>
+            </div>
+            
+        </div>
+
+        <div class="lg:col-span-2">
+            <div class="bg-white rounded-3xl shadow-lg border border-gray-100 overflow-hidden">
+                <div class="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                    <h2 class="text-lg font-black text-navy uppercase tracking-widest">Histórico de Envios</h2>
+                    <span class="px-3 py-1 bg-white border border-gray-200 text-gray-500 text-[9px] font-black uppercase tracking-widest rounded-lg shadow-sm">Últimos 100 Registros</span>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead class="bg-white border-b border-gray-100 text-gray-400 text-[10px] font-black uppercase tracking-wider">
+                            <tr>
+                                <th class="px-6 py-4">Documento</th>
+                                <th class="px-6 py-4">Parceiro</th>
+                                <th class="px-6 py-4">Data do Disparo</th>
+                                <th class="px-6 py-4 text-right">Status da Assinatura</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-50 bg-white">
+                            {% for doc in historico %}
+                            <tr class="hover:bg-gray-50 transition">
+                                <td class="px-6 py-4">
+                                    <span class="text-xs font-bold text-navy">{{ doc.template.nome }}</span>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <span class="text-xs font-bold text-gray-600">{{ doc.cliente.nome }}</span>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <span class="text-[10px] font-bold text-gray-400 tracking-widest">{{ doc.data_envio.strftime('%d/%m/%Y às %H:%M') }}</span>
+                                </td>
+                                <td class="px-6 py-4 text-right">
+                                    {% if doc.status == 'assinado' %}
+                                        <span class="inline-flex items-center px-2.5 py-1 bg-green-50 text-green-600 border border-green-200 rounded text-[9px] font-black uppercase tracking-widest shadow-sm gap-1">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Assinado
+                                        </span>
+                                    {% else %}
+                                        <span class="inline-flex items-center px-2.5 py-1 bg-yellow-50 text-yellow-600 border border-yellow-200 rounded text-[9px] font-black uppercase tracking-widest shadow-sm gap-1">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Pendente
+                                        </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4" class="px-6 py-12 text-center text-gray-400 font-medium">
+                                    Nenhum contrato disparado até o momento.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<style>
+/* Scrollbar elegante para a caixa de seleção múltipla */
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+</style>
+{% endblock %}
+

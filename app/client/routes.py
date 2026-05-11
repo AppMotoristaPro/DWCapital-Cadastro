@@ -6,7 +6,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 from flask_login import login_required, current_user
 import cloudinary.uploader
 from app import db
-from app.models import FaturaDiaria, Fatura, AlocacaoCorretora
+from app.models import FaturaDiaria, Fatura, AlocacaoCorretora, DocumentoCliente
 from app.utils.autentique import criar_documento_autentique, verificar_status_autentique
 from app.utils.parsers.gerenciador_pdf import processar_pdf
 from sqlalchemy.exc import IntegrityError
@@ -99,7 +99,6 @@ def dashboard():
         
     auto_gerar_ciclo_atual(current_user)
     
-    # --- LÓGICA FASE 3: PERFORMANCE INDIVIDUAL ---
     fatura_atual = Fatura.query.filter_by(user_id=current_user.id).order_by(Fatura.data_inicio.desc()).first()
     
     bruto_semana = fatura_atual.bruto if fatura_atual else 0.0
@@ -272,6 +271,27 @@ def remover_fatura(dia_id):
     db.session.commit()
     atualizar_totais_semana(dia.fatura_semanal)
     return redirect(url_for('client.faturas'))
+
+# --- FASE 4: COFRE DE CONTRATOS DO CLIENTE ---
+@client_bp.route('/documentos')
+@login_required
+def documentos():
+    # 1. Puxa as pendências do banco e verifica na API Autentique se o cliente já assinou.
+    pendentes = DocumentoCliente.query.filter_by(user_id=current_user.id, status='pendente').all()
+    atualizou_algum = False
+    
+    for doc in pendentes:
+        if verificar_status_autentique(doc.autentique_document_id):
+            doc.status = 'assinado'
+            doc.data_assinatura = datetime.now(tz_br)
+            atualizou_algum = True
+            
+    if atualizou_algum:
+        db.session.commit()
+        
+    # 2. Mostra os documentos na tela
+    meus_docs = DocumentoCliente.query.filter_by(user_id=current_user.id).order_by(DocumentoCliente.data_envio.desc()).all()
+    return render_template('client/documentos.html', documentos=meus_docs)
 
 @client_bp.route('/ajuda')
 @login_required

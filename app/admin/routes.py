@@ -5,9 +5,10 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash,
 from flask_login import login_required, current_user
 from werkzeug.security import generate_password_hash
 from sqlalchemy.exc import IntegrityError
-from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria
+from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria, DocumentoTemplate, DocumentoCliente
 from app import db
 from datetime import datetime, timedelta
+from app.utils.autentique import disparar_documento_template, verificar_status_autentique
 import pytz
 
 tz_br = pytz.timezone('America/Sao_Paulo')
@@ -141,18 +142,13 @@ def dashboard():
     else:
         faturas_filtradas = faturas_base.all()
         
-    # --- LÓGICA FASE 3: DASHBOARDS E INTELIGÊNCIA ---
-    
     faturamento_total = sum(f.repasse for f in faturas_filtradas)
     faturamento_bruto_total = sum(f.bruto for f in faturas_filtradas)
     
-    # 1. Preparando dados para o Gráfico de Linha (Agrupamento por Data do Pregão)
-    # 2. Preparando cálculo de Variância do Robô (ROI por Cliente)
     dados_grafico_raw = {}
     rois_clientes = {}
 
     for f in faturas_filtradas:
-        # Puxa o capital do cliente (soma das alocações)
         capital_cliente = f.cliente.capital_alocado or 0.0
         
         if f.user_id not in rois_clientes:
@@ -164,12 +160,10 @@ def dashboard():
             if d.status == 'relatorio_enviado' and d.bruto != 0:
                 dados_grafico_raw[d.data_pregao] = dados_grafico_raw.get(d.data_pregao, 0.0) + d.bruto
 
-    # Formatar Gráfico
     datas_ordenadas = sorted(dados_grafico_raw.keys())
     chart_labels = [dt.strftime('%d/%m') for dt in datas_ordenadas]
     chart_data = [round(dados_grafico_raw[dt], 2) for dt in datas_ordenadas]
 
-    # Calcular ROI Mínimo, Médio e Máximo
     lista_rois = []
     for uid, dados in rois_clientes.items():
         if dados['capital'] > 0 and dados['bruto_acumulado'] != 0:
@@ -183,7 +177,6 @@ def dashboard():
     else:
         roi_min = roi_med = roi_max = 0.0
 
-    # Dados base da mesa
     clientes_ativos = User.query.filter(
         User.role == 'cliente', 
         User.status_acesso == 'ativo',
@@ -581,7 +574,7 @@ def gerar_senha_temporaria(id):
     registrar_log(f"Gerou e forçou uma troca de senha temporária para o cliente {cliente.nome}.", "Segurança")
     
     db.session.commit()
-    flash(f'Senha generated para {cliente.nome}: {senha_temp}', 'success')
+    flash(f'Senha gerada para {cliente.nome}: {senha_temp}', 'success')
     return redirect(url_for('admin.editar_cliente', id=cliente.id))
 
 @admin_bp.route('/atividades')
@@ -602,4 +595,76 @@ def atividades():
     logs = query.order_by(LogAuditoria.timestamp.desc()).limit(200).all()
     
     return render_template('admin/atividades.html', logs=logs, busca=busca)
+
+# --- FASE 4: CENTRAL DE CONTRATOS (ADMIN) ---
+
+@admin_bp.route('/documentos')
+@login_required
+def documentos():
+    if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
+    
+    templates = DocumentoTemplate.query.all()
+    clientes = User.query.filter_by(role='cliente', status_acesso='ativo').order_by(User.nome.asc()).all()
+    historico = DocumentoCliente.query.order_by(DocumentoCliente.data_envio.desc()).limit(100).all()
+    
+    return render_template('admin/documentos.html', templates=templates, clientes=clientes, historico=historico)
+
+@admin_bp.route('/documentos/cadastrar_template', methods=['POST'])
+@login_required
+def cadastrar_template():
+    if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
+    
+    nome = request.form.get('nome')
+    autentique_id = request.form.get('autentique_id')
+    
+    novo_temp = DocumentoTemplate(nome=nome, autentique_id=autentique_id)
+    db.session.add(novo_temp)
+    registrar_log(f"Cadastrou novo Template de Contrato: {nome}.", "Contratos")
+    db.session.commit()
+    
+    flash('Modelo de contrato cadastrado com sucesso!', 'success')
+    return redirect(url_for('admin.documentos'))
+
+@admin_bp.route('/documentos/disparar', methods=['POST'])
+@login_required
+def disparar_documento():
+    if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
+    
+    template_id = request.form.get('template_id')
+    user_ids = request.form.getlist('clientes[]')
+    
+    template = DocumentoTemplate.query.get_or_404(template_id)
+    
+    enviados = 0
+    erros = 0
+    
+    for uid in user_ids:
+        cliente = User.query.get(uid)
+        if cliente:
+            try:
+                nome_doc = f"{template.nome} - {cliente.nome}"
+                doc_id, link = disparar_documento_template(template.autentique_id, cliente.nome, cliente.email, nome_doc)
+                
+                novo_doc = DocumentoCliente(
+                    user_id=cliente.id,
+                    template_id=template.id,
+                    autentique_document_id=doc_id,
+                    link_assinatura=link,
+                    status='pendente'
+                )
+                db.session.add(novo_doc)
+                enviados += 1
+            except Exception as e:
+                print(f"Erro ao enviar para {cliente.nome}: {e}")
+                erros += 1
+                
+    db.session.commit()
+    registrar_log(f"Disparou contrato '{template.nome}' para {enviados} investidor(es).", "Contratos")
+    
+    if erros > 0:
+        flash(f'{enviados} contratos enviados. Houve erro em {erros} envios (verifique as configurações no Autentique).', 'error')
+    else:
+        flash(f'{enviados} contratos disparados digitalmente com sucesso!', 'success')
+        
+    return redirect(url_for('admin.documentos'))
 

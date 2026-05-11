@@ -3,14 +3,11 @@ import requests
 import json
 
 AUTENTIQUE_TOKEN = os.getenv('AUTENTIQUE_TOKEN', '').strip()
-# Lógica para definir se é Sandbox ou Produção via Variável de Ambiente
-# Se não estiver configurado no Render, ele assume True (Sandbox) por segurança
 AUTENTIQUE_SANDBOX = os.getenv('AUTENTIQUE_SANDBOX', 'true').lower() == 'true'
 
 URL = "https://api.autentique.com.br/v2/graphql"
 
 def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
-    # Tornamos o campo 'sandbox' dinâmico através da variável $sandbox
     query = """
     mutation CreateDocumentMutation(
         $document: DocumentInput!,
@@ -41,7 +38,7 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
                 "action": "SIGN"
             }
         ],
-        "sandbox": AUTENTIQUE_SANDBOX  # Aqui a mágica acontece
+        "sandbox": AUTENTIQUE_SANDBOX
     }
 
     operations = json.dumps({
@@ -73,6 +70,69 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
         
         doc_id = data.get('data', {}).get('createDocument', {}).get('id')
         return doc_id
+    else:
+        raise Exception(f"Falha de comunicação HTTP: {response.text}")
+
+# NOVA FUNÇÃO FASE 4: Disparo 100% digital usando Template
+def disparar_documento_template(template_id, nome_signer, email_signer, nome_documento):
+    query = """
+    mutation CreateDocumentMutation(
+        $document: DocumentInput!,
+        $signers: [SignerInput!]!,
+        $sandbox: Boolean!
+    ) {
+        createDocument(
+            sandbox: $sandbox,
+            document: $document,
+            signers: $signers
+        ) {
+            id
+            name
+            signatures {
+                link { short_link }
+            }
+        }
+    }
+    """
+    
+    variables = {
+        "document": {
+            "name": nome_documento,
+            "template": template_id
+        },
+        "signers": [
+            {
+                "name": nome_signer,
+                "email": email_signer,
+                "action": "SIGN"
+            }
+        ],
+        "sandbox": AUTENTIQUE_SANDBOX
+    }
+    
+    headers = {
+        "Authorization": f"Bearer {AUTENTIQUE_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(URL, headers=headers, json={"query": query, "variables": variables})
+    
+    if response.status_code == 200:
+        data = response.json()
+        if "errors" in data:
+            raise Exception(f"{data['errors'][0]['message']}")
+        
+        doc = data.get('data', {}).get('createDocument', {})
+        doc_id = doc.get('id')
+        
+        link = None
+        try:
+            # Puxa o link mágico gerado para injetar no dashboard do cliente
+            link = doc.get('signatures', [])[0].get('link', {}).get('short_link')
+        except:
+            pass
+            
+        return doc_id, link
     else:
         raise Exception(f"Falha de comunicação HTTP: {response.text}")
 

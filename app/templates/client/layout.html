@@ -14,6 +14,7 @@
             <a href="{{ url_for('client.dashboard') }}" class="flex items-center px-4 py-3.5 rounded-xl transition duration-300 {% if request.endpoint == 'client.dashboard' %}bg-white/10 text-white font-bold border-l-4 border-white{% else %}hover:bg-white/5 hover:text-white font-medium{% endif %}">Dashboard</a>
             <a href="{{ url_for('client.faturas') }}" class="flex items-center px-4 py-3.5 rounded-xl transition duration-300 {% if request.endpoint == 'client.faturas' %}bg-white/10 text-white font-bold border-l-4 border-white{% else %}hover:bg-white/5 hover:text-white font-medium{% endif %}">Extrato de Faturamento</a>
             <a href="{{ url_for('client.dados_pessoais') }}" class="flex items-center px-4 py-3.5 rounded-xl transition duration-300 {% if request.endpoint == 'client.dados_pessoais' %}bg-white/10 text-white font-bold border-l-4 border-white{% else %}hover:bg-white/5 hover:text-white font-medium{% endif %}">Meus Dados</a>
+            <a href="{{ url_for('client.documentos') }}" class="flex items-center px-4 py-3.5 rounded-xl transition duration-300 {% if request.endpoint == 'client.documentos' %}bg-white/10 text-white font-bold border-l-4 border-white{% else %}hover:bg-white/5 hover:text-white font-medium{% endif %}">Meus Documentos</a>
         </nav>
         
         <div class="px-4 pb-6 space-y-2">
