@@ -4,12 +4,13 @@ import string
 from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app
 from flask_login import current_user
 from werkzeug.security import generate_password_hash
-from sqlalchemy.exc import IntegrityError
 from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria, DocumentoTemplate, DocumentoCliente
 from app import db
 from datetime import datetime, timedelta
-from app.utils.autentique import enviar_documento_local_com_link, verificar_status_autentique
 from app.utils.decorators import admin_required
+from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo
+from app.services.documento_service import disparar_lote
+from app.services.dashboard_service import obter_dados_dashboard
 import pytz
 
 tz_br = pytz.timezone('America/Sao_Paulo')
@@ -25,84 +26,6 @@ def registrar_log(acao, categoria):
         )
         db.session.add(novo_log)
 
-def atualizar_totais_semana_admin(fatura):
-    fatura.bruto = sum((d.bruto if d.bruto > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.taxas_b3 = sum((d.taxas_b3 if d.taxas_b3 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.irrf_1 = sum((d.irrf_1 if d.irrf_1 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.liquido_pregao = sum((d.liquido_pregao if d.liquido_pregao > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.irrf_19 = sum((d.irrf_19 if d.irrf_19 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.liquido = sum((d.liquido if d.liquido > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.repasse = sum((d.repasse if d.repasse > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    
-    dias_enviados = sum(1 for d in fatura.dias if d.status == 'relatorio_enviado')
-    dias_isentos = sum(1 for d in fatura.dias if d.status == 'isento')
-    total_exigido = len(fatura.dias) - dias_isentos
-    
-    if dias_enviados == 0:
-        if total_exigido == 0 and len(fatura.dias) > 0:
-            fatura.status = 'completo'
-        else:
-            fatura.status = 'pendente'
-    elif dias_enviados >= total_exigido and total_exigido > 0:
-        fatura.status = 'completo'
-    else:
-        fatura.status = 'parcial'
-        
-    db.session.commit()
-
-def auto_gerar_ciclo_admin(user, data_base=None):
-    if not user.alocacoes:
-        return
-
-    hoje = data_base if data_base else datetime.now(tz_br).date()
-    dias_para_sexta = (hoje.weekday() - 4) % 7
-    inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
-    fim_ciclo = inicio_ciclo + timedelta(days=6)
-
-    fatura_existente = Fatura.query.filter_by(user_id=user.id, data_inicio=inicio_ciclo).first()
-
-    if not fatura_existente:
-        nova_fatura = Fatura(
-            user_id=user.id,
-            data_inicio=inicio_ciclo,
-            data_fim=fim_ciclo,
-            status='pendente'
-        )
-        db.session.add(nova_fatura)
-        
-        try:
-            db.session.commit()
-            fatura_existente = nova_fatura
-        except IntegrityError:
-            db.session.rollback()
-            fatura_existente = Fatura.query.filter_by(user_id=user.id, data_inicio=inicio_ciclo).first()
-            if not fatura_existente:
-                return
-
-    if fatura_existente:
-        dias_uteis = []
-        data_atual = inicio_ciclo
-        while len(dias_uteis) < 5 and data_atual <= fim_ciclo:
-            if data_atual.weekday() < 5:
-                dias_uteis.append(data_atual)
-            data_atual += timedelta(days=1)
-
-        for data in dias_uteis:
-            for alocacao in user.alocacoes:
-                existe = FaturaDiaria.query.filter_by(fatura_id=fatura_existente.id, data_pregao=data, nome_corretora=alocacao.nome_corretora).first()
-                if not existe:
-                    novo_dia = FaturaDiaria(
-                        fatura_id=fatura_existente.id,
-                        data_pregao=data,
-                        nome_corretora=alocacao.nome_corretora,
-                        status='pendente'
-                    )
-                    db.session.add(novo_dia)
-        try:
-            db.session.commit()
-        except IntegrityError:
-            db.session.rollback()
-
 @admin_bp.route('/')
 @admin_required
 def dashboard():
@@ -110,104 +33,10 @@ def dashboard():
     filtro_semana_dia = request.args.get('semana_dia') 
     filtro_ano = request.args.get('ano') 
     
-    faturas_base = Fatura.query.join(User).filter(
-        Fatura.status.in_(['parcial', 'completo', 'pago', 'inadimplente']),
-        db.or_(User.is_isento == False, User.is_isento.is_(None))
-    )
+    # O Cérebro do Dashboard foi isolado na Camada de Serviços
+    dados = obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano)
     
-    label_periodo = "Todo o Período"
-    
-    if filtro_dia:
-        dt_dia = datetime.strptime(filtro_dia, '%Y-%m-%d').date()
-        faturas_filtradas = faturas_base.filter(Fatura.data_inicio <= dt_dia, Fatura.data_fim >= dt_dia).all()
-        label_periodo = f"Dia {dt_dia.strftime('%d/%m/%Y')}"
-        
-    elif filtro_semana_dia:
-        dt_ref = datetime.strptime(filtro_semana_dia, '%Y-%m-%d').date()
-        dias_para_sexta = (dt_ref.weekday() - 4) % 7
-        dt_inicio_sem = dt_ref - timedelta(days=dias_para_sexta)
-        dt_fim_sem = dt_inicio_sem + timedelta(days=6)
-        
-        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_sem, Fatura.data_inicio <= dt_fim_sem).all()
-        label_periodo = f"Ciclo {dt_inicio_sem.strftime('%d/%m/%Y')} a {dt_fim_sem.strftime('%d/%m/%Y')}"
-        
-    elif filtro_ano:
-        ano = int(filtro_ano)
-        dt_inicio_ano = datetime(ano, 1, 1).date()
-        dt_fim_ano = datetime(ano, 12, 31).date()
-        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_ano, Fatura.data_inicio <= dt_fim_ano).all()
-        label_periodo = f"Ano {ano}"
-        
-    else:
-        faturas_filtradas = faturas_base.all()
-        
-    faturamento_total = sum(f.repasse for f in faturas_filtradas)
-    faturamento_bruto_total = sum(f.bruto for f in faturas_filtradas)
-    
-    dados_grafico_raw = {}
-    rois_clientes = {}
-
-    for f in faturas_filtradas:
-        capital_cliente = f.cliente.capital_alocado or 0.0
-        
-        if f.user_id not in rois_clientes:
-            rois_clientes[f.user_id] = {'bruto_acumulado': 0.0, 'capital': capital_cliente}
-            
-        rois_clientes[f.user_id]['bruto_acumulado'] += f.bruto
-
-        for d in f.dias:
-            if d.status == 'relatorio_enviado' and d.bruto != 0:
-                dados_grafico_raw[d.data_pregao] = dados_grafico_raw.get(d.data_pregao, 0.0) + d.bruto
-
-    datas_ordenadas = sorted(dados_grafico_raw.keys())
-    chart_labels = [dt.strftime('%d/%m') for dt in datas_ordenadas]
-    chart_data = [round(dados_grafico_raw[dt], 2) for dt in datas_ordenadas]
-
-    lista_rois = []
-    for uid, dados in rois_clientes.items():
-        if dados['capital'] > 0 and dados['bruto_acumulado'] != 0:
-            roi_cliente = (dados['bruto_acumulado'] / dados['capital']) * 100
-            lista_rois.append(roi_cliente)
-
-    if lista_rois:
-        roi_min = min(lista_rois)
-        roi_max = max(lista_rois)
-        roi_med = sum(lista_rois) / len(lista_rois)
-    else:
-        roi_min = roi_med = roi_max = 0.0
-
-    clientes_ativos = User.query.filter(
-        User.role == 'cliente', 
-        User.status_acesso == 'ativo',
-        db.or_(User.is_isento == False, User.is_isento.is_(None))
-    ).count()
-    
-    clientes_inativos = User.query.filter_by(role='cliente', status_acesso='inativo').count()
-    
-    alocado_row = db.session.query(db.func.sum(User.capital_alocado)).filter(
-        User.role == 'cliente', 
-        User.status_acesso == 'ativo', 
-        db.or_(User.is_isento == False, User.is_isento.is_(None))
-    ).first()
-    
-    capital_total = alocado_row[0] or 0.0
-    
-    qtd_faturas = len(faturas_filtradas)
-    media_cliente = faturamento_bruto_total / qtd_faturas if qtd_faturas > 0 else 0.0
-    
-    return render_template('admin/dashboard.html', 
-                           clientes_ativos=clientes_ativos,
-                           clientes_inativos=clientes_inativos,
-                           capital_total=capital_total,
-                           faturamento_total=faturamento_total,
-                           faturamento_bruto_total=faturamento_bruto_total,
-                           media_cliente=media_cliente,
-                           label_periodo=label_periodo,
-                           chart_labels=chart_labels,
-                           chart_data=chart_data,
-                           roi_min=roi_min,
-                           roi_med=roi_med,
-                           roi_max=roi_max)
+    return render_template('admin/dashboard.html', **dados)
 
 @admin_bp.route('/clientes')
 @admin_required
@@ -358,7 +187,7 @@ def pagamentos():
         
         clientes_dados = []
         for c in ativos:
-            auto_gerar_ciclo_admin(c, data_base=inicio_ciclo)
+            auto_gerar_ciclo(c, data_base=inicio_ciclo)
             
             fatura_atual = Fatura.query.filter_by(user_id=c.id, data_inicio=inicio_ciclo).first()
             detalhes_corretoras = {}
@@ -419,12 +248,12 @@ def pagamentos_cliente(id):
     if ciclo:
         try:
             dt_inicio = datetime.strptime(ciclo, '%Y-%m-%d').date()
-            auto_gerar_ciclo_admin(cliente, data_base=dt_inicio)
+            auto_gerar_ciclo(cliente, data_base=dt_inicio)
             query = Fatura.query.filter_by(user_id=cliente.id, data_inicio=dt_inicio)
         except ValueError:
             query = Fatura.query.filter_by(user_id=cliente.id)
     else:
-        auto_gerar_ciclo_admin(cliente)
+        auto_gerar_ciclo(cliente)
         query = Fatura.query.filter_by(user_id=cliente.id)
             
     faturas = query.order_by(Fatura.data_inicio.desc()).all()
@@ -470,7 +299,7 @@ def isentar_dia_global():
             faturas_afetadas.add(dia.fatura_semanal)
             
         for fatura in faturas_afetadas:
-            atualizar_totais_semana_admin(fatura)
+            atualizar_totais_semana(fatura)
             
         registrar_log(f"Isentou globalmente o dia {data_alvo.strftime('%d/%m/%Y')} para toda a base.", "Pagamentos")
         flash(f'O dia {data_alvo.strftime("%d/%m/%Y")} foi isentado para todos os clientes!', 'success')
@@ -498,7 +327,7 @@ def isentar_dia(dia_id):
     
     registrar_log(f"Marcou como Isento o dia {dia.data_pregao.strftime('%d/%m/%Y')} (Corretora: {dia.nome_corretora}) do cliente {dia.fatura_semanal.cliente.nome}.", "Pagamentos")
     
-    atualizar_totais_semana_admin(dia.fatura_semanal)
+    atualizar_totais_semana(dia.fatura_semanal)
     flash('Dia marcado como isento! O cliente não precisará enviar nota para esta data.', 'success')
     return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id, ciclo=dia.fatura_semanal.data_inicio.strftime('%Y-%m-%d')))
 
@@ -512,7 +341,7 @@ def remover_isencao_dia(dia_id):
     
     registrar_log(f"Removeu a isenção do dia {dia.data_pregao.strftime('%d/%m/%Y')} (Corretora: {dia.nome_corretora}) do cliente {dia.fatura_semanal.cliente.nome}.", "Pagamentos")
     
-    atualizar_totais_semana_admin(dia.fatura_semanal)
+    atualizar_totais_semana(dia.fatura_semanal)
     flash('Isenção removida. O dia voltou a ficar pendente de nota.', 'success')
     return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id, ciclo=dia.fatura_semanal.data_inicio.strftime('%Y-%m-%d')))
 
@@ -533,7 +362,7 @@ def rejeitar_relatorio(dia_id):
     dia.liquido = 0.0
     dia.repasse = 0.0
     
-    atualizar_totais_semana_admin(dia.fatura_semanal)
+    atualizar_totais_semana(dia.fatura_semanal)
     flash('Relatório rejeitado e valores recalculados.', 'success')
     return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id, ciclo=dia.fatura_semanal.data_inicio.strftime('%Y-%m-%d')))
 
@@ -554,7 +383,7 @@ def forcar_limpeza_dia(dia_id):
     dia.liquido = 0.0
     dia.repasse = 0.0
     
-    atualizar_totais_semana_admin(dia.fatura_semanal)
+    atualizar_totais_semana(dia.fatura_semanal)
     flash('Limpeza forçada! Todos os valores fantasmas deste dia foram zerados.', 'success')
     return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id, ciclo=dia.fatura_semanal.data_inicio.strftime('%Y-%m-%d')))
 
@@ -618,53 +447,23 @@ def disparar_documento():
     template_id = request.form.get('template_id')
     user_ids = request.form.getlist('clientes[]')
     
-    template = DocumentoTemplate.query.get_or_404(template_id)
-    
-    caminho_pdf = os.path.join(current_app.root_path, 'static', 'documentos', template.arquivo_local)
-    
-    if not os.path.exists(caminho_pdf):
-        flash(f'Erro: O arquivo "{template.arquivo_local}" não foi encontrado na pasta static/documentos/.', 'error')
-        return redirect(url_for('admin.documentos'))
-
-    enviados = 0
-    erros = 0
-    sem_email = []
-    
-    for uid in user_ids:
-        cliente = User.query.get(uid)
-        if cliente:
-            if not cliente.email:
-                sem_email.append(cliente.nome)
-                continue
-                
-            try:
-                nome_doc = f"{template.nome} - {cliente.nome}"
-                doc_id, link = enviar_documento_local_com_link(cliente.nome, cliente.email, caminho_pdf, nome_doc)
-                
-                novo_doc = DocumentoCliente(
-                    user_id=cliente.id,
-                    template_id=template.id,
-                    autentique_document_id=doc_id,
-                    link_assinatura=link,
-                    status='pendente'
-                )
-                db.session.add(novo_doc)
-                enviados += 1
-            except Exception as e:
-                print(f"Erro ao disparar para {cliente.nome}: {e}")
-                erros += 1
-                
-    db.session.commit()
-    
-    if enviados > 0:
-        registrar_log(f"Disparou contrato '{template.nome}' via arquivo local para {enviados} investidores.", "Assinaturas")
-        flash(f'{enviados} documentos enviados com sucesso!', 'success')
+    try:
+        enviados, erros, sem_email, nome_template = disparar_lote(template_id, user_ids)
         
-    if sem_email:
-        flash(f'Clientes sem e-mail ignorados: {", ".join(sem_email)}', 'error')
-        
-    if erros > 0:
-        flash(f'Houve erro técnico em {erros} envios.', 'error')
+        if enviados > 0:
+            registrar_log(f"Disparou contrato '{nome_template}' via arquivo local para {enviados} investidores.", "Assinaturas")
+            flash(f'{enviados} documentos enviados com sucesso!', 'success')
+            
+        if sem_email:
+            flash(f'Clientes sem e-mail ignorados: {", ".join(sem_email)}', 'error')
+            
+        if erros > 0:
+            flash(f'Houve erro técnico em {erros} envios.', 'error')
+            
+    except FileNotFoundError as e:
+        flash(str(e), 'error')
+    except Exception as e:
+        flash(f'Ocorreu um erro inesperado: {str(e)}', 'error')
         
     return redirect(url_for('admin.documentos'))
 

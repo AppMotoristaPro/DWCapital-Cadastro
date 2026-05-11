@@ -7,88 +7,14 @@ from flask_login import login_required, current_user
 import cloudinary.uploader
 from werkzeug.utils import secure_filename
 from app import db
-from app.models import FaturaDiaria, Fatura, AlocacaoCorretora, DocumentoCliente
-from app.utils.autentique import criar_documento_autentique, verificar_status_autentique
+from app.models import FaturaDiaria, Fatura, DocumentoCliente
 from app.utils.parsers.gerenciador_pdf import processar_pdf
 from sqlalchemy.exc import IntegrityError
+from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo
+from app.services.documento_service import gerar_termo_adesao, verificar_status_termo, verificar_status_documento_cliente
 
 tz_br = pytz.timezone('America/Sao_Paulo')
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
-
-def atualizar_totais_semana(fatura):
-    fatura.bruto = sum((d.bruto if d.bruto > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.taxas_b3 = sum((d.taxas_b3 if d.taxas_b3 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.irrf_1 = sum((d.irrf_1 if d.irrf_1 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.liquido_pregao = sum((d.liquido_pregao if d.liquido_pregao > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.irrf_19 = sum((d.irrf_19 if d.irrf_19 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.liquido = sum((d.liquido if d.liquido > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.repasse = sum((d.repasse if d.repasse > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    
-    dias_enviados = sum(1 for d in fatura.dias if d.status == 'relatorio_enviado')
-    dias_isentos = sum(1 for d in fatura.dias if d.status == 'isento')
-    total_exigido = len(fatura.dias) - dias_isentos
-    
-    if dias_enviados == 0:
-        if total_exigido == 0 and len(fatura.dias) > 0:
-            fatura.status = 'completo'
-        else:
-            fatura.status = 'pendente'
-    elif dias_enviados >= total_exigido and total_exigido > 0:
-        fatura.status = 'completo'
-    else:
-        fatura.status = 'parcial'
-        
-    db.session.commit()
-
-def auto_gerar_ciclo_atual(user):
-    if not user.alocacoes:
-        return
-
-    hoje = datetime.now(tz_br).date()
-    dias_para_sexta = (hoje.weekday() - 4) % 7
-    inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
-    fim_ciclo = inicio_ciclo + timedelta(days=6)
-
-    fatura_existente = Fatura.query.filter_by(user_id=user.id, data_inicio=inicio_ciclo).first()
-
-    if not fatura_existente:
-        nova_fatura = Fatura(
-            user_id=user.id,
-            data_inicio=inicio_ciclo,
-            data_fim=fim_ciclo,
-            status='pendente'
-        )
-        db.session.add(nova_fatura)
-        
-        try:
-            db.session.commit()
-        except IntegrityError:
-            db.session.rollback()
-            return
-
-        data_atual = inicio_ciclo
-        dias_uteis = []
-        while len(dias_uteis) < 5 and data_atual <= fim_ciclo:
-            if data_atual.weekday() < 5:
-                dias_uteis.append(data_atual)
-            data_atual += timedelta(days=1)
-
-        for data in dias_uteis:
-            for alocacao in user.alocacoes:
-                existe = FaturaDiaria.query.filter_by(fatura_id=nova_fatura.id, data_pregao=data, nome_corretora=alocacao.nome_corretora).first()
-                if not existe:
-                    novo_dia = FaturaDiaria(
-                        fatura_id=nova_fatura.id,
-                        data_pregao=data,
-                        nome_corretora=alocacao.nome_corretora,
-                        status='pendente'
-                    )
-                    db.session.add(novo_dia)
-        
-        try:
-            db.session.commit()
-        except IntegrityError:
-            db.session.rollback()
 
 @client_bp.route('/dashboard')
 @login_required
@@ -98,7 +24,7 @@ def dashboard():
     if not current_user.termo_assinado:
         return redirect(url_for('client.assinar_termo'))
         
-    auto_gerar_ciclo_atual(current_user)
+    auto_gerar_ciclo(current_user)
     
     fatura_atual = Fatura.query.filter_by(user_id=current_user.id).order_by(Fatura.data_inicio.desc()).first()
     
@@ -111,34 +37,24 @@ def dashboard():
 @client_bp.route('/assinar')
 @login_required
 def assinar_termo():
-    if current_user.termo_assinado: return redirect(url_for('client.dashboard'))
+    if current_user.termo_assinado: 
+        return redirect(url_for('client.dashboard'))
+    
     documento_enviado = bool(current_user.docusign_envelope_id)
     if not documento_enviado:
-        caminho_pdf = os.path.join(current_app.root_path, 'static', 'documentos', 'termo_adesao.pdf')
         try:
-            doc_id = criar_documento_autentique(
-                nome_signer=current_user.nome,
-                email_signer=current_user.email,
-                caminho_pdf=caminho_pdf
-            )
-            current_user.docusign_envelope_id = doc_id 
-            db.session.commit()
+            gerar_termo_adesao(current_user)
             documento_enviado = True
         except Exception as e:
             flash(f"Erro ao gerar contrato: {str(e)}", "danger")
+            
     return render_template('client/assinar_termo.html', documento_enviado=documento_enviado)
 
 @client_bp.route('/api/status_assinatura')
 @login_required
 def api_status_assinatura():
-    doc_id = current_user.docusign_envelope_id
-    if not doc_id: return jsonify({"assinado": False})
-    try:
-        if verificar_status_autentique(doc_id):
-            current_user.termo_assinado = True
-            db.session.commit()
-            return jsonify({"assinado": True})
-    except: pass
+    if verificar_status_termo(current_user):
+        return jsonify({"assinado": True})
     return jsonify({"assinado": False})
 
 @client_bp.route('/dados_pessoais')
@@ -149,7 +65,7 @@ def dados_pessoais():
 @client_bp.route('/faturas', methods=['GET', 'POST'])
 @login_required
 def faturas():
-    auto_gerar_ciclo_atual(current_user)
+    auto_gerar_ciclo(current_user)
 
     if request.method == 'GET':
         for fatura in current_user.faturas:
@@ -293,36 +209,16 @@ def remover_fatura(dia_id):
 @client_bp.route('/documentos')
 @login_required
 def documentos():
-    # Agora carrega direto (super rápido). O polling no Frontend cuida do Autentique.
     meus_docs = DocumentoCliente.query.filter_by(user_id=current_user.id).order_by(DocumentoCliente.data_envio.desc()).all()
     return render_template('client/documentos.html', documentos=meus_docs)
 
-# ==========================================
-# NOVA ROTA: API para Polling de Assinatura
-# ==========================================
 @client_bp.route('/api/status_documento/<int:doc_id>')
 @login_required
 def api_status_documento(doc_id):
-    doc = DocumentoCliente.query.get_or_404(doc_id)
-    
-    # Escudo IDOR: Um cliente não pode ver o status do documento de outro
-    if doc.user_id != current_user.id:
-        return jsonify({"assinado": False})
-    
-    # Se já foi marcado como assinado no banco, nem precisamos bater na API do Autentique
-    if doc.status == 'assinado':
-        return jsonify({"assinado": True})
-        
-    try:
-        if verificar_status_autentique(doc.autentique_document_id):
-            doc.status = 'assinado'
-            doc.data_assinatura = datetime.now(tz_br)
-            db.session.commit()
-            return jsonify({"assinado": True})
-    except:
-        pass
-        
-    return jsonify({"assinado": False})
+    autorizado, assinado = verificar_status_documento_cliente(doc_id, current_user.id)
+    if not autorizado:
+        return jsonify({"assinado": False}), 403
+    return jsonify({"assinado": assinado})
 
 @client_bp.route('/ajuda')
 @login_required
