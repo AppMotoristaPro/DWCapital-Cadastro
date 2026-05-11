@@ -141,8 +141,49 @@ def dashboard():
     else:
         faturas_filtradas = faturas_base.all()
         
-    faturamento_total = sum(f.repasse for f in faturas_filtradas)
+    # --- LÓGICA FASE 3: DASHBOARDS E INTELIGÊNCIA ---
     
+    faturamento_total = sum(f.repasse for f in faturas_filtradas)
+    faturamento_bruto_total = sum(f.bruto for f in faturas_filtradas)
+    
+    # 1. Preparando dados para o Gráfico de Linha (Agrupamento por Data do Pregão)
+    # 2. Preparando cálculo de Variância do Robô (ROI por Cliente)
+    dados_grafico_raw = {}
+    rois_clientes = {}
+
+    for f in faturas_filtradas:
+        # Puxa o capital do cliente (soma das alocações)
+        capital_cliente = f.cliente.capital_alocado or 0.0
+        
+        if f.user_id not in rois_clientes:
+            rois_clientes[f.user_id] = {'bruto_acumulado': 0.0, 'capital': capital_cliente}
+            
+        rois_clientes[f.user_id]['bruto_acumulado'] += f.bruto
+
+        for d in f.dias:
+            if d.status == 'relatorio_enviado' and d.bruto != 0:
+                dados_grafico_raw[d.data_pregao] = dados_grafico_raw.get(d.data_pregao, 0.0) + d.bruto
+
+    # Formatar Gráfico
+    datas_ordenadas = sorted(dados_grafico_raw.keys())
+    chart_labels = [dt.strftime('%d/%m') for dt in datas_ordenadas]
+    chart_data = [round(dados_grafico_raw[dt], 2) for dt in datas_ordenadas]
+
+    # Calcular ROI Mínimo, Médio e Máximo
+    lista_rois = []
+    for uid, dados in rois_clientes.items():
+        if dados['capital'] > 0 and dados['bruto_acumulado'] != 0:
+            roi_cliente = (dados['bruto_acumulado'] / dados['capital']) * 100
+            lista_rois.append(roi_cliente)
+
+    if lista_rois:
+        roi_min = min(lista_rois)
+        roi_max = max(lista_rois)
+        roi_med = sum(lista_rois) / len(lista_rois)
+    else:
+        roi_min = roi_med = roi_max = 0.0
+
+    # Dados base da mesa
     clientes_ativos = User.query.filter(
         User.role == 'cliente', 
         User.status_acesso == 'ativo',
@@ -160,15 +201,21 @@ def dashboard():
     capital_total = alocado_row[0] or 0.0
     
     qtd_faturas = len(faturas_filtradas)
-    media_cliente = faturamento_total / qtd_faturas if qtd_faturas > 0 else 0.0
+    media_cliente = faturamento_bruto_total / qtd_faturas if qtd_faturas > 0 else 0.0
     
     return render_template('admin/dashboard.html', 
                            clientes_ativos=clientes_ativos,
                            clientes_inativos=clientes_inativos,
                            capital_total=capital_total,
                            faturamento_total=faturamento_total,
+                           faturamento_bruto_total=faturamento_bruto_total,
                            media_cliente=media_cliente,
-                           label_periodo=label_periodo)
+                           label_periodo=label_periodo,
+                           chart_labels=chart_labels,
+                           chart_data=chart_data,
+                           roi_min=roi_min,
+                           roi_med=roi_med,
+                           roi_max=roi_max)
 
 @admin_bp.route('/clientes')
 @login_required
@@ -292,17 +339,14 @@ def pagamentos():
     busca = request.args.get('q', '')
     ciclo = request.args.get('ciclo')
     
-    # Se existe ciclo OR busca (a busca escondida viaja junto com o form de pesquisa interna)
     if ciclo or busca:
         query = User.query.filter_by(role='cliente', status_acesso='ativo')
         
-        # Filtro textual (Nome / ID) isolado dentro do ciclo
         if busca:
             query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
         
         ativos = query.order_by(User.nome.asc()).all()
         
-        # LÓGICA DE CALENDÁRIO: Se jogar qualquer data, recua para a Sexta-feira que iniciou aquele ciclo
         if ciclo:
             try:
                 data_selecionada = datetime.strptime(ciclo, '%Y-%m-%d').date()
@@ -354,7 +398,6 @@ def pagamentos():
         return render_template('admin/pagamentos.html', clientes_dados=clientes_dados, busca=busca, exibe_clientes=True, ciclo_data=inicio_ciclo, dias_uteis=dias_uteis)
     
     else:
-        # VISÃO PRINCIPAL (Quando entra na aba, mostra os ciclos passados)
         ciclos_db = db.session.query(
             Fatura.data_inicio, Fatura.data_fim
         ).distinct().order_by(Fatura.data_inicio.desc()).limit(15).all()
@@ -538,7 +581,7 @@ def gerar_senha_temporaria(id):
     registrar_log(f"Gerou e forçou uma troca de senha temporária para o cliente {cliente.nome}.", "Segurança")
     
     db.session.commit()
-    flash(f'Senha gerada para {cliente.nome}: {senha_temp}', 'success')
+    flash(f'Senha generated para {cliente.nome}: {senha_temp}', 'success')
     return redirect(url_for('admin.editar_cliente', id=cliente.id))
 
 @admin_bp.route('/atividades')

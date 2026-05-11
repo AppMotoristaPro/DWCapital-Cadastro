@@ -1,6 +1,8 @@
 {% extends "admin/layout.html" %}
 
 {% block admin_content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <div class="max-w-7xl mx-auto relative z-10">
     <div class="flex justify-between items-end mb-8">
         <div>
@@ -39,32 +41,125 @@
         </div>
     </form>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
         
-        <div class="bg-white p-6 rounded-3xl shadow-lg border border-blue-50/50">
-            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Clientes Ativos</p>
-            <p class="text-4xl font-black text-navy">{{ clientes_ativos }}</p>
-            <p class="text-xs text-red-400 font-bold mt-2">{{ clientes_inativos }} inativos no sistema</p>
-        </div>
-        
-        <div class="bg-white p-6 rounded-3xl shadow-lg border border-blue-50/50">
-            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Capital Total Alocado</p>
-            <p class="text-3xl font-black text-navy mt-1">R$ {{ capital_total|format_brl }}</p>
-            <p class="text-xs text-gray-400 font-bold mt-2">Somatória de contas ativas</p>
+        <div class="bg-gradient-to-br from-gray-900 to-navy p-6 rounded-3xl shadow-lg">
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Faturamento Bruto Consolidado</p>
+            <p class="text-3xl font-black text-white mt-1">R$ {{ faturamento_bruto_total|format_brl }}</p>
+            <p class="text-xs text-gray-400 font-bold mt-2">Antes do Repasse</p>
         </div>
 
         <div class="bg-gradient-to-br from-royal to-royal-dark p-6 rounded-3xl shadow-lg shadow-royal/30">
-            <p class="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-2">Faturamento DW</p>
+            <p class="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-2">Repasse DW (30%)</p>
             <p class="text-3xl font-black text-white mt-1">R$ {{ faturamento_total|format_brl }}</p>
             <p class="text-xs text-blue-200 font-bold mt-2">{{ label_periodo }}</p>
         </div>
 
         <div class="bg-white p-6 rounded-3xl shadow-lg border border-blue-50/50">
-            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Média por Cliente</p>
-            <p class="text-3xl font-black text-green-600 mt-1">R$ {{ media_cliente|format_brl }}</p>
-            <p class="text-xs text-gray-400 font-bold mt-2">No período selecionado</p>
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Variância do Robô (ROI)</p>
+            <div class="flex justify-between items-center mt-2">
+                <div>
+                    <p class="text-[10px] font-bold text-gray-400">Mínimo</p>
+                    <p class="text-lg font-black text-red-500">{{ "%.2f"|format(roi_min) }}%</p>
+                </div>
+                <div class="text-center px-4 border-x border-gray-100">
+                    <p class="text-[10px] font-bold text-gray-400">Média</p>
+                    <p class="text-xl font-black text-navy">{{ "%.2f"|format(roi_med) }}%</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-[10px] font-bold text-gray-400">Máximo</p>
+                    <p class="text-lg font-black text-green-500">{{ "%.2f"|format(roi_max) }}%</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-3xl shadow-lg border border-blue-50/50">
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Capital em Risco</p>
+            <p class="text-3xl font-black text-navy mt-1">R$ {{ capital_total|format_brl }}</p>
+            <p class="text-xs text-gray-400 font-bold mt-2">{{ clientes_ativos }} Clientes Ativos</p>
+        </div>
+    </div>
+
+    <div class="bg-white p-8 rounded-3xl shadow-lg border border-gray-100 mb-8">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-lg font-black text-navy">Evolução do Faturamento Bruto (Diário)</h3>
+            <span class="px-3 py-1 bg-blue-50 text-royal text-[10px] font-black uppercase tracking-widest rounded-lg">Performance</span>
+        </div>
+        <div class="relative h-72 w-full">
+            <canvas id="chartFaturamento"></canvas>
         </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const labels = {{ chart_labels | tojson }};
+        const data = {{ chart_data | tojson }};
+
+        const ctx = document.getElementById('chartFaturamento').getContext('2d');
+        
+        // Gradiente para a linha do gráfico
+        let gradient = ctx.createLinearGradient(0, 0, 0, 400);
+        gradient.addColorStop(0, 'rgba(65, 105, 225, 0.5)'); // Royal com transparência
+        gradient.addColorStop(1, 'rgba(65, 105, 225, 0.0)'); // Royal transparente
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Faturamento Bruto (R$)',
+                    data: data,
+                    borderColor: '#4169e1', // Cor Royal
+                    backgroundColor: gradient,
+                    borderWidth: 3,
+                    pointBackgroundColor: '#ffffff',
+                    pointBorderColor: '#4169e1',
+                    pointBorderWidth: 2,
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    fill: true,
+                    tension: 0.4 // Linha curvada suave
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#0f172a',
+                        titleFont: { size: 13, family: 'Inter' },
+                        bodyFont: { size: 14, weight: 'bold', family: 'Inter' },
+                        padding: 12,
+                        cornerRadius: 8,
+                        displayColors: false,
+                        callbacks: {
+                            label: function(context) {
+                                let value = context.parsed.y;
+                                return 'R$ ' + value.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { family: 'Inter', size: 11 }, color: '#94a3b8' }
+                    },
+                    y: {
+                        border: { display: false },
+                        grid: { color: '#f1f5f9', drawBorder: false },
+                        ticks: {
+                            font: { family: 'Inter', size: 11 }, 
+                            color: '#94a3b8',
+                            callback: function(value) { return 'R$ ' + value; }
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
 {% endblock %}
 

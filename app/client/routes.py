@@ -15,10 +15,6 @@ tz_br = pytz.timezone('America/Sao_Paulo')
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
 
 def atualizar_totais_semana(fatura):
-    """
-    Função atualizada: Dias isentos não contam como nota enviada.
-    Eles diminuem o Total Exigido para a semana do cliente.
-    """
     fatura.bruto = sum((d.bruto if d.bruto > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.taxas_b3 = sum((d.taxas_b3 if d.taxas_b3 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
     fatura.irrf_1 = sum((d.irrf_1 if d.irrf_1 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
@@ -103,7 +99,14 @@ def dashboard():
         
     auto_gerar_ciclo_atual(current_user)
     
-    return render_template('client/index.html', user=current_user)
+    # --- LÓGICA FASE 3: PERFORMANCE INDIVIDUAL ---
+    fatura_atual = Fatura.query.filter_by(user_id=current_user.id).order_by(Fatura.data_inicio.desc()).first()
+    
+    bruto_semana = fatura_atual.bruto if fatura_atual else 0.0
+    dias_enviados = sum(1 for d in fatura_atual.dias if d.status == 'relatorio_enviado') if fatura_atual else 0
+    media_diaria = (bruto_semana / dias_enviados) if dias_enviados > 0 else 0.0
+    
+    return render_template('client/index.html', user=current_user, bruto_semana=bruto_semana, media_diaria=media_diaria)
 
 @client_bp.route('/assinar')
 @login_required
