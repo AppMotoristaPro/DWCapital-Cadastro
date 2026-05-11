@@ -596,8 +596,6 @@ def atividades():
     
     return render_template('admin/atividades.html', logs=logs, busca=busca)
 
-# --- FASE 4: CENTRAL DE CONTRATOS (ADMIN) ---
-
 @admin_bp.route('/documentos')
 @login_required
 def documentos():
@@ -619,7 +617,8 @@ def cadastrar_template():
     
     novo_temp = DocumentoTemplate(nome=nome, autentique_id=autentique_id)
     db.session.add(novo_temp)
-    registrar_log(f"Cadastrou novo Template de Contrato: {nome}.", "Contratos")
+    # NOME ATUALIZADO NO LOG PARA ASSINATURAS
+    registrar_log(f"Cadastrou novo Template de Contrato: {nome}.", "Assinaturas")
     db.session.commit()
     
     flash('Modelo de contrato cadastrado com sucesso!', 'success')
@@ -659,7 +658,8 @@ def disparar_documento():
                 erros += 1
                 
     db.session.commit()
-    registrar_log(f"Disparou contrato '{template.nome}' para {enviados} investidor(es).", "Contratos")
+    # NOME ATUALIZADO NO LOG PARA ASSINATURAS
+    registrar_log(f"Disparou contrato '{template.nome}' para {enviados} investidor(es).", "Assinaturas")
     
     if erros > 0:
         flash(f'{enviados} contratos enviados. Houve erro em {erros} envios (verifique as configurações no Autentique).', 'error')
