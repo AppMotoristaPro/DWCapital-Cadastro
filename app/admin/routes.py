@@ -2,13 +2,14 @@ import os
 import random
 import string
 from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app
-from flask_login import login_required, current_user
+from flask_login import current_user
 from werkzeug.security import generate_password_hash
 from sqlalchemy.exc import IntegrityError
 from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria, DocumentoTemplate, DocumentoCliente
 from app import db
 from datetime import datetime, timedelta
 from app.utils.autentique import enviar_documento_local_com_link, verificar_status_autentique
+from app.utils.decorators import admin_required
 import pytz
 
 tz_br = pytz.timezone('America/Sao_Paulo')
@@ -103,10 +104,8 @@ def auto_gerar_ciclo_admin(user, data_base=None):
             db.session.rollback()
 
 @admin_bp.route('/')
-@login_required
+@admin_required
 def dashboard():
-    if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
-    
     filtro_dia = request.args.get('dia')
     filtro_semana_dia = request.args.get('semana_dia') 
     filtro_ano = request.args.get('ano') 
@@ -211,10 +210,8 @@ def dashboard():
                            roi_max=roi_max)
 
 @admin_bp.route('/clientes')
-@login_required
+@admin_required
 def clientes_list():
-    if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
-    
     busca = request.args.get('q', '')
     status_filtro = request.args.get('status', '')
     
@@ -230,7 +227,7 @@ def clientes_list():
     return render_template('admin/index.html', clientes=clientes, busca=busca, status_filtro=status_filtro)
 
 @admin_bp.route('/liberar_cliente', methods=['POST'])
-@login_required
+@admin_required
 def liberar_cliente():
     cpf = ''.join(filter(str.isdigit, request.form.get('cpf')))
     nome_temp = request.form.get('nome_temp')
@@ -260,7 +257,7 @@ def liberar_cliente():
     return redirect(url_for('admin.clientes_list'))
 
 @admin_bp.route('/editar/<int:id>', methods=['GET', 'POST'])
-@login_required
+@admin_required
 def editar_cliente(id):
     cliente = User.query.get_or_404(id)
     if request.method == 'POST':
@@ -304,7 +301,7 @@ def editar_cliente(id):
     return render_template('admin/editar.html', cliente=cliente)
 
 @admin_bp.route('/inativar_cliente/<int:id>', methods=['POST'])
-@login_required
+@admin_required
 def inativar_cliente(id):
     cliente = User.query.get_or_404(id)
     cliente.status_acesso = 'inativo'
@@ -314,7 +311,7 @@ def inativar_cliente(id):
     return redirect(url_for('admin.clientes_list'))
 
 @admin_bp.route('/excluir_cliente/<int:id>', methods=['POST'])
-@login_required
+@admin_required
 def excluir_cliente(id):
     cliente = User.query.get_or_404(id)
     nome_cliente = cliente.nome 
@@ -325,10 +322,8 @@ def excluir_cliente(id):
     return redirect(url_for('admin.clientes_list'))
 
 @admin_bp.route('/pagamentos')
-@login_required
+@admin_required
 def pagamentos():
-    if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
-    
     busca = request.args.get('q', '')
     ciclo = request.args.get('ciclo')
     
@@ -416,7 +411,7 @@ def pagamentos():
         return render_template('admin/pagamentos.html', gavetas=gavetas, exibe_clientes=False)
 
 @admin_bp.route('/pagamentos/<int:id>')
-@login_required
+@admin_required
 def pagamentos_cliente(id):
     cliente = User.query.get_or_404(id)
     ciclo = request.args.get('ciclo')
@@ -437,7 +432,7 @@ def pagamentos_cliente(id):
     return render_template('admin/pagamentos_cliente.html', cliente=cliente, faturas=faturas, ciclo_voltar=ciclo)
 
 @admin_bp.route('/pagamentos/status/<int:fatura_id>', methods=['POST'])
-@login_required
+@admin_required
 def status_pagamento(fatura_id):
     fatura = Fatura.query.get_or_404(fatura_id)
     status_novo = request.form.get('status')
@@ -451,7 +446,7 @@ def status_pagamento(fatura_id):
     return redirect(url_for('admin.pagamentos_cliente', id=fatura.user_id, ciclo=fatura.data_inicio.strftime('%Y-%m-%d')))
 
 @admin_bp.route('/pagamentos/isentar_dia_global', methods=['POST'])
-@login_required
+@admin_required
 def isentar_dia_global():
     data_str = request.form.get('data_isencao')
     ciclo_str = request.form.get('ciclo_atual')
@@ -486,7 +481,7 @@ def isentar_dia_global():
     return redirect(url_for('admin.pagamentos', ciclo=ciclo_str))
 
 @admin_bp.route('/pagamentos/isentar_dia/<int:dia_id>', methods=['POST'])
-@login_required
+@admin_required
 def isentar_dia(dia_id):
     dia = FaturaDiaria.query.get_or_404(dia_id)
     
@@ -508,7 +503,7 @@ def isentar_dia(dia_id):
     return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id, ciclo=dia.fatura_semanal.data_inicio.strftime('%Y-%m-%d')))
 
 @admin_bp.route('/pagamentos/remover_isencao/<int:dia_id>', methods=['POST'])
-@login_required
+@admin_required
 def remover_isencao_dia(dia_id):
     dia = FaturaDiaria.query.get_or_404(dia_id)
     
@@ -522,7 +517,7 @@ def remover_isencao_dia(dia_id):
     return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id, ciclo=dia.fatura_semanal.data_inicio.strftime('%Y-%m-%d')))
 
 @admin_bp.route('/pagamentos/rejeitar/<int:dia_id>', methods=['POST'])
-@login_required
+@admin_required
 def rejeitar_relatorio(dia_id):
     dia = FaturaDiaria.query.get_or_404(dia_id)
     
@@ -543,7 +538,7 @@ def rejeitar_relatorio(dia_id):
     return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id, ciclo=dia.fatura_semanal.data_inicio.strftime('%Y-%m-%d')))
 
 @admin_bp.route('/pagamentos/forcar_limpeza/<int:dia_id>', methods=['POST'])
-@login_required
+@admin_required
 def forcar_limpeza_dia(dia_id):
     dia = FaturaDiaria.query.get_or_404(dia_id)
     
@@ -564,7 +559,7 @@ def forcar_limpeza_dia(dia_id):
     return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id, ciclo=dia.fatura_semanal.data_inicio.strftime('%Y-%m-%d')))
 
 @admin_bp.route('/gerar_senha_temporaria/<int:id>', methods=['POST'])
-@login_required
+@admin_required
 def gerar_senha_temporaria(id):
     cliente = User.query.get_or_404(id)
     senha_temp = "DW@" + ''.join(random.choices(string.ascii_letters + string.digits, k=5))
@@ -578,10 +573,8 @@ def gerar_senha_temporaria(id):
     return redirect(url_for('admin.editar_cliente', id=cliente.id))
 
 @admin_bp.route('/atividades')
-@login_required
+@admin_required
 def atividades():
-    if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
-    
     busca = request.args.get('q', '')
     query = LogAuditoria.query
     
@@ -596,12 +589,9 @@ def atividades():
     
     return render_template('admin/atividades.html', logs=logs, busca=busca)
 
-# --- FASE 4: GESTÃO DE ASSINATURAS (ARQUIVO LOCAL) ---
 @admin_bp.route('/documentos')
-@login_required
+@admin_required
 def documentos():
-    if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
-    
     templates = DocumentoTemplate.query.all()
     clientes = User.query.filter_by(role='cliente', status_acesso='ativo').order_by(User.nome.asc()).all()
     historico = DocumentoCliente.query.order_by(DocumentoCliente.data_envio.desc()).limit(100).all()
@@ -609,10 +599,8 @@ def documentos():
     return render_template('admin/documentos.html', templates=templates, clientes=clientes, historico=historico)
 
 @admin_bp.route('/documentos/cadastrar_template', methods=['POST'])
-@login_required
+@admin_required
 def cadastrar_template():
-    if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
-    
     nome = request.form.get('nome')
     arquivo_local = request.form.get('arquivo_local')
     
@@ -625,10 +613,8 @@ def cadastrar_template():
     return redirect(url_for('admin.documentos'))
 
 @admin_bp.route('/documentos/disparar', methods=['POST'])
-@login_required
+@admin_required
 def disparar_documento():
-    if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
-    
     template_id = request.form.get('template_id')
     user_ids = request.form.getlist('clientes[]')
     

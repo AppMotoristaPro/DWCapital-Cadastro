@@ -3,6 +3,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import os
 from dotenv import load_dotenv
 import cloudinary
@@ -14,6 +16,7 @@ db = SQLAlchemy()
 migrate = Migrate()
 login_manager = LoginManager()
 csrf = CSRFProtect()
+limiter = Limiter(key_func=get_remote_address)
 
 # FILTRO BLINDADO CONTRA ERROS DE "UNDEFINED"
 def format_brl(value):
@@ -33,18 +36,21 @@ def to_tz_br(dt):
     if not isinstance(dt, datetime):
         return dt
     
-    # Se o datetime for 'naive' (sem fuso), assumimos que é UTC (padrão do banco na nuvem)
     if dt.tzinfo is None:
         dt = pytz.utc.localize(dt)
         
-    # Converte para o fuso de São Paulo (Brasília)
     tz_br = pytz.timezone('America/Sao_Paulo')
     return dt.astimezone(tz_br)
 
 def create_app():
     app = Flask(__name__)
     load_dotenv()
-    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dw-secret-prod-2026')
+    
+    # PROTEÇÃO CRÍTICA: Não existe mais chave fixa de fallback no código.
+    secret_key = os.getenv('SECRET_KEY')
+    if not secret_key:
+        raise ValueError("VAZAMENTO EVITADO: A SECRET_KEY não está configurada no ambiente. O sistema foi bloqueado por segurança.")
+    app.config['SECRET_KEY'] = secret_key
     
     database_url = os.getenv('DATABASE_URL')
     if database_url and database_url.startswith("postgres://"):
@@ -65,6 +71,7 @@ def create_app():
     migrate.init_app(app, db)
     login_manager.init_app(app)
     csrf.init_app(app)
+    limiter.init_app(app)
     
     login_manager.login_view = 'auth.login'
     
@@ -104,6 +111,10 @@ def create_app():
     @app.errorhandler(405)
     def method_not_allowed(e):
         return render_template('errors/405.html'), 405
+
+    @app.errorhandler(429)
+    def ratelimit_handler(e):
+        return "Calma aí! Você excediu o limite de acessos. Tente novamente em alguns instantes.", 429
 
     return app
 

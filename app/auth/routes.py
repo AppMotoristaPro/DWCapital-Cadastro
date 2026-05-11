@@ -5,7 +5,8 @@ from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import text 
 from app.models import User, AlocacaoCorretora, FaturaDiaria
-from app import db
+from app import db, limiter
+from app.utils.decorators import admin_required
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
@@ -16,6 +17,7 @@ def gerar_matricula_unica():
             return mat
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit("5 per minute")  # Proteção contra ataque de força bruta na senha
 def login():
     if current_user.is_authenticated:
         if getattr(current_user, 'precisa_trocar_senha', False):
@@ -59,6 +61,7 @@ def forcar_troca_senha():
     return render_template('auth/trocar_senha.html')
 
 @auth_bp.route('/api/verificar_cpf', methods=['POST'])
+@limiter.limit("5 per minute")  # Proteção para evitar que varram a base inteira testando CPFs
 def verificar_cpf():
     data = request.get_json()
     if not data or 'cpf' not in data:
@@ -129,7 +132,6 @@ def primeiro_acesso():
 
 @auth_bp.route('/setup_secreto_dw')
 def setup_secreto():
-    # ESCUDO: Só permite o setup sem login se não existir nenhum administrador no banco.
     admin_existente = User.query.filter_by(role='admin').first()
     if admin_existente:
         if not current_user.is_authenticated or current_user.role != 'admin':
@@ -171,12 +173,8 @@ def setup_secreto():
         return f"❌ Erro no setup: {e}"
 
 @auth_bp.route('/migracao_secreta_dw')
-@login_required
+@admin_required
 def migracao_secreta():
-    # ESCUDO: Só administrador logado pode rodar migrações
-    if current_user.role != 'admin':
-        return "Acesso Negado: Área restrita à diretoria.", 403
-
     try:
         try:
             db.session.execute(text('ALTER TABLE fatura_diaria ADD COLUMN IF NOT EXISTS nome_corretora VARCHAR(50);'))
