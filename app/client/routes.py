@@ -12,6 +12,7 @@ from app.utils.parsers.gerenciador_pdf import processar_pdf
 from sqlalchemy.exc import IntegrityError
 from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo
 from app.services.documento_service import gerar_termo_adesao, verificar_status_termo, verificar_status_documento_cliente
+from app.services.dashboard_service import obter_dados_dashboard_cliente
 
 tz_br = pytz.timezone('America/Sao_Paulo')
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
@@ -26,13 +27,13 @@ def dashboard():
         
     auto_gerar_ciclo(current_user)
     
-    fatura_atual = Fatura.query.filter_by(user_id=current_user.id).order_by(Fatura.data_inicio.desc()).first()
+    filtro_dia = request.args.get('dia')
+    filtro_semana_dia = request.args.get('semana_dia') 
+    filtro_ano = request.args.get('ano') 
     
-    bruto_semana = fatura_atual.bruto if fatura_atual else 0.0
-    dias_enviados = sum(1 for d in fatura_atual.dias if d.status == 'relatorio_enviado') if fatura_atual else 0
-    media_diaria = (bruto_semana / dias_enviados) if dias_enviados > 0 else 0.0
+    dados = obter_dados_dashboard_cliente(current_user.id, filtro_dia, filtro_semana_dia, filtro_ano)
     
-    return render_template('client/index.html', user=current_user, bruto_semana=bruto_semana, media_diaria=media_diaria)
+    return render_template('client/index.html', user=current_user, **dados)
 
 @client_bp.route('/assinar')
 @login_required

@@ -107,3 +107,70 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
         'roi_max': roi_max
     }
 
+def obter_dados_dashboard_cliente(user_id, filtro_dia, filtro_semana_dia, filtro_ano):
+    """
+    Processa a matemática do dashboard do cliente: filtros de data, 
+    faturamento bruto, faturamento líquido (sem taxa de 30%) e média.
+    """
+    faturas_base = Fatura.query.filter_by(user_id=user_id)
+    
+    label_periodo = "Todo o Período"
+    
+    if filtro_dia:
+        dt_dia = datetime.strptime(filtro_dia, '%Y-%m-%d').date()
+        faturas_filtradas = faturas_base.filter(Fatura.data_inicio <= dt_dia, Fatura.data_fim >= dt_dia).all()
+        label_periodo = f"Dia {dt_dia.strftime('%d/%m/%Y')}"
+        
+    elif filtro_semana_dia:
+        dt_ref = datetime.strptime(filtro_semana_dia, '%Y-%m-%d').date()
+        dias_para_sexta = (dt_ref.weekday() - 4) % 7
+        dt_inicio_sem = dt_ref - timedelta(days=dias_para_sexta)
+        dt_fim_sem = dt_inicio_sem + timedelta(days=6)
+        
+        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_sem, Fatura.data_inicio <= dt_fim_sem).all()
+        label_periodo = f"Ciclo {dt_inicio_sem.strftime('%d/%m')} a {dt_fim_sem.strftime('%d/%m/%Y')}"
+        
+    elif filtro_ano:
+        ano = int(filtro_ano)
+        dt_inicio_ano = datetime(ano, 1, 1).date()
+        dt_fim_ano = datetime(ano, 12, 31).date()
+        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_ano, Fatura.data_inicio <= dt_fim_ano).all()
+        label_periodo = f"Ano {ano}"
+        
+    else:
+        # Se não filtrar nada, pega apenas a fatura atual (semana rodando) para não misturar todo o histórico logo de cara
+        faturas_filtradas = faturas_base.order_by(Fatura.data_inicio.desc()).limit(1).all()
+        if faturas_filtradas:
+            f = faturas_filtradas[0]
+            label_periodo = f"Semana Atual ({f.data_inicio.strftime('%d/%m')} a {f.data_fim.strftime('%d/%m')})"
+        else:
+            faturas_filtradas = []
+            label_periodo = "Semana Atual"
+
+    bruto_total = sum(f.bruto for f in faturas_filtradas)
+    liquido_total = sum(f.liquido for f in faturas_filtradas)
+    
+    dados_grafico_raw = {}
+
+    # Agrupa por dia, pois o cliente pode ter 3 corretoras no mesmo dia. O gráfico soma todas as operações diárias.
+    for f in faturas_filtradas:
+        for d in f.dias:
+            if d.status == 'relatorio_enviado':
+                dados_grafico_raw[d.data_pregao] = dados_grafico_raw.get(d.data_pregao, 0.0) + d.liquido
+
+    datas_ordenadas = sorted(dados_grafico_raw.keys())
+    chart_labels = [dt.strftime('%d/%m') for dt in datas_ordenadas]
+    chart_data = [round(dados_grafico_raw[dt], 2) for dt in datas_ordenadas]
+
+    dias_unicos_operados = len(datas_ordenadas)
+    media_diaria = (liquido_total / dias_unicos_operados) if dias_unicos_operados > 0 else 0.0
+
+    return {
+        'bruto_total': bruto_total,
+        'liquido_total': liquido_total,
+        'media_diaria': media_diaria,
+        'label_periodo': label_periodo,
+        'chart_labels': chart_labels,
+        'chart_data': chart_data
+    }
+
