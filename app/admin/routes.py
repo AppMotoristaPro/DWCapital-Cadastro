@@ -33,9 +33,7 @@ def dashboard():
     filtro_semana_dia = request.args.get('semana_dia') 
     filtro_ano = request.args.get('ano') 
     
-    # O Cérebro do Dashboard foi isolado na Camada de Serviços
     dados = obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano)
-    
     return render_template('admin/dashboard.html', **dados)
 
 @admin_bp.route('/clientes')
@@ -52,7 +50,6 @@ def clientes_list():
         query = query.filter_by(status_acesso=status_filtro)
         
     clientes = query.order_by(User.nome.asc()).all()
-    
     return render_template('admin/index.html', clientes=clientes, busca=busca, status_filtro=status_filtro)
 
 @admin_bp.route('/liberar_cliente', methods=['POST'])
@@ -158,10 +155,8 @@ def pagamentos():
     
     if ciclo or busca:
         query = User.query.filter_by(role='cliente', status_acesso='ativo')
-        
         if busca:
             query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
-        
         ativos = query.order_by(User.nome.asc()).all()
         
         if ciclo:
@@ -188,7 +183,6 @@ def pagamentos():
         clientes_dados = []
         for c in ativos:
             auto_gerar_ciclo(c, data_base=inicio_ciclo)
-            
             fatura_atual = Fatura.query.filter_by(user_id=c.id, data_inicio=inicio_ciclo).first()
             detalhes_corretoras = {}
             
@@ -257,7 +251,6 @@ def pagamentos_cliente(id):
         query = Fatura.query.filter_by(user_id=cliente.id)
             
     faturas = query.order_by(Fatura.data_inicio.desc()).all()
-    
     return render_template('admin/pagamentos_cliente.html', cliente=cliente, faturas=faturas, ciclo_voltar=ciclo)
 
 @admin_bp.route('/pagamentos/status/<int:fatura_id>', methods=['POST'])
@@ -286,16 +279,7 @@ def isentar_dia_global():
         
         faturas_afetadas = set()
         for dia in dias_afetados:
-            dia.is_isento = True
-            dia.status = 'isento'
-            dia.arquivo_pdf = None
-            dia.bruto = 0.0
-            dia.taxas_b3 = 0.0
-            dia.irrf_1 = 0.0
-            dia.liquido_pregao = 0.0
-            dia.irrf_19 = 0.0
-            dia.liquido = 0.0
-            dia.repasse = 0.0
+            dia.zerar_valores(isentar=True) # <-- FAT MODEL EM AÇÃO!
             faturas_afetadas.add(dia.fatura_semanal)
             
         for fatura in faturas_afetadas:
@@ -314,17 +298,7 @@ def isentar_dia_global():
 def isentar_dia(dia_id):
     dia = FaturaDiaria.query.get_or_404(dia_id)
     
-    dia.is_isento = True
-    dia.status = 'isento'
-    dia.arquivo_pdf = None
-    dia.bruto = 0.0
-    dia.taxas_b3 = 0.0
-    dia.irrf_1 = 0.0
-    dia.liquido_pregao = 0.0
-    dia.irrf_19 = 0.0
-    dia.liquido = 0.0
-    dia.repasse = 0.0
-    
+    dia.zerar_valores(isentar=True) # <-- FAT MODEL EM AÇÃO!
     registrar_log(f"Marcou como Isento o dia {dia.data_pregao.strftime('%d/%m/%Y')} (Corretora: {dia.nome_corretora}) do cliente {dia.fatura_semanal.cliente.nome}.", "Pagamentos")
     
     atualizar_totais_semana(dia.fatura_semanal)
@@ -336,9 +310,7 @@ def isentar_dia(dia_id):
 def remover_isencao_dia(dia_id):
     dia = FaturaDiaria.query.get_or_404(dia_id)
     
-    dia.is_isento = False
-    dia.status = 'pendente'
-    
+    dia.zerar_valores(isentar=False) # <-- FAT MODEL EM AÇÃO!
     registrar_log(f"Removeu a isenção do dia {dia.data_pregao.strftime('%d/%m/%Y')} (Corretora: {dia.nome_corretora}) do cliente {dia.fatura_semanal.cliente.nome}.", "Pagamentos")
     
     atualizar_totais_semana(dia.fatura_semanal)
@@ -352,17 +324,9 @@ def rejeitar_relatorio(dia_id):
     
     registrar_log(f"Rejeitou e excluiu o relatório de {dia.fatura_semanal.cliente.nome} do pregão {dia.data_pregao.strftime('%d/%m/%Y')} (Corretora: {dia.nome_corretora}).", "Pagamentos")
     
-    dia.arquivo_pdf = None
-    dia.status = 'pendente'
-    dia.bruto = 0.0
-    dia.taxas_b3 = 0.0
-    dia.irrf_1 = 0.0
-    dia.liquido_pregao = 0.0
-    dia.irrf_19 = 0.0
-    dia.liquido = 0.0
-    dia.repasse = 0.0
-    
+    dia.zerar_valores(isentar=False) # <-- FAT MODEL EM AÇÃO!
     atualizar_totais_semana(dia.fatura_semanal)
+    
     flash('Relatório rejeitado e valores recalculados.', 'success')
     return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id, ciclo=dia.fatura_semanal.data_inicio.strftime('%Y-%m-%d')))
 
@@ -373,17 +337,9 @@ def forcar_limpeza_dia(dia_id):
     
     registrar_log(f"Forçou a limpeza de valores fantasmas do pregão {dia.data_pregao.strftime('%d/%m/%Y')} (Corretora: {dia.nome_corretora}) do cliente {dia.fatura_semanal.cliente.nome}.", "Pagamentos")
     
-    dia.arquivo_pdf = None
-    dia.status = 'pendente'
-    dia.bruto = 0.0
-    dia.taxas_b3 = 0.0
-    dia.irrf_1 = 0.0
-    dia.liquido_pregao = 0.0
-    dia.irrf_19 = 0.0
-    dia.liquido = 0.0
-    dia.repasse = 0.0
-    
+    dia.zerar_valores(isentar=False) # <-- FAT MODEL EM AÇÃO!
     atualizar_totais_semana(dia.fatura_semanal)
+    
     flash('Limpeza forçada! Todos os valores fantasmas deste dia foram zerados.', 'success')
     return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id, ciclo=dia.fatura_semanal.data_inicio.strftime('%Y-%m-%d')))
 
@@ -396,7 +352,6 @@ def gerar_senha_temporaria(id):
     cliente.precisa_trocar_senha = True
     
     registrar_log(f"Gerou e forçou uma troca de senha temporária para o cliente {cliente.nome}.", "Segurança")
-    
     db.session.commit()
     flash(f'Senha gerada para {cliente.nome}: {senha_temp}', 'success')
     return redirect(url_for('admin.editar_cliente', id=cliente.id))
@@ -406,16 +361,13 @@ def gerar_senha_temporaria(id):
 def atividades():
     busca = request.args.get('q', '')
     query = LogAuditoria.query
-    
     if busca:
         query = query.filter(
             (LogAuditoria.admin_nome.ilike(f'%{busca}%')) | 
             (LogAuditoria.acao_detalhada.ilike(f'%{busca}%')) | 
             (LogAuditoria.categoria.ilike(f'%{busca}%'))
         )
-        
     logs = query.order_by(LogAuditoria.timestamp.desc()).limit(200).all()
-    
     return render_template('admin/atividades.html', logs=logs, busca=busca)
 
 @admin_bp.route('/documentos')
@@ -424,7 +376,6 @@ def documentos():
     templates = DocumentoTemplate.query.all()
     clientes = User.query.filter_by(role='cliente', status_acesso='ativo').order_by(User.nome.asc()).all()
     historico = DocumentoCliente.query.order_by(DocumentoCliente.data_envio.desc()).limit(100).all()
-    
     return render_template('admin/documentos.html', templates=templates, clientes=clientes, historico=historico)
 
 @admin_bp.route('/documentos/cadastrar_template', methods=['POST'])

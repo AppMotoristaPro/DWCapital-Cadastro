@@ -3,10 +3,8 @@ import string
 from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import text 
-from app.models import User, AlocacaoCorretora, FaturaDiaria
+from app.models import User, AlocacaoCorretora
 from app import db, limiter
-from app.utils.decorators import admin_required
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
@@ -17,7 +15,7 @@ def gerar_matricula_unica():
             return mat
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
-@limiter.limit("5 per minute")  # Proteção contra ataque de força bruta na senha
+@limiter.limit("5 per minute")
 def login():
     if current_user.is_authenticated:
         if getattr(current_user, 'precisa_trocar_senha', False):
@@ -61,7 +59,7 @@ def forcar_troca_senha():
     return render_template('auth/trocar_senha.html')
 
 @auth_bp.route('/api/verificar_cpf', methods=['POST'])
-@limiter.limit("5 per minute")  # Proteção para evitar que varram a base inteira testando CPFs
+@limiter.limit("5 per minute")
 def verificar_cpf():
     data = request.get_json()
     if not data or 'cpf' not in data:
@@ -95,7 +93,6 @@ def primeiro_acesso():
 
             nome_raw = request.form.get('nome', '')
             user.nome = nome_raw.strip().title()
-            
             user.email = request.form.get('email')
             user.celular = request.form.get('celular')
             
@@ -129,95 +126,6 @@ def primeiro_acesso():
         flash('CPF não liberado ou cadastro já ativo.', 'error')
 
     return render_template('auth/primeiro_acesso.html')
-
-@auth_bp.route('/setup_secreto_dw')
-def setup_secreto():
-    admin_existente = User.query.filter_by(role='admin').first()
-    if admin_existente:
-        if not current_user.is_authenticated or current_user.role != 'admin':
-            return "Acesso Negado: Apenas administradores logados podem re-executar o setup.", 403
-
-    try:
-        db.create_all()
-        admin_antigo = User.query.filter_by(username='dwcapital').first()
-        if admin_antigo:
-            admin_antigo.status_acesso = 'inativo'
-            admin_antigo.username = 'dwcapital_inativo' 
-            
-        novos_admins = [
-            {'username': 'dwigor', 'nome': 'Igor Mikael'},
-            {'username': 'dwwilliam', 'nome': 'William'},
-            {'username': 'dwthaynara', 'nome': 'Thaynara'},
-            {'username': 'dwdema', 'nome': 'Dermevaldo'}
-        ]
-        
-        criados = 0
-        for admin_data in novos_admins:
-            existe = User.query.filter_by(username=admin_data['username']).first()
-            if not existe:
-                novo_admin = User(
-                    username=admin_data['username'],
-                    nome=admin_data['nome'],
-                    password_hash=generate_password_hash('dwtemp2026'),
-                    role='admin',
-                    status_acesso='ativo',
-                    precisa_trocar_senha=True 
-                )
-                db.session.add(novo_admin)
-                criados += 1
-                
-        db.session.commit()
-        return f"✅ Setup Corporativo Concluído! {criados} novos acessos administrativos foram gerados com sucesso."
-    except Exception as e:
-        db.session.rollback()
-        return f"❌ Erro no setup: {e}"
-
-@auth_bp.route('/migracao_secreta_dw')
-@admin_required
-def migracao_secreta():
-    try:
-        try:
-            db.session.execute(text('ALTER TABLE fatura_diaria ADD COLUMN IF NOT EXISTS nome_corretora VARCHAR(50);'))
-            db.session.commit()
-            msg_coluna = "Coluna 'nome_corretora' forçada com sucesso! "
-        except Exception as e_sql:
-            db.session.rollback()
-            msg_coluna = f"Aviso sobre a coluna (pode já existir): {str(e_sql)}. "
-
-        usuarios = User.query.all()
-        alocacoes_criadas = 0
-        faturas_corrigidas = 0
-        
-        for user in usuarios:
-            if not user.corretora:
-                continue
-                
-            existe = AlocacaoCorretora.query.filter_by(
-                user_id=user.id, 
-                nome_corretora=user.corretora
-            ).first()
-            
-            if not existe:
-                nova_alocacao = AlocacaoCorretora(
-                    user_id=user.id,
-                    nome_corretora=user.corretora.upper(),
-                    capital_alocado=user.capital_alocado or 0.0
-                )
-                db.session.add(nova_alocacao)
-                alocacoes_criadas += 1
-
-            for fatura in user.faturas:
-                for dia in fatura.dias:
-                    if dia.nome_corretora is None or dia.nome_corretora.strip() == '':
-                        dia.nome_corretora = user.corretora.upper()
-                        faturas_corrigidas += 1
-        
-        db.session.commit()
-        return f"✅ {msg_coluna} MIGRAÇÃO CONCLUÍDA! {alocacoes_criadas} alocações convertidas e {faturas_corrigidas} dias corrigidos com sucesso. O histórico dos clientes está a salvo."
-        
-    except Exception as e:
-        db.session.rollback()
-        return f"❌ Erro ao salvar migração: {str(e)}"
 
 @auth_bp.route('/logout')
 def logout():

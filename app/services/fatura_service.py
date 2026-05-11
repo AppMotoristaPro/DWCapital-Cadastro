@@ -7,29 +7,8 @@ import pytz
 tz_br = pytz.timezone('America/Sao_Paulo')
 
 def atualizar_totais_semana(fatura):
-    """Recalcula todos os valores de uma fatura semanal com base nos dias processados."""
-    fatura.bruto = sum((d.bruto if d.bruto > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.taxas_b3 = sum((d.taxas_b3 if d.taxas_b3 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.irrf_1 = sum((d.irrf_1 if d.irrf_1 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.liquido_pregao = sum((d.liquido_pregao if d.liquido_pregao > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.irrf_19 = sum((d.irrf_19 if d.irrf_19 > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.liquido = sum((d.liquido if d.liquido > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    fatura.repasse = sum((d.repasse if d.repasse > 0 else 0.0) for d in fatura.dias if d.status == 'relatorio_enviado')
-    
-    dias_enviados = sum(1 for d in fatura.dias if d.status == 'relatorio_enviado')
-    dias_isentos = sum(1 for d in fatura.dias if d.status == 'isento')
-    total_exigido = len(fatura.dias) - dias_isentos
-    
-    if dias_enviados == 0:
-        if total_exigido == 0 and len(fatura.dias) > 0:
-            fatura.status = 'completo'
-        else:
-            fatura.status = 'pendente'
-    elif dias_enviados >= total_exigido and total_exigido > 0:
-        fatura.status = 'completo'
-    else:
-        fatura.status = 'parcial'
-        
+    """Recalcula todos os valores de uma fatura semanal usando a inteligência do Modelo."""
+    fatura.recalcular_totais()
     db.session.commit()
 
 def auto_gerar_ciclo(user, data_base=None):

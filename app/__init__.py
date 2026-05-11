@@ -9,8 +9,8 @@ import os
 from dotenv import load_dotenv
 import cloudinary
 import cloudinary.uploader
-import pytz
-from datetime import datetime
+from app.utils.filters import format_brl, to_tz_br
+from app.cli import register_cli_commands
 
 db = SQLAlchemy()
 migrate = Migrate()
@@ -18,35 +18,10 @@ login_manager = LoginManager()
 csrf = CSRFProtect()
 limiter = Limiter(key_func=get_remote_address)
 
-# FILTRO BLINDADO CONTRA ERROS DE "UNDEFINED"
-def format_brl(value):
-    try:
-        if value is None or value == "":
-            num = 0.0
-        else:
-            num = float(value)
-    except (ValueError, TypeError):
-        num = 0.0
-        
-    return f"{num:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-# NOVO FILTRO: CONVERSÃO DE FUSO HORÁRIO (UTC -> BRASÍLIA)
-def to_tz_br(dt):
-    """Converte um datetime UTC do banco para o horário de Brasília."""
-    if not isinstance(dt, datetime):
-        return dt
-    
-    if dt.tzinfo is None:
-        dt = pytz.utc.localize(dt)
-        
-    tz_br = pytz.timezone('America/Sao_Paulo')
-    return dt.astimezone(tz_br)
-
 def create_app():
     app = Flask(__name__)
     load_dotenv()
     
-    # PROTEÇÃO CRÍTICA: Não existe mais chave fixa de fallback no código.
     secret_key = os.getenv('SECRET_KEY')
     if not secret_key:
         raise ValueError("VAZAMENTO EVITADO: A SECRET_KEY não está configurada no ambiente. O sistema foi bloqueado por segurança.")
@@ -75,9 +50,12 @@ def create_app():
     
     login_manager.login_view = 'auth.login'
     
-    # REGISTRO DOS FILTROS NO JINJA (FRONTEND)
+    # REGISTRO DOS FILTROS NO JINJA (Puxados do novo ficheiro)
     app.jinja_env.filters['format_brl'] = format_brl
     app.jinja_env.filters['to_tz_br'] = to_tz_br
+
+    # REGISTRO DOS COMANDOS DE TERMINAL
+    register_cli_commands(app)
 
     from app.auth.routes import auth_bp
     from app.client.routes import client_bp
@@ -114,7 +92,7 @@ def create_app():
 
     @app.errorhandler(429)
     def ratelimit_handler(e):
-        return "Calma aí! Você excediu o limite de acessos. Tente novamente em alguns instantes.", 429
+        return "Calma aí! Você excedeu o limite de acessos. Tente novamente em alguns instantes.", 429
 
     return app
 

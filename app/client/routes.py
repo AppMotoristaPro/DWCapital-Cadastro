@@ -200,8 +200,7 @@ def remover_fatura(dia_id):
         flash('Acesso negado. Ação não autorizada.', 'danger')
         return redirect(url_for('client.faturas'))
 
-    dia.arquivo_pdf = None
-    dia.status = 'pendente'
+    dia.zerar_valores(isentar=False) # <-- FAT MODEL LIMPANDO A NOTA!
     db.session.commit()
     atualizar_totais_semana(dia.fatura_semanal)
     return redirect(url_for('client.faturas'))
