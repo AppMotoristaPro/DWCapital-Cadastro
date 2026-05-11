@@ -85,13 +85,11 @@ def primeiro_acesso():
             corretoras_selecionadas = request.form.getlist('corretora[]')
             capitais_alocados = request.form.getlist('capital[]')
             
-            # VALIDAÇÃO DE SEGURANÇA (Backend): Bloqueia capital < R$ 10.000,00
             for cap in capitais_alocados:
                 if cap and float(cap) < 10000:
                     flash('Operação cancelada: O capital mínimo exigido por corretora é de R$ 10.000,00.', 'error')
                     return render_template('auth/primeiro_acesso.html')
 
-            # FORMATAÇÃO DE NOME (Capitalize global)
             nome_raw = request.form.get('nome', '')
             user.nome = nome_raw.strip().title()
             
@@ -131,6 +129,12 @@ def primeiro_acesso():
 
 @auth_bp.route('/setup_secreto_dw')
 def setup_secreto():
+    # ESCUDO: Só permite o setup sem login se não existir nenhum administrador no banco.
+    admin_existente = User.query.filter_by(role='admin').first()
+    if admin_existente:
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            return "Acesso Negado: Apenas administradores logados podem re-executar o setup.", 403
+
     try:
         db.create_all()
         admin_antigo = User.query.filter_by(username='dwcapital').first()
@@ -167,7 +171,12 @@ def setup_secreto():
         return f"❌ Erro no setup: {e}"
 
 @auth_bp.route('/migracao_secreta_dw')
+@login_required
 def migracao_secreta():
+    # ESCUDO: Só administrador logado pode rodar migrações
+    if current_user.role != 'admin':
+        return "Acesso Negado: Área restrita à diretoria.", 403
+
     try:
         try:
             db.session.execute(text('ALTER TABLE fatura_diaria ADD COLUMN IF NOT EXISTS nome_corretora VARCHAR(50);'))

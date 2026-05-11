@@ -2,6 +2,7 @@ from flask import Flask, redirect, url_for, render_template
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
+from flask_wtf.csrf import CSRFProtect
 import os
 from dotenv import load_dotenv
 import cloudinary
@@ -12,6 +13,7 @@ from datetime import datetime
 db = SQLAlchemy()
 migrate = Migrate()
 login_manager = LoginManager()
+csrf = CSRFProtect()
 
 # FILTRO BLINDADO CONTRA ERROS DE "UNDEFINED"
 def format_brl(value):
@@ -62,6 +64,8 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
+    csrf.init_app(app)
+    
     login_manager.login_view = 'auth.login'
     
     # REGISTRO DOS FILTROS NO JINJA (FRONTEND)

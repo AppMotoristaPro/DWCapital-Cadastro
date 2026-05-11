@@ -51,6 +51,7 @@
                     {% endif %}
 
                     <form action="{{ url_for('admin.status_pagamento', fatura_id=fatura.id) }}" method="POST" class="flex gap-2 justify-center lg:justify-end">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                         <button type="submit" name="status" value="pago" class="px-5 py-2.5 bg-green-500 hover:bg-green-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition shadow-md">Marcar Pago</button>
                         <button type="submit" name="status" value="inadimplente" class="px-5 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 font-black text-[10px] uppercase tracking-widest rounded-xl transition border border-red-100">Inadimplente</button>
                     </form>
@@ -95,6 +96,7 @@
                                     {% endif %}
                                     <button type="button" onclick="document.getElementById('modal-dia-admin-{{ dia.id }}').classList.remove('hidden')" class="bg-white border border-royal text-royal px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-50 transition shadow-sm">Detalhes</button>
                                     <form action="{{ url_for('admin.rejeitar_relatorio', dia_id=dia.id) }}" method="POST" onsubmit="return confirm('Rejeitar este relatório e zerar valores?')">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                         <button type="submit" class="bg-red-50 text-red-600 hover:bg-red-500 hover:text-white transition px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-100">Excluir</button>
                                     </form>
                                 </div>
@@ -105,6 +107,7 @@
                                 </div>
                                 <div class="w-2/4 flex justify-end items-center">
                                     <form action="{{ url_for('admin.remover_isencao_dia', dia_id=dia.id) }}" method="POST">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                         <button type="submit" class="text-xs font-bold text-gray-400 hover:text-red-500 uppercase tracking-widest transition">Desfazer (Exigir Nota)</button>
                                     </form>
                                 </div>
@@ -116,11 +119,13 @@
                                     <div class="flex gap-2">
                                         {% if dia.repasse > 0 %}
                                         <form action="{{ url_for('admin.forcar_limpeza_dia', dia_id=dia.id) }}" method="POST" onsubmit="return confirm('ATENÇÃO: Este dia está sem PDF mas possui um valor fantasma. Deseja forçar a limpeza?')">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                             <button type="submit" class="px-4 py-2 bg-red-100 hover:bg-red-500 hover:text-white text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition">Limpar Erro</button>
                                         </form>
                                         {% endif %}
                                         
                                         <form action="{{ url_for('admin.isentar_dia', dia_id=dia.id) }}" method="POST" onsubmit="return confirm('Deseja isentar este dia? O cliente não precisará enviar nota.')">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                             <button type="submit" class="px-4 py-2 bg-purple-50 hover:bg-purple-600 hover:text-white text-purple-600 border border-purple-200 hover:border-transparent rounded-xl text-[10px] font-black uppercase tracking-widest transition shadow-sm">Isentar</button>
                                         </form>
                                     </div>

@@ -24,6 +24,7 @@
         {% endwith %}
 
         <form id="multi-step-form" action="{{ url_for('auth.primeiro_acesso') }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             
             <div class="step transition-all duration-300" id="step-1">
                 <h2 class="text-3xl font-black text-white mb-2 tracking-tight">Seja bem-vindo</h2>
@@ -310,7 +311,10 @@ async function validarCpfStep1() {
     try {
         const response = await fetch("{{ url_for('auth.verificar_cpf') }}", {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
             body: JSON.stringify({ cpf: cpfInput })
         });
         

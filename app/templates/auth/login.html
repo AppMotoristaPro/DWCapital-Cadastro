@@ -34,6 +34,7 @@
         {% endwith %}
 
         <form class="mt-8 space-y-6" action="{{ url_for('auth.login') }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <div class="space-y-4">
                 <div>
                     <label class="text-xs font-bold text-blue-200 uppercase tracking-wider mb-1 block">CPF ou Usuário</label>

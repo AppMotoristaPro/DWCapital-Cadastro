@@ -17,6 +17,7 @@
     {% endwith %}
 
     <form method="POST" action="{{ url_for('admin.editar_cliente', id=cliente.id) }}" class="space-y-6">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         
         <div class="space-y-4">
             <h3 class="text-sm font-black text-navy uppercase tracking-widest border-b border-gray-100 pb-2">Dados Cadastrais</h3>
@@ -108,6 +109,7 @@
         <p class="text-xs text-gray-500 mb-6 font-medium leading-relaxed">Caso o cliente tenha perdido o acesso, você pode resetar a senha dele. O sistema criará uma senha temporária e o cliente será obrigado a cadastrar uma nova assim que entrar na plataforma.</p>
         
         <form method="POST" action="{{ url_for('admin.gerar_senha_temporaria', id=cliente.id) }}" onsubmit="return confirm('ATENÇÃO: Deseja resetar a senha deste cliente? A senha atual dele será apagada imediatamente.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <button type="submit" class="px-6 py-4 w-full justify-center bg-red-50 text-red-600 hover:bg-red-500 hover:text-white border border-red-200 hover:border-transparent rounded-xl font-black uppercase tracking-widest text-xs transition duration-300 shadow-sm flex items-center">
                 <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
                 Gerar Senha Temporária

@@ -5,6 +5,7 @@ import pytz
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify
 from flask_login import login_required, current_user
 import cloudinary.uploader
+from werkzeug.utils import secure_filename
 from app import db
 from app.models import FaturaDiaria, Fatura, AlocacaoCorretora, DocumentoCliente
 from app.utils.autentique import criar_documento_autentique, verificar_status_autentique
@@ -189,13 +190,19 @@ def faturas():
         senha_manual = request.form.get('senha_manual')
         arquivo = request.files.get('relatorio_pdf')
         
+        dia = FaturaDiaria.query.get(dia_id)
+        
+        # ESCUDO DE SEGURANÇA 1 (IDOR): Impede que o cliente envie/altere dados de uma fatura que não é dele
+        if not dia or dia.fatura_semanal.user_id != current_user.id:
+            return jsonify({'success': False, 'error': 'ERRO_SEGURANCA', 'message': 'Acesso negado. Você não tem permissão para alterar esta fatura.'})
+
         if arquivo and arquivo.filename:
+            # ESCUDO DE SEGURANÇA 2 (Path Traversal): Limpa o nome do arquivo para impedir injeção de vírus (.py, .sh, etc.)
+            nome_seguro = secure_filename(arquivo.filename)
             upload_folder = os.path.join(current_app.root_path, 'static', 'uploads')
             os.makedirs(upload_folder, exist_ok=True)
-            file_path = os.path.join(upload_folder, arquivo.filename)
+            file_path = os.path.join(upload_folder, nome_seguro)
             arquivo.save(file_path)
-            
-            dia = FaturaDiaria.query.get(dia_id)
             
             try:
                 dados = processar_pdf(file_path, dia.nome_corretora, current_user.cpf, senha_manual)
@@ -251,6 +258,12 @@ def faturas():
 @login_required
 def enviar_comprovante(fatura_id):
     fatura = Fatura.query.get_or_404(fatura_id)
+    
+    # ESCUDO DE SEGURANÇA 3 (IDOR): Impede anexar comprovantes em contas de terceiros
+    if fatura.user_id != current_user.id:
+        flash('Acesso negado. Ação não autorizada.', 'danger')
+        return redirect(url_for('client.faturas'))
+
     arquivo = request.files.get('comprovante')
     if arquivo:
         try:
@@ -266,6 +279,12 @@ def enviar_comprovante(fatura_id):
 @login_required
 def remover_fatura(dia_id):
     dia = FaturaDiaria.query.get_or_404(dia_id)
+    
+    # ESCUDO DE SEGURANÇA 4 (IDOR): Impede excluir a nota de outra pessoa
+    if dia.fatura_semanal.user_id != current_user.id:
+        flash('Acesso negado. Ação não autorizada.', 'danger')
+        return redirect(url_for('client.faturas'))
+
     dia.arquivo_pdf = None
     dia.status = 'pendente'
     db.session.commit()
@@ -275,7 +294,6 @@ def remover_fatura(dia_id):
 @client_bp.route('/documentos')
 @login_required
 def documentos():
-    # 1. Puxa as pendências do banco e verifica na API Autentique se o cliente já assinou.
     pendentes = DocumentoCliente.query.filter_by(user_id=current_user.id, status='pendente').all()
     atualizou_algum = False
     
@@ -288,7 +306,6 @@ def documentos():
     if atualizou_algum:
         db.session.commit()
         
-    # 2. Mostra os documentos na tela
     meus_docs = DocumentoCliente.query.filter_by(user_id=current_user.id).order_by(DocumentoCliente.data_envio.desc()).all()
     return render_template('client/documentos.html', documentos=meus_docs)
 

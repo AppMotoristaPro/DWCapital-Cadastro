@@ -6,6 +6,7 @@ Flask-Migrate==4.0.7
 psycopg2-binary==2.9.12
 python-dotenv==1.0.1
 Flask-Login==0.6.3
+Flask-WTF==1.2.1
 pypdf[crypto]==4.2.0
 pikepdf==8.15.1
 pytz==2024.1
