@@ -227,13 +227,11 @@ def editar_cliente(id):
         corretoras_selecionadas = request.form.getlist('corretora[]')
         capitais_alocados = request.form.getlist('capital[]')
         
-        # VALIDAÇÃO DE SEGURANÇA (Backend): Bloqueia capital < R$ 10.000,00 na edição
         for cap in capitais_alocados:
             if cap and float(cap) < 10000:
                 flash('Operação cancelada: O capital mínimo exigido por corretora é de R$ 10.000,00.', 'error')
                 return redirect(url_for('admin.editar_cliente', id=cliente.id))
 
-        # FORMATAÇÃO DE NOME (Capitalize global) na edição
         nome_raw = request.form.get('nome', '')
         cliente.nome = nome_raw.strip().title()
         
@@ -294,18 +292,26 @@ def pagamentos():
     busca = request.args.get('q', '')
     ciclo = request.args.get('ciclo')
     
-    if busca or ciclo:
+    # Se existe ciclo OR busca (a busca escondida viaja junto com o form de pesquisa interna)
+    if ciclo or busca:
         query = User.query.filter_by(role='cliente', status_acesso='ativo')
+        
+        # Filtro textual (Nome / ID) isolado dentro do ciclo
         if busca:
             query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
         
         ativos = query.order_by(User.nome.asc()).all()
         
+        # LÓGICA DE CALENDÁRIO: Se jogar qualquer data, recua para a Sexta-feira que iniciou aquele ciclo
         if ciclo:
             try:
-                inicio_ciclo = datetime.strptime(ciclo, '%Y-%m-%d').date()
+                data_selecionada = datetime.strptime(ciclo, '%Y-%m-%d').date()
+                dias_para_sexta = (data_selecionada.weekday() - 4) % 7
+                inicio_ciclo = data_selecionada - timedelta(days=dias_para_sexta)
             except ValueError:
-                inicio_ciclo = datetime.now(tz_br).date()
+                hoje = datetime.now(tz_br).date()
+                dias_para_sexta = (hoje.weekday() - 4) % 7
+                inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
         else:
             hoje = datetime.now(tz_br).date()
             dias_para_sexta = (hoje.weekday() - 4) % 7
@@ -348,6 +354,7 @@ def pagamentos():
         return render_template('admin/pagamentos.html', clientes_dados=clientes_dados, busca=busca, exibe_clientes=True, ciclo_data=inicio_ciclo, dias_uteis=dias_uteis)
     
     else:
+        # VISÃO PRINCIPAL (Quando entra na aba, mostra os ciclos passados)
         ciclos_db = db.session.query(
             Fatura.data_inicio, Fatura.data_fim
         ).distinct().order_by(Fatura.data_inicio.desc()).limit(15).all()

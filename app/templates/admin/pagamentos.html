@@ -5,14 +5,14 @@
     {% if not exibe_clientes %}
     <div class="flex justify-between items-end mb-8">
         <div>
-            <h1 class="text-4xl font-black text-navy tracking-tight">Gavetas Operacionais</h1>
-            <p class="text-gray-500 mt-2 font-medium">Selecione uma semana abaixo para auditar os pagamentos.</p>
+            <h1 class="text-4xl font-black text-navy tracking-tight">Ciclos de Faturamento</h1>
+            <p class="text-gray-500 mt-2 font-medium">Selecione uma data para acessar a auditoria daquela respectiva semana.</p>
         </div>
     </div>
 
-    <form method="GET" action="{{ url_for('admin.pagamentos') }}" class="mb-8 flex gap-4 bg-white p-2 rounded-2xl shadow-sm border border-gray-100 max-w-lg">
-        <input type="text" name="q" placeholder="Procurar um cliente específico..." class="flex-1 px-4 py-2 outline-none text-sm font-bold text-navy bg-transparent">
-        <button type="submit" class="px-6 py-3 bg-navy text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition">Buscar Cliente</button>
+    <form method="GET" action="{{ url_for('admin.pagamentos') }}" class="mb-8 flex gap-4 bg-white p-2 rounded-2xl shadow-sm border border-gray-100 max-w-sm">
+        <input type="date" name="ciclo" required class="flex-1 px-4 py-2 outline-none text-sm font-bold text-navy bg-transparent cursor-pointer">
+        <button type="submit" class="px-6 py-3 bg-navy text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition">Acessar Ciclo</button>
     </form>
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -41,7 +41,7 @@
     {% else %}
     
     <div class="mb-6 flex items-center gap-4 border-b border-gray-200 pb-4">
-        <a href="{{ url_for('admin.pagamentos') }}" class="px-4 py-2 bg-white text-xs font-black text-gray-500 uppercase tracking-widest rounded-xl hover:text-navy hover:shadow-md transition duration-200 border border-gray-200">< Voltar para Gavetas</a>
+        <a href="{{ url_for('admin.pagamentos') }}" class="px-4 py-2 bg-white text-xs font-black text-gray-500 uppercase tracking-widest rounded-xl hover:text-navy hover:shadow-md transition duration-200 border border-gray-200">< Voltar</a>
         <h2 class="text-2xl font-black text-navy tracking-tight">Semana: <span class="text-royal">{{ ciclo_data.strftime('%d/%m/%Y') }}</span></h2>
     </div>
 
@@ -51,45 +51,53 @@
       {% endfor %}{% endif %}
     {% endwith %}
 
-    {% if not busca %}
-    <div class="mb-8 flex items-center gap-4 bg-purple-50 rounded-2xl border border-purple-100 px-6 py-4 shadow-sm w-max">
-        <div>
-            <p class="text-xs font-black text-purple-900 uppercase tracking-widest">Isentar Dia?</p>
-            <p class="text-[10px] text-purple-600 font-bold mt-0.5">Aplica a todos deste ciclo.</p>
-        </div>
-        
-        <form action="{{ url_for('admin.isentar_dia_global') }}" method="POST" id="form-isentar-global" class="flex items-center m-0">
-            <input type="hidden" name="ciclo_atual" value="{{ ciclo_data.strftime('%Y-%m-%d') }}">
-            <select name="data_isencao" id="select-dia-isencao" class="bg-white border border-purple-200 text-purple-800 text-xs font-bold rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full px-3 py-2 cursor-pointer outline-none shadow-sm transition">
-                <option value="" selected disabled>Escolha o dia...</option>
-                {% for dia_util in dias_uteis %}
-                <option value="{{ dia_util.strftime('%Y-%m-%d') }}">{{ ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'][dia_util.weekday()] }} ({{ dia_util.strftime('%d/%m') }})</option>
-                {% endfor %}
-            </select>
-        </form>
-        
-        <script>
-            document.getElementById('select-dia-isencao').addEventListener('change', function() {
-                var select = this;
-                var form = document.getElementById('form-isentar-global');
-                var diaEscolhido = select.options[select.selectedIndex].text;
-                
-                if (select.value) {
-                    if (confirm('ATENÇÃO: Deseja realmente isentar TODOS os clientes na ' + diaEscolhido + '? Isso apagará qualquer nota já enviada nesse dia.')) {
-                        form.submit();
-                    } else {
-                        select.value = ""; 
+    <div class="flex flex-col md:flex-row md:items-center gap-6 mb-8">
+        {% if not busca %}
+        <div class="flex items-center gap-4 bg-purple-50 rounded-2xl border border-purple-100 px-6 py-4 shadow-sm w-max">
+            <div>
+                <p class="text-xs font-black text-purple-900 uppercase tracking-widest">Isentar Dia?</p>
+                <p class="text-[10px] text-purple-600 font-bold mt-0.5">Aplica a todos deste ciclo.</p>
+            </div>
+            
+            <form action="{{ url_for('admin.isentar_dia_global') }}" method="POST" id="form-isentar-global" class="flex items-center m-0">
+                <input type="hidden" name="ciclo_atual" value="{{ ciclo_data.strftime('%Y-%m-%d') }}">
+                <select name="data_isencao" id="select-dia-isencao" class="bg-white border border-purple-200 text-purple-800 text-xs font-bold rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full px-3 py-2 cursor-pointer outline-none shadow-sm transition">
+                    <option value="" selected disabled>Escolha o dia...</option>
+                    {% for dia_util in dias_uteis %}
+                    <option value="{{ dia_util.strftime('%Y-%m-%d') }}">{{ ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'][dia_util.weekday()] }} ({{ dia_util.strftime('%d/%m') }})</option>
+                    {% endfor %}
+                </select>
+            </form>
+            
+            <script>
+                document.getElementById('select-dia-isencao').addEventListener('change', function() {
+                    var select = this;
+                    var form = document.getElementById('form-isentar-global');
+                    var diaEscolhido = select.options[select.selectedIndex].text;
+                    
+                    if (select.value) {
+                        if (confirm('ATENÇÃO: Deseja realmente isentar TODOS os clientes na ' + diaEscolhido + '? Isso apagará qualquer nota já enviada nesse dia.')) {
+                            form.submit();
+                        } else {
+                            select.value = ""; 
+                        }
                     }
-                }
-            });
-        </script>
+                });
+            </script>
+        </div>
+        {% endif %}
+
+        <form method="GET" action="{{ url_for('admin.pagamentos') }}" class="flex gap-4 bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex-1 max-w-lg">
+            <input type="hidden" name="ciclo" value="{{ ciclo_data.strftime('%Y-%m-%d') }}">
+            <input type="text" name="q" value="{{ busca }}" placeholder="Procurar cliente neste ciclo..." class="flex-1 px-4 py-2 outline-none text-sm font-bold text-navy bg-transparent">
+            <button type="submit" class="px-6 py-3 bg-navy text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition">Buscar</button>
+        </form>
     </div>
-    {% endif %}
 
     {% if busca %}
     <div class="mb-6 flex items-center justify-between">
         <p class="text-sm font-bold text-gray-500">Resultados da busca para: <span class="text-navy">"{{ busca }}"</span></p>
-        <a href="{{ url_for('admin.pagamentos') }}" class="text-xs font-black text-red-500 uppercase tracking-widest hover:underline">Limpar Busca</a>
+        <a href="{{ url_for('admin.pagamentos', ciclo=ciclo_data.strftime('%Y-%m-%d')) }}" class="text-xs font-black text-red-500 uppercase tracking-widest hover:underline">Limpar Busca</a>
     </div>
     {% endif %}
 
