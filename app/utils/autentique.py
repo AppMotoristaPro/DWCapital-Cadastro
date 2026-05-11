@@ -7,6 +7,7 @@ AUTENTIQUE_SANDBOX = os.getenv('AUTENTIQUE_SANDBOX', 'true').lower() == 'true'
 
 URL = "https://api.autentique.com.br/v2/graphql"
 
+# Mantida intacta para não quebrar o "Termo de Adesão" do Primeiro Acesso
 def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
     query = """
     mutation CreateDocumentMutation(
@@ -73,18 +74,20 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
     else:
         raise Exception(f"Falha de comunicação HTTP: {response.text}")
 
-# NOVA FUNÇÃO FASE 4: Disparo 100% digital usando Template
-def disparar_documento_template(template_id, nome_signer, email_signer, nome_documento):
+# NOVA FUNÇÃO (FASE 4): Sobe o PDF local e captura o Link de Assinatura para a DW Capital
+def enviar_documento_local_com_link(nome_signer, email_signer, caminho_pdf, nome_documento):
     query = """
     mutation CreateDocumentMutation(
         $document: DocumentInput!,
         $signers: [SignerInput!]!,
+        $file: Upload!,
         $sandbox: Boolean!
     ) {
         createDocument(
             sandbox: $sandbox,
             document: $document,
-            signers: $signers
+            signers: $signers,
+            file: $file
         ) {
             id
             name
@@ -94,11 +97,10 @@ def disparar_documento_template(template_id, nome_signer, email_signer, nome_doc
         }
     }
     """
-    
+
     variables = {
         "document": {
-            "name": nome_documento,
-            "template": template_id
+            "name": nome_documento
         },
         "signers": [
             {
@@ -109,14 +111,30 @@ def disparar_documento_template(template_id, nome_signer, email_signer, nome_doc
         ],
         "sandbox": AUTENTIQUE_SANDBOX
     }
-    
+
+    operations = json.dumps({
+        "query": query,
+        "variables": variables
+    })
+
+    map_dict = json.dumps({
+        "0": ["variables.file"]
+    })
+
     headers = {
-        "Authorization": f"Bearer {AUTENTIQUE_TOKEN}",
-        "Content-Type": "application/json"
+        "Authorization": f"Bearer {AUTENTIQUE_TOKEN}"
     }
-    
-    response = requests.post(URL, headers=headers, json={"query": query, "variables": variables})
-    
+
+    with open(caminho_pdf, 'rb') as f:
+        nome_arq = os.path.basename(caminho_pdf)
+        files = {
+            'operations': (None, operations),
+            'map': (None, map_dict),
+            '0': (nome_arq, f, 'application/pdf')
+        }
+        
+        response = requests.post(URL, headers=headers, files=files)
+
     if response.status_code == 200:
         data = response.json()
         if "errors" in data:
@@ -127,7 +145,6 @@ def disparar_documento_template(template_id, nome_signer, email_signer, nome_doc
         
         link = None
         try:
-            # Puxa o link mágico gerado para injetar no dashboard do cliente
             link = doc.get('signatures', [])[0].get('link', {}).get('short_link')
         except:
             pass

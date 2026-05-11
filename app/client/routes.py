@@ -272,7 +272,6 @@ def remover_fatura(dia_id):
     atualizar_totais_semana(dia.fatura_semanal)
     return redirect(url_for('client.faturas'))
 
-# --- FASE 4: COFRE DE CONTRATOS DO CLIENTE ---
 @client_bp.route('/documentos')
 @login_required
 def documentos():

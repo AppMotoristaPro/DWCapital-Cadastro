@@ -5,7 +5,7 @@
     <div class="flex justify-between items-end mb-8">
         <div>
             <h1 class="text-4xl font-black text-navy tracking-tight">Gestão de Assinaturas</h1>
-            <p class="text-gray-500 mt-2 font-medium">Gerencie modelos do Autentique e dispare documentos digitais em lote.</p>
+            <p class="text-gray-500 mt-2 font-medium">Vincule PDFs locais e dispare documentos digitais em lote via Autentique.</p>
         </div>
     </div>
 
@@ -30,7 +30,7 @@
                 <form method="POST" action="{{ url_for('admin.disparar_documento') }}" onsubmit="return confirm('Tem certeza que deseja disparar este contrato para os parceiros selecionados?')" class="space-y-5">
                     
                     <div>
-                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Modelo de Contrato (Template)</label>
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Modelo de Contrato (PDF)</label>
                         <select name="template_id" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none font-bold text-sm text-navy focus:border-purple-400 focus:bg-white transition cursor-pointer">
                             <option value="" disabled selected>Selecione o documento...</option>
                             {% for temp in templates %}
@@ -59,15 +59,17 @@
             </div>
 
             <div class="bg-gray-50 p-6 rounded-3xl border border-gray-200 border-dashed">
-                <h2 class="text-sm font-black text-gray-600 uppercase tracking-widest mb-4">Adicionar Novo Modelo</h2>
+                <h2 class="text-sm font-black text-gray-600 uppercase tracking-widest mb-4">Vincular PDF da Pasta Static</h2>
                 <form method="POST" action="{{ url_for('admin.cadastrar_template') }}" class="space-y-4">
                     <div>
-                        <input type="text" name="nome" placeholder="Nome do Documento (Ex: Aditivo de Capital)" required class="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none font-bold text-xs text-navy focus:border-gray-400 transition placeholder:text-gray-400">
+                        <label class="text-[9px] font-bold text-gray-400 uppercase">Nome para Exibição</label>
+                        <input type="text" name="nome" placeholder="Ex: Contrato de Aporte" required class="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none font-bold text-xs text-navy focus:border-gray-400 transition">
                     </div>
                     <div>
-                        <input type="text" name="autentique_id" placeholder="ID do Template no Autentique" required class="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none font-bold text-xs text-navy focus:border-gray-400 transition placeholder:text-gray-400 font-mono">
+                        <label class="text-[9px] font-bold text-gray-400 uppercase">Nome EXATO do Arquivo (.pdf)</label>
+                        <input type="text" name="arquivo_local" placeholder="Ex: aditivo_v1.pdf" required class="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none font-bold text-xs text-navy focus:border-gray-400 transition font-mono">
                     </div>
-                    <button type="submit" class="w-full py-3 bg-gray-200 text-gray-600 hover:bg-gray-300 hover:text-navy font-black uppercase tracking-widest rounded-xl text-[10px] transition">Salvar Modelo no Sistema</button>
+                    <button type="submit" class="w-full py-3 bg-gray-200 text-gray-600 hover:bg-navy hover:text-white font-black uppercase tracking-widest rounded-xl text-[10px] transition">Salvar Modelo no Sistema</button>
                 </form>
             </div>
             

@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria, DocumentoTemplate, DocumentoCliente
 from app import db
 from datetime import datetime, timedelta
-from app.utils.autentique import disparar_documento_template, verificar_status_autentique
+from app.utils.autentique import enviar_documento_local_com_link, verificar_status_autentique
 import pytz
 
 tz_br = pytz.timezone('America/Sao_Paulo')
@@ -596,6 +596,7 @@ def atividades():
     
     return render_template('admin/atividades.html', logs=logs, busca=busca)
 
+# --- FASE 4: GESTÃO DE ASSINATURAS (ARQUIVO LOCAL) ---
 @admin_bp.route('/documentos')
 @login_required
 def documentos():
@@ -613,15 +614,14 @@ def cadastrar_template():
     if current_user.role != 'admin': return redirect(url_for('client.dashboard'))
     
     nome = request.form.get('nome')
-    autentique_id = request.form.get('autentique_id')
+    arquivo_local = request.form.get('arquivo_local')
     
-    novo_temp = DocumentoTemplate(nome=nome, autentique_id=autentique_id)
+    novo_temp = DocumentoTemplate(nome=nome, arquivo_local=arquivo_local)
     db.session.add(novo_temp)
-    # NOME ATUALIZADO NO LOG PARA ASSINATURAS
-    registrar_log(f"Cadastrou novo Template de Contrato: {nome}.", "Assinaturas")
+    registrar_log(f"Cadastrou novo Modelo de Contrato: {nome}.", "Assinaturas")
     db.session.commit()
     
-    flash('Modelo de contrato cadastrado com sucesso!', 'success')
+    flash(f'Modelo "{nome}" registrado! Certifique-se de que o arquivo "{arquivo_local}" esteja na pasta static/documentos/.', 'success')
     return redirect(url_for('admin.documentos'))
 
 @admin_bp.route('/documentos/disparar', methods=['POST'])
@@ -634,15 +634,26 @@ def disparar_documento():
     
     template = DocumentoTemplate.query.get_or_404(template_id)
     
+    caminho_pdf = os.path.join(current_app.root_path, 'static', 'documentos', template.arquivo_local)
+    
+    if not os.path.exists(caminho_pdf):
+        flash(f'Erro: O arquivo "{template.arquivo_local}" não foi encontrado na pasta static/documentos/.', 'error')
+        return redirect(url_for('admin.documentos'))
+
     enviados = 0
     erros = 0
+    sem_email = []
     
     for uid in user_ids:
         cliente = User.query.get(uid)
         if cliente:
+            if not cliente.email:
+                sem_email.append(cliente.nome)
+                continue
+                
             try:
                 nome_doc = f"{template.nome} - {cliente.nome}"
-                doc_id, link = disparar_documento_template(template.autentique_id, cliente.nome, cliente.email, nome_doc)
+                doc_id, link = enviar_documento_local_com_link(cliente.nome, cliente.email, caminho_pdf, nome_doc)
                 
                 novo_doc = DocumentoCliente(
                     user_id=cliente.id,
@@ -654,17 +665,20 @@ def disparar_documento():
                 db.session.add(novo_doc)
                 enviados += 1
             except Exception as e:
-                print(f"Erro ao enviar para {cliente.nome}: {e}")
+                print(f"Erro ao disparar para {cliente.nome}: {e}")
                 erros += 1
                 
     db.session.commit()
-    # NOME ATUALIZADO NO LOG PARA ASSINATURAS
-    registrar_log(f"Disparou contrato '{template.nome}' para {enviados} investidor(es).", "Assinaturas")
     
+    if enviados > 0:
+        registrar_log(f"Disparou contrato '{template.nome}' via arquivo local para {enviados} investidores.", "Assinaturas")
+        flash(f'{enviados} documentos enviados com sucesso!', 'success')
+        
+    if sem_email:
+        flash(f'Clientes sem e-mail ignorados: {", ".join(sem_email)}', 'error')
+        
     if erros > 0:
-        flash(f'{enviados} contratos enviados. Houve erro em {erros} envios (verifique as configurações no Autentique).', 'error')
-    else:
-        flash(f'{enviados} contratos disparados digitalmente com sucesso!', 'success')
+        flash(f'Houve erro técnico em {erros} envios.', 'error')
         
     return redirect(url_for('admin.documentos'))
 
