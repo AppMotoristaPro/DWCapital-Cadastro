@@ -1,66 +1,82 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="min-h-screen flex items-center justify-center relative overflow-hidden bg-navy">
-    <div class="absolute top-[-10%] left-[-10%] w-[30rem] h-[30rem] bg-royal rounded-full mix-blend-multiply filter blur-[128px] opacity-40"></div>
-    <div class="absolute bottom-[-20%] right-[-10%] w-[30rem] h-[30rem] bg-royal-dark rounded-full mix-blend-multiply filter blur-[128px] opacity-60"></div>
-
-    <div class="max-w-md w-full relative z-10 space-y-8 bg-white/10 backdrop-blur-xl p-10 rounded-3xl shadow-2xl border border-white/10">
-        <div class="text-center">
-            <div class="mx-auto h-24 flex items-center justify-center mb-6">
-                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="DW Capital Logo" class="max-w-full max-h-full object-contain drop-shadow-2xl transition-transform hover:scale-105">
-            </div>
-            <h2 class="text-3xl font-black text-white tracking-tight">DW Capital</h2>
-            <p class="mt-2 text-sm text-blue-200 font-medium tracking-wide">Portal Exclusivo</p>
-        </div>
+<div class="min-h-screen w-full flex flex-col lg:flex-row overflow-hidden bg-navy">
+    <div class="hidden lg:flex lg:w-1/2 relative flex-col justify-center items-center overflow-hidden bg-corporate-gradient border-r border-white/5">
+        <div class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center mix-blend-overlay opacity-10"></div>
+        <div class="absolute inset-0 bg-gradient-to-t from-navy via-navy/80 to-transparent"></div>
         
-        {% with messages = get_flashed_messages(category_filter=['auth_error']) %}
-            {% if messages %}
-                {% for message in messages %}
-                    <div class="p-4 rounded-xl text-sm font-bold bg-red-500/20 text-red-100 border border-red-500/50 text-center">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+        <div class="relative z-10 text-center max-w-lg px-8">
+            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="DW Capital" class="h-32 mx-auto mb-10 drop-shadow-2xl opacity-90 transition-transform hover:scale-105 duration-500">
+            <h1 class="text-5xl font-black text-white tracking-tight mb-4 leading-tight">Mesa de Operações<br><span class="text-royal">Proprietária</span></h1>
+            <p class="text-blue-200 text-lg font-medium tracking-wide">Plataforma exclusiva de repasse financeiro e gestão patrimonial para parceiros DW Capital.</p>
+        </div>
+    </div>
 
-        {% with messages = get_flashed_messages(category_filter=['auth_success']) %}
-            {% if messages %}
-                {% for message in messages %}
-                    <div class="p-4 rounded-xl text-sm font-bold bg-green-500/20 text-green-100 border border-green-500/50 text-center">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+    <div class="w-full lg:w-1/2 min-h-screen flex items-center justify-center relative p-6 lg:p-12">
+        <div class="absolute top-10 right-10 w-96 h-96 bg-royal rounded-full mix-blend-multiply filter blur-[128px] opacity-20 animate-pulse pointer-events-none"></div>
+        <div class="absolute bottom-10 left-10 w-96 h-96 bg-royal-dark rounded-full mix-blend-multiply filter blur-[128px] opacity-30 pointer-events-none"></div>
 
-        <form class="mt-8 space-y-6" action="{{ url_for('auth.login') }}" method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-            <div class="space-y-4">
-                <div>
-                    <label class="text-xs font-bold text-blue-200 uppercase tracking-wider mb-1 block">CPF ou Usuário</label>
-                    <input name="login" type="text" required class="w-full px-5 py-4 bg-navy/50 border border-white/10 rounded-xl focus:ring-2 focus:ring-royal focus:border-transparent text-white placeholder-gray-400 font-medium transition duration-200 outline-none">
-                </div>
-                <div class="relative">
-                    <label class="text-xs font-bold text-blue-200 uppercase tracking-wider mb-1 block">Senha</label>
-                    <input name="senha" id="login-senha" type="password" required class="w-full px-5 py-4 bg-navy/50 border border-white/10 rounded-xl focus:ring-2 focus:ring-royal focus:border-transparent text-white placeholder-gray-400 font-medium transition duration-200 outline-none">
-                    <button type="button" onclick="toggleLoginPassword()" class="absolute right-4 top-10 text-blue-300 hover:text-white transition-colors outline-none">
-                        <svg id="eye-icon-login" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-                    </button>
-                    <div class="text-right mt-3">
-                        <a href="https://wa.me/5511991167709?text=Ol%C3%A1%2C%20esqueci%20a%20minha%20senha%20da%20plataforma%20DW%20Capital%20e%20preciso%20de%20ajuda%20para%20recuperar%20meu%20acesso." target="_blank" class="text-[11px] font-bold text-blue-300 hover:text-white transition duration-200 uppercase tracking-wider">Esqueci minha senha</a>
-                    </div>
-                </div>
+        <div class="w-full max-w-md bg-white/5 backdrop-blur-2xl p-10 lg:p-12 rounded-[2rem] shadow-2xl border border-white/10 relative z-10">
+            
+            <div class="text-center lg:text-left mb-10">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="DW Logo" class="h-16 mx-auto lg:hidden mb-6">
+                <h2 class="text-3xl font-black text-white tracking-tight">Acesse o Portal</h2>
+                <p class="mt-2 text-sm text-blue-300/80 font-medium">Insira suas credenciais corporativas.</p>
             </div>
+            
+            {% with messages = get_flashed_messages(category_filter=['auth_error']) %}
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="p-4 mb-6 rounded-xl text-sm font-bold bg-red-500/10 text-red-400 border border-red-500/20 flex items-center gap-3 backdrop-blur-sm">
+                            <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
 
-            <div>
-                <button type="submit" class="w-full py-4 px-4 text-sm font-black tracking-widest uppercase rounded-xl text-white bg-gradient-to-r from-royal to-royal-dark hover:from-royal-dark hover:to-navy transition-all duration-300 shadow-[0_0_20px_rgba(65,105,225,0.3)] hover:shadow-[0_0_25px_rgba(65,105,225,0.5)] transform hover:-translate-y-1">
-                    Acessar Sistema
+            {% with messages = get_flashed_messages(category_filter=['auth_success']) %}
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="p-4 mb-6 rounded-xl text-sm font-bold bg-green-500/10 text-green-400 border border-green-500/20 flex items-center gap-3 backdrop-blur-sm">
+                            <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form action="{{ url_for('auth.login') }}" method="POST" class="space-y-6">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                
+                <div class="space-y-5">
+                    <div>
+                        <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block ml-1">CPF ou Usuário Admin</label>
+                        <input name="login" type="text" required class="w-full px-5 py-4 bg-navy/40 border border-white/5 rounded-xl focus:bg-navy/80 focus:border-royal text-white placeholder-gray-500 font-medium transition duration-300 outline-none shadow-inner" placeholder="000.000.000-00">
+                    </div>
+                    
+                    <div class="relative">
+                        <div class="flex justify-between items-end mb-1.5 ml-1 mr-1">
+                            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Senha de Segurança</label>
+                            <a href="https://wa.me/5511991167709?text=Ol%C3%A1%2C%20esqueci%20a%20minha%20senha%20da%20plataforma%20DW%20Capital" target="_blank" class="text-[10px] font-bold text-royal hover:text-white transition duration-200">Esqueci a senha</a>
+                        </div>
+                        <input name="senha" id="login-senha" type="password" required class="w-full px-5 py-4 bg-navy/40 border border-white/5 rounded-xl focus:bg-navy/80 focus:border-royal text-white placeholder-gray-500 font-medium transition duration-300 outline-none shadow-inner" placeholder="••••••••">
+                        <button type="button" onclick="toggleLoginPassword()" class="absolute right-4 bottom-3.5 text-gray-500 hover:text-white transition-colors outline-none p-1">
+                            <svg id="eye-icon-login" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full py-4 px-4 mt-8 text-sm font-black tracking-widest uppercase rounded-xl text-white bg-royal hover:bg-royal-dark transition-all duration-300 shadow-[0_0_20px_rgba(65,105,225,0.2)] hover:shadow-[0_0_25px_rgba(65,105,225,0.4)] transform hover:-translate-y-0.5 border border-royal-dark">
+                    Acessar Plataforma
                 </button>
-            </div>
-            <div class="text-center mt-6">
-                <a href="{{ url_for('auth.primeiro_acesso') }}" class="text-sm font-bold text-blue-300 hover:text-white transition duration-200">Primeiro Acesso? Cadastre sua senha</a>
-            </div>
-        </form>
+                
+                <div class="text-center mt-8 pt-6 border-t border-white/5">
+                    <p class="text-[11px] text-gray-400 font-medium">Ainda não possui acesso?</p>
+                    <a href="{{ url_for('auth.primeiro_acesso') }}" class="inline-block mt-2 text-xs font-bold text-white hover:text-royal transition duration-200">Cadastre-se na Plataforma -></a>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 

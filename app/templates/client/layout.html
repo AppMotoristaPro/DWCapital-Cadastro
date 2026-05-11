@@ -1,31 +1,41 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="flex h-screen bg-ice overflow-hidden">
-    <aside class="w-72 bg-gradient-to-b from-royal-dark to-navy text-slate-200 flex flex-col shadow-2xl z-20">
-        <div class="p-8 flex flex-col items-center border-b border-white/10">
+<div class="flex h-screen bg-ice relative overflow-hidden">
+    <div class="absolute top-[-10%] left-[-5%] w-[40rem] h-[40rem] bg-royal/10 rounded-full mix-blend-multiply filter blur-[128px] pointer-events-none z-0"></div>
+    <div class="absolute bottom-[-10%] right-[-5%] w-[40rem] h-[40rem] bg-royal-dark/5 rounded-full mix-blend-multiply filter blur-[128px] pointer-events-none z-0"></div>
+
+    <aside class="w-72 bg-navy/95 backdrop-blur-2xl text-slate-300 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.05)] z-20 border-r border-white/5 relative">
+        <div class="p-8 flex flex-col items-center border-b border-white/5">
             <div class="w-full h-16 flex items-center justify-center mb-4">
-                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="DW Capital" class="max-w-full max-h-full object-contain">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="DW Capital" class="max-w-full max-h-full object-contain drop-shadow-lg opacity-90 transition hover:scale-105">
             </div>
             <h2 class="text-lg font-bold text-white tracking-wide">Portal do Investidor</h2>
-            <span class="text-[10px] text-white/80 font-bold uppercase tracking-widest mt-1">{{ current_user.nome }}</span>
+            <span class="text-[10px] text-royal bg-royal/10 px-3 py-1 rounded-full font-black uppercase tracking-widest mt-2 border border-royal/20">{{ current_user.nome.split()[0] }}</span>
         </div>
         
-        <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-            <a href="{{ url_for('client.dashboard') }}" class="flex items-center px-4 py-3.5 rounded-xl transition duration-300 {% if request.endpoint == 'client.dashboard' %}bg-white/10 text-white font-bold border-l-4 border-white{% else %}hover:bg-white/5 hover:text-white font-medium{% endif %}">Dashboard</a>
-            <a href="{{ url_for('client.faturas') }}" class="flex items-center px-4 py-3.5 rounded-xl transition duration-300 {% if request.endpoint == 'client.faturas' %}bg-white/10 text-white font-bold border-l-4 border-white{% else %}hover:bg-white/5 hover:text-white font-medium{% endif %}">Extrato de Faturamento</a>
-            <a href="{{ url_for('client.dados_pessoais') }}" class="flex items-center px-4 py-3.5 rounded-xl transition duration-300 {% if request.endpoint == 'client.dados_pessoais' %}bg-white/10 text-white font-bold border-l-4 border-white{% else %}hover:bg-white/5 hover:text-white font-medium{% endif %}">Meus Dados</a>
-            <a href="{{ url_for('client.documentos') }}" class="flex items-center px-4 py-3.5 rounded-xl transition duration-300 {% if request.endpoint == 'client.documentos' %}bg-white/10 text-white font-bold border-l-4 border-white{% else %}hover:bg-white/5 hover:text-white font-medium{% endif %}">Meus Documentos</a>
+        <nav class="flex-1 px-5 py-8 space-y-2 overflow-y-auto">
+            <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4 px-2">Menu Principal</p>
+            <a href="{{ url_for('client.dashboard') }}" class="flex items-center px-4 py-3.5 rounded-xl transition duration-300 {% if request.endpoint == 'client.dashboard' %}bg-royal/20 text-royal font-bold border border-royal/30 shadow-inner{% else %}hover:bg-white/5 hover:text-white font-medium{% endif %}">Dashboard</a>
+            <a href="{{ url_for('client.faturas') }}" class="flex items-center px-4 py-3.5 rounded-xl transition duration-300 {% if request.endpoint == 'client.faturas' %}bg-royal/20 text-royal font-bold border border-royal/30 shadow-inner{% else %}hover:bg-white/5 hover:text-white font-medium{% endif %}">Extrato de Faturamento</a>
+            <a href="{{ url_for('client.dados_pessoais') }}" class="flex items-center px-4 py-3.5 rounded-xl transition duration-300 {% if request.endpoint == 'client.dados_pessoais' %}bg-royal/20 text-royal font-bold border border-royal/30 shadow-inner{% else %}hover:bg-white/5 hover:text-white font-medium{% endif %}">Meus Dados</a>
+            <a href="{{ url_for('client.documentos') }}" class="flex items-center px-4 py-3.5 rounded-xl transition duration-300 {% if request.endpoint == 'client.documentos' %}bg-royal/20 text-royal font-bold border border-royal/30 shadow-inner{% else %}hover:bg-white/5 hover:text-white font-medium{% endif %}">Meus Documentos</a>
         </nav>
         
-        <div class="px-4 pb-6 space-y-2">
-            <a href="{{ url_for('client.ajuda') }}" class="flex items-center px-4 py-3 rounded-xl bg-royal/20 text-blue-200 hover:text-white font-bold">Preciso de Ajuda</a>
-            <a href="{{ url_for('auth.logout') }}" class="flex items-center justify-center w-full px-4 py-3 bg-white/5 hover:bg-red-500 hover:text-white rounded-xl transition duration-300 font-bold text-sm">Sair</a>
+        <div class="px-5 pb-8 space-y-3">
+            <a href="{{ url_for('client.ajuda') }}" class="flex items-center justify-center px-4 py-3 rounded-xl bg-white/5 text-blue-200 hover:bg-white/10 hover:text-white font-bold transition border border-white/5 text-sm">Preciso de Ajuda</a>
+            <a href="{{ url_for('auth.logout') }}" class="flex items-center justify-center w-full px-4 py-3 text-red-400 bg-red-400/10 hover:bg-red-500 hover:text-white rounded-xl transition duration-300 font-bold text-sm border border-red-400/20 hover:border-transparent">Encerrar Sessão</a>
         </div>
     </aside>
     
-    <main class="flex-1 p-8 lg:p-12 overflow-y-auto relative z-0">
+    <main class="flex-1 p-8 lg:p-12 overflow-y-auto relative z-10 custom-scrollbar">
         {% block client_content %}{% endblock %}
     </main>
 </div>
+
+<style>
+.custom-scrollbar::-webkit-scrollbar { width: 8px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; border: 2px solid transparent; background-clip: content-box; }
+</style>
 {% endblock %}
 

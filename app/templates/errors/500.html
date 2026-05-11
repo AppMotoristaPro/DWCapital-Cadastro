@@ -1,13 +1,19 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="flex items-center justify-center min-h-screen bg-ice p-4">
-    <div class="bg-white p-10 rounded-3xl shadow-2xl text-center max-w-lg mx-auto border border-red-50/50">
-        <div class="w-24 h-24 bg-red-100 rounded-3xl flex items-center justify-center mx-auto mb-6 text-red-500 animate-pulse">
-            <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+<div class="min-h-screen flex items-center justify-center bg-navy p-4 relative overflow-hidden selection:bg-royal selection:text-white">
+    <div class="absolute top-[-10%] left-[-10%] w-[30rem] h-[30rem] bg-royal rounded-full mix-blend-multiply filter blur-[128px] opacity-40"></div>
+    <div class="absolute bottom-[-20%] right-[-10%] w-[30rem] h-[30rem] bg-royal-dark rounded-full mix-blend-multiply filter blur-[128px] opacity-60"></div>
+
+    <div class="max-w-md w-full bg-white/5 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl p-10 relative z-10 border border-white/10 text-center">
+        
+        <div class="w-24 h-24 bg-red-500/10 border border-red-500/20 rounded-[2rem] flex items-center justify-center mx-auto mb-8 text-red-400 shadow-inner animate-pulse">
+            <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
         </div>
-        <h1 class="text-4xl font-black text-navy mb-2 tracking-tight">Ops! Erro 500</h1>
-        <p class="text-sm text-gray-500 font-medium mb-8 leading-relaxed">Tivemos um problema interno nos nossos servidores. Nossa equipe técnica já foi notificada para resolver isso.</p>
-        <a href="{{ url_for('auth.login') }}" class="inline-block px-8 py-4 bg-royal hover:bg-royal-dark text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg transition hover:-translate-y-1">Tentar Novamente</a>
+        
+        <h1 class="text-3xl font-black text-white mb-4 tracking-tight">Falha Interna</h1>
+        <p class="text-blue-200/80 text-sm font-medium mb-10 leading-relaxed">Erro 500. Tivemos um problema de processamento nos nossos servidores. Nossa equipe de engenharia já foi notificada para resolver isso.</p>
+        
+        <a href="{{ url_for('auth.login') }}" class="inline-block w-full py-4 bg-royal hover:bg-royal-dark text-white rounded-2xl font-black uppercase tracking-widest text-xs transition shadow-[0_0_20px_rgba(65,105,225,0.3)]">Reiniciar Sistema</a>
     </div>
 </div>
 {% endblock %}

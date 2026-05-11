@@ -1,7 +1,7 @@
 {% extends "admin/layout.html" %}
 
 {% block admin_content %}
-<div class="max-w-7xl mx-auto relative z-10">
+<div class="max-w-7xl mx-auto relative z-10 pb-20">
     <div class="flex justify-between items-end mb-8">
         <div>
             <h1 class="text-4xl font-black text-navy tracking-tight">Gestão de Clientes</h1>
@@ -11,115 +11,117 @@
         </button>
     </div>
 
-    <form method="GET" action="{{ url_for('admin.clientes_list') }}" class="mb-6 flex flex-wrap gap-4 bg-white p-2 rounded-2xl shadow-sm border border-gray-100 w-full max-w-3xl">
-        <input type="text" name="q" value="{{ busca }}" placeholder="Buscar por nome, CPF ou ID..." class="flex-1 px-4 py-2 outline-none text-sm font-bold text-navy bg-transparent min-w-[200px]">
-        <select name="status" class="px-4 py-2 outline-none text-sm font-bold text-gray-500 bg-transparent border-l border-gray-100 cursor-pointer">
+    <form method="GET" action="{{ url_for('admin.clientes_list') }}" class="mb-8 flex flex-wrap gap-4 bg-white/60 backdrop-blur-xl p-3 rounded-3xl shadow-sm border border-white w-full max-w-3xl">
+        <input type="text" name="q" value="{{ busca }}" placeholder="Buscar por nome, CPF ou ID..." class="flex-1 px-5 py-3 outline-none text-sm font-bold text-navy bg-white rounded-xl border border-gray-100 min-w-[200px]">
+        <select name="status" class="px-5 py-3 outline-none text-sm font-bold text-gray-500 bg-white rounded-xl border border-gray-100 cursor-pointer">
             <option value="">Todos os Status</option>
             <option value="ativo" {% if status_filtro == 'ativo' %}selected{% endif %}>Ativos</option>
             <option value="inativo" {% if status_filtro == 'inativo' %}selected{% endif %}>Inativos</option>
             <option value="pendente_cadastro" {% if status_filtro == 'pendente_cadastro' %}selected{% endif %}>Pendentes</option>
         </select>
-        <button type="submit" class="px-6 py-3 bg-navy text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition">Filtrar</button>
+        <button type="submit" class="px-8 py-3 bg-navy text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition">Filtrar</button>
         {% if busca or status_filtro %}
         <a href="{{ url_for('admin.clientes_list') }}" class="px-4 py-3 text-gray-400 hover:text-red-500 font-bold text-xs flex items-center">Limpar</a>
         {% endif %}
     </form>
 
-    <div class="bg-white rounded-3xl shadow-lg border border-blue-50/50 overflow-hidden">
+    <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden">
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
                 <thead>
-                    <tr class="bg-ice text-gray-400 text-[10px] font-black uppercase tracking-wider border-b border-gray-100">
-                        <th class="px-6 py-4">Investidor</th>
-                        <th class="px-6 py-4">Alocações (Corretoras)</th>
-                        <th class="px-6 py-4">Status</th>
-                        <th class="px-6 py-4 text-right">Ações</th>
+                    <tr class="bg-white/50 border-b border-gray-100 text-gray-400 text-[10px] font-black uppercase tracking-wider">
+                        <th class="px-8 py-5">Investidor</th>
+                        <th class="px-6 py-5">Alocações (Corretoras)</th>
+                        <th class="px-6 py-5">Status</th>
+                        <th class="px-8 py-5 text-right">Ações</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-100">
+                <tbody class="divide-y divide-gray-50">
                     {% for cliente in clientes %}
-                    <tr class="hover:bg-blue-50/30 transition {% if cliente.status_acesso == 'inativo' %}opacity-60{% endif %}">
-                        <td class="px-6 py-5">
-                            <div class="font-bold text-navy text-sm flex items-center gap-2">
+                    <tr class="hover:bg-gray-50/50 transition-colors {% if cliente.status_acesso == 'inativo' %}opacity-60{% endif %}">
+                        <td class="px-8 py-6">
+                            <div class="font-black text-navy text-sm flex items-center gap-2">
                                 {{ cliente.nome }}
                                 {% if cliente.is_isento %}
-                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 border border-purple-200 rounded text-[9px] font-black uppercase tracking-widest">Isento</span>
+                                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 border border-purple-200 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">Isento</span>
                                 {% endif %}
                             </div>
-                            <div class="text-[10px] text-gray-400 font-medium">{{ cliente.cpf }} | ID: {{ cliente.matricula or 'PENDENTE' }}</div>
+                            <div class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">{{ cliente.cpf }} <span class="mx-1 text-gray-300">|</span> ID: {{ cliente.matricula or 'PENDENTE' }}</div>
                         </td>
-                        <td class="px-6 py-5">
+                        <td class="px-6 py-6">
                             <div class="flex flex-wrap gap-2">
                                 {% if cliente.alocacoes %}
                                     {% for aloc in cliente.alocacoes %}
-                                        <span class="px-2 py-1 bg-blue-50 text-royal border border-blue-100 rounded text-[9px] font-black uppercase tracking-widest">{{ aloc.nome_corretora }}</span>
+                                        <span class="px-3 py-1 bg-white border border-blue-100 text-royal rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">{{ aloc.nome_corretora }}</span>
                                     {% endfor %}
                                 {% else %}
                                     <span class="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Nenhuma Alocação</span>
                                 {% endif %}
                             </div>
                         </td>
-                        <td class="px-6 py-5">
-                            <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase border 
-                                {% if cliente.status_acesso == 'ativo' %}bg-green-100 text-green-700
-                                {% elif cliente.status_acesso == 'inativo' %}bg-red-50 text-red-500
-                                {% else %}bg-yellow-100 text-yellow-700{% endif %}">
+                        <td class="px-6 py-6">
+                            <span class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border shadow-sm
+                                {% if cliente.status_acesso == 'ativo' %}bg-green-50 text-green-700 border-green-200
+                                {% elif cliente.status_acesso == 'inativo' %}bg-red-50 text-red-500 border-red-200
+                                {% else %}bg-yellow-50 text-yellow-700 border-yellow-200{% endif %}">
                                 {{ cliente.status_acesso }}
                             </span>
                         </td>
-                        <td class="px-6 py-5 text-right space-x-2 flex justify-end items-center">
-                            <button onclick="document.getElementById('modal-visualizar-{{ cliente.id }}').classList.remove('hidden')" class="text-[10px] px-3 py-2 bg-blue-50 text-royal font-bold rounded-lg hover:bg-blue-100 transition">Ficha</button>
-                            <a href="{{ url_for('admin.editar_cliente', id=cliente.id) }}" class="text-[10px] px-3 py-2 bg-gray-50 text-gray-600 font-bold rounded-lg hover:bg-gray-200 transition">Editar</a>
-                            
-                            {% if cliente.status_acesso != 'inativo' %}
-                            <form action="{{ url_for('admin.inativar_cliente', id=cliente.id) }}" method="POST" class="inline">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                <button type="submit" class="text-[10px] px-3 py-2 bg-yellow-50 text-yellow-700 font-bold rounded-lg hover:bg-yellow-100 transition" onclick="return confirm('Deseja inativar o acesso deste cliente?')">Inativar</button>
-                            </form>
-                            {% endif %}
+                        <td class="px-8 py-6 text-right">
+                            <div class="flex justify-end items-center gap-2">
+                                <button onclick="document.getElementById('modal-visualizar-{{ cliente.id }}').classList.remove('hidden')" class="text-[10px] px-4 py-2.5 bg-white border border-blue-100 text-royal font-black uppercase tracking-widest rounded-xl hover:bg-blue-50 transition shadow-sm">Ficha</button>
+                                <a href="{{ url_for('admin.editar_cliente', id=cliente.id) }}" class="text-[10px] px-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-600 font-black uppercase tracking-widest rounded-xl hover:bg-white transition shadow-sm">Editar</a>
+                                
+                                {% if cliente.status_acesso != 'inativo' %}
+                                <form action="{{ url_for('admin.inativar_cliente', id=cliente.id) }}" method="POST" class="inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="text-[10px] px-4 py-2.5 bg-yellow-50 border border-yellow-200 text-yellow-700 font-black uppercase tracking-widest rounded-xl hover:bg-yellow-100 transition shadow-sm" onclick="return confirm('Deseja inativar o acesso deste cliente?')">Inativar</button>
+                                </form>
+                                {% endif %}
 
-                            <form action="{{ url_for('admin.excluir_cliente', id=cliente.id) }}" method="POST" class="inline">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                <button type="submit" class="text-[10px] px-3 py-2 bg-red-50 text-red-600 font-bold rounded-lg hover:bg-red-100 transition" onclick="return confirm('ATENÇÃO EXTREMA: Excluir o cliente ({{ cliente.nome }}) apagará TODAS as faturas, documentos e históricos ligados a ele. Esta ação não pode ser desfeita. Deseja continuar?')">Excluir</button>
-                            </form>
+                                <form action="{{ url_for('admin.excluir_cliente', id=cliente.id) }}" method="POST" class="inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="text-[10px] px-4 py-2.5 bg-red-50 border border-red-100 text-red-600 font-black uppercase tracking-widest rounded-xl hover:bg-red-100 transition shadow-sm" onclick="return confirm('ATENÇÃO EXTREMA: Excluir o cliente ({{ cliente.nome }}) apagará TODAS as faturas, documentos e históricos ligados a ele. Esta ação não pode ser desfeita. Deseja continuar?')">Excluir</button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
 
-                    <div id="modal-visualizar-{{ cliente.id }}" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-navy/50 backdrop-blur-sm p-4">
-                        <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-8 relative overflow-y-auto max-h-[90vh]">
-                            <button onclick="document.getElementById('modal-visualizar-{{ cliente.id }}').classList.add('hidden')" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black text-xl">X</button>
+                    <div id="modal-visualizar-{{ cliente.id }}" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
+                        <div class="bg-white/90 backdrop-blur-2xl border border-white/40 w-full max-w-xl rounded-[2.5rem] shadow-2xl p-10 relative overflow-y-auto max-h-[90vh]">
+                            <button onclick="document.getElementById('modal-visualizar-{{ cliente.id }}').classList.add('hidden')" class="absolute top-8 right-8 text-gray-400 hover:text-gray-900 font-black text-xl">X</button>
                             <h2 class="text-2xl font-black text-navy mb-6 border-b border-gray-100 pb-4">Ficha do Cliente</h2>
                             
-                            <div class="space-y-3 text-sm font-medium text-gray-600">
+                            <div class="space-y-4 text-sm font-medium text-gray-600">
                                 <div class="grid grid-cols-2 gap-4">
-                                    <div class="bg-gray-50 p-3 rounded-xl"><span class="block text-[10px] uppercase font-black text-gray-400">Nome Completo</span><span class="text-navy font-bold">{{ cliente.nome }}</span></div>
-                                    <div class="bg-gray-50 p-3 rounded-xl"><span class="block text-[10px] uppercase font-black text-gray-400">CPF</span><span class="text-navy font-bold">{{ cliente.cpf }}</span></div>
+                                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><span class="block text-[10px] uppercase font-black text-gray-400 mb-1">Nome Completo</span><span class="text-navy font-bold">{{ cliente.nome }}</span></div>
+                                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><span class="block text-[10px] uppercase font-black text-gray-400 mb-1">CPF</span><span class="text-navy font-bold">{{ cliente.cpf }}</span></div>
                                 </div>
                                 <div class="grid grid-cols-2 gap-4">
-                                    <div class="bg-gray-50 p-3 rounded-xl"><span class="block text-[10px] uppercase font-black text-gray-400">E-mail</span><span class="text-navy font-bold break-words">{{ cliente.email or 'Não preenchido' }}</span></div>
-                                    <div class="bg-gray-50 p-3 rounded-xl"><span class="block text-[10px] uppercase font-black text-gray-400">Celular / WhatsApp</span><span class="text-navy font-bold">{{ cliente.celular or 'Não preenchido' }}</span></div>
+                                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><span class="block text-[10px] uppercase font-black text-gray-400 mb-1">E-mail</span><span class="text-navy font-bold break-words">{{ cliente.email or 'Não preenchido' }}</span></div>
+                                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><span class="block text-[10px] uppercase font-black text-gray-400 mb-1">Celular / WhatsApp</span><span class="text-navy font-bold">{{ cliente.celular or 'Não preenchido' }}</span></div>
                                 </div>
-                                <div class="bg-gray-50 p-3 rounded-xl"><span class="block text-[10px] uppercase font-black text-gray-400">Endereço Completo</span><span class="text-navy font-bold">{{ cliente.endereco or 'Não preenchido' }}</span></div>
+                                <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><span class="block text-[10px] uppercase font-black text-gray-400 mb-1">Endereço Completo</span><span class="text-navy font-bold">{{ cliente.endereco or 'Não preenchido' }}</span></div>
                                 
-                                <div class="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                                    <span class="block text-[10px] uppercase font-black text-blue-400 mb-2">Corretoras Alocadas</span>
+                                <div class="bg-blue-50/50 p-5 rounded-xl border border-blue-100">
+                                    <span class="block text-[10px] uppercase font-black text-blue-500 mb-3">Corretoras Alocadas</span>
                                     {% if cliente.alocacoes %}
                                         <div class="space-y-2">
                                         {% for aloc in cliente.alocacoes %}
-                                            <div class="flex justify-between items-center bg-white p-2 rounded-lg border border-blue-50">
-                                                <span class="text-royal font-black text-xs tracking-widest">{{ aloc.nome_corretora }}</span>
-                                                <span class="text-green-600 font-black text-xs">R$ {{ aloc.capital_alocado|format_brl }}</span>
+                                            <div class="flex justify-between items-center bg-white px-4 py-3 rounded-xl border border-blue-50 shadow-sm">
+                                                <span class="text-royal font-black text-xs tracking-widest uppercase">{{ aloc.nome_corretora }}</span>
+                                                <span class="text-green-600 font-black text-sm">R$ {{ aloc.capital_alocado|format_brl }}</span>
                                             </div>
                                         {% endfor %}
                                         </div>
                                     {% else %}
-                                        <span class="text-royal font-bold">Nenhuma corretora cadastrada</span>
+                                        <span class="text-royal font-bold text-xs">Nenhuma corretora cadastrada</span>
                                     {% endif %}
                                 </div>
                                 
                                 <div class="grid grid-cols-2 gap-4">
-                                    <div class="bg-gray-50 p-3 rounded-xl"><span class="block text-[10px] uppercase font-black text-gray-400">Termo Assinado?</span><span class="text-navy font-bold">{{ 'Sim' if cliente.termo_assinado else 'Não' }}</span></div>
-                                    <div class="bg-gray-50 p-3 rounded-xl"><span class="block text-[10px] uppercase font-black text-gray-400">Data de Cadastro</span><span class="text-navy font-bold">{{ cliente.data_cadastro.strftime('%d/%m/%Y') if cliente.data_cadastro else 'N/A' }}</span></div>
+                                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><span class="block text-[10px] uppercase font-black text-gray-400 mb-1">Termo Assinado?</span><span class="text-navy font-bold">{{ 'Sim' if cliente.termo_assinado else 'Não' }}</span></div>
+                                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><span class="block text-[10px] uppercase font-black text-gray-400 mb-1">Data de Cadastro</span><span class="text-navy font-bold">{{ cliente.data_cadastro.strftime('%d/%m/%Y') if cliente.data_cadastro else 'N/A' }}</span></div>
                                 </div>
                             </div>
                         </div>
@@ -131,16 +133,23 @@
     </div>
 </div>
 
-<div id="modal-novo-acesso" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-navy/50 backdrop-blur-sm p-4">
-    <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 relative">
-        <button onclick="document.getElementById('modal-novo-acesso').classList.add('hidden')" class="absolute top-6 right-6 text-gray-400 font-black text-xl">X</button>
-        <h2 class="text-xl font-black text-navy mb-6">Novo Acesso</h2>
-        <form method="POST" action="{{ url_for('admin.liberar_cliente') }}" class="space-y-4">
+<div id="modal-novo-acesso" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
+    <div class="bg-white/90 backdrop-blur-2xl border border-white/40 w-full max-w-md rounded-[2.5rem] shadow-2xl p-10 relative">
+        <button onclick="document.getElementById('modal-novo-acesso').classList.add('hidden')" class="absolute top-6 right-6 text-gray-400 hover:text-navy font-black text-xl transition">X</button>
+        <h2 class="text-2xl font-black text-navy mb-6">Novo Acesso</h2>
+        <form method="POST" action="{{ url_for('admin.liberar_cliente') }}" class="space-y-5">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-            <input type="text" name="nome_temp" placeholder="Nome do Cliente" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-royal transition">
-            <input type="text" name="cpf" placeholder="CPF (Apenas números)" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-royal transition">
             
-            <div class="mt-4 p-4 bg-purple-50 border border-purple-100 rounded-xl flex items-center justify-between shadow-sm">
+            <div>
+                <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 block ml-1">Nome do Parceiro</label>
+                <input type="text" name="nome_temp" required class="w-full px-5 py-4 bg-white border border-gray-200 rounded-xl outline-none focus:border-royal transition shadow-inner">
+            </div>
+            <div>
+                <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 block ml-1">Documento (CPF)</label>
+                <input type="text" name="cpf" required class="w-full px-5 py-4 bg-white border border-gray-200 rounded-xl outline-none focus:border-royal transition shadow-inner" placeholder="Apenas números">
+            </div>
+            
+            <div class="mt-4 p-5 bg-purple-50/50 border border-purple-100 rounded-xl flex items-center justify-between shadow-sm">
                 <div>
                     <p class="text-xs font-black text-purple-900 uppercase tracking-widest">Cliente Isento</p>
                     <p class="text-[10px] text-purple-600/80 font-bold mt-1 leading-tight">Não será cobrado repasse (0%).</p>
@@ -151,7 +160,7 @@
                 </label>
             </div>
 
-            <button type="submit" class="w-full py-4 bg-royal hover:bg-royal-dark text-white font-black uppercase tracking-widest rounded-xl transition shadow-lg mt-2">Liberar CPF</button>
+            <button type="submit" class="w-full py-4 bg-royal hover:bg-royal-dark text-white font-black uppercase tracking-widest rounded-xl transition shadow-lg mt-4">Liberar Documento</button>
         </form>
     </div>
 </div>
