@@ -62,6 +62,7 @@
                                             <div class="flex items-center gap-3">
                                                 <button type="button" onclick="document.getElementById('modal-dia-{{ dia.id }}').classList.remove('hidden')" class="bg-white text-green-600 border border-green-200 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-sm hover:scale-105 transition">Ver Detalhes</button>
                                                 <form action="{{ url_for('client.remover_fatura', dia_id=dia.id) }}" method="POST">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                                     <button type="submit" class="text-red-400 hover:text-red-600 font-bold text-xs uppercase transition ml-2">Remover</button>
                                                 </form>
                                             </div>
@@ -157,6 +158,7 @@
                         </div>
                     {% else %}
                         <form action="{{ url_for('client.enviar_comprovante', fatura_id=fatura.id) }}" method="POST" enctype="multipart/form-data" class="flex flex-col gap-3">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                             <label class="text-xs font-bold text-gray-500 uppercase tracking-widest text-left">Anexar Comprovante</label>
                             <input type="file" name="comprovante" accept="image/*,.pdf" required class="w-full text-xs text-gray-500 file:mr-2 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-gray-100 file:text-navy file:font-bold cursor-pointer bg-gray-50 rounded-2xl border border-dashed border-gray-200 p-2 outline-none">
                             <button type="submit" class="w-full py-3 bg-royal text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-md hover:bg-royal-dark transition">Enviar Recibo</button>
@@ -197,6 +199,7 @@ async function enviarRelatorio(diaId, senhaManual = null) {
 
     const formData = new FormData();
     formData.append('dia_id', diaId);
+    formData.append('csrf_token', '{{ csrf_token() }}'); // <-- CORREÇÃO: Token adicionado para evitar Erro 400
     if (fileInput.files[0]) formData.append('relatorio_pdf', fileInput.files[0]);
     if (senhaManual) formData.append('senha_manual', senhaManual);
 
@@ -251,8 +254,13 @@ function mudarAba(nome) {
     document.querySelectorAll('.aba-conteudo').forEach(el => el.classList.add('hidden', 'opacity-0'));
     document.getElementById('tab-'+nome).classList.remove('hidden');
     setTimeout(() => document.getElementById('tab-'+nome).classList.remove('opacity-0'), 50);
-    document.querySelectorAll('.aba-btn').forEach(b => b.classList.replace('bg-royal', 'bg-gray-100'));
-    document.getElementById('btn-tab-'+nome).classList.replace('bg-gray-100', 'bg-royal');
+    document.querySelectorAll('.aba-btn').forEach(b => {
+        b.classList.remove('bg-royal', 'text-white', 'shadow-md');
+        b.classList.add('bg-gray-100', 'text-gray-500');
+    });
+    const activeBtn = document.getElementById('btn-tab-'+nome);
+    activeBtn.classList.remove('bg-gray-100', 'text-gray-500');
+    activeBtn.classList.add('bg-royal', 'text-white', 'shadow-md');
 }
 </script>
 {% endblock %}
