@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 import cloudinary
 import cloudinary.uploader
 from app.utils.filters import format_brl, to_tz_br
-from app.cli import register_cli_commands
+# A importação do cli.py foi removida daqui do topo!
 
 db = SQLAlchemy()
 migrate = Migrate()
@@ -50,11 +50,15 @@ def create_app():
     
     login_manager.login_view = 'auth.login'
     
-    # REGISTRO DOS FILTROS NO JINJA (Puxados do novo ficheiro)
+    # REGISTRO DOS FILTROS NO JINJA (Puxados do novo arquivo)
     app.jinja_env.filters['format_brl'] = format_brl
     app.jinja_env.filters['to_tz_br'] = to_tz_br
 
-    # REGISTRO DOS COMANDOS DE TERMINAL
+    # ==========================================
+    # CORREÇÃO DA IMPORTAÇÃO CIRCULAR AQUI
+    # A importação acontece depois que o 'db' já existe.
+    # ==========================================
+    from app.cli import register_cli_commands
     register_cli_commands(app)
 
     from app.auth.routes import auth_bp
