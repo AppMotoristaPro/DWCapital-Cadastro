@@ -222,7 +222,13 @@ def api_status_documento(doc_id):
 @client_bp.route('/ajuda')
 @login_required
 def ajuda():
-    mensagem = f"Olá, sou {current_user.nome}. Preciso de suporte referente ao portal DW Capital."
-    msg_encoded = urllib.parse.quote(mensagem)
-    return render_template('client/ajuda.html', link_suporte=f"https://wa.me/5511991167709?text={msg_encoded}")
+    msg_suporte = f"Olá, sou {current_user.nome}. Preciso de suporte técnico no portal DW Capital."
+    msg_suporte_encoded = urllib.parse.quote(msg_suporte)
+    
+    msg_comercial = f"Olá, sou {current_user.nome}. Preciso de atendimento comercial/financeiro."
+    msg_comercial_encoded = urllib.parse.quote(msg_comercial)
+    
+    return render_template('client/ajuda.html', 
+                           link_suporte=f"https://wa.me/5511991167709?text={msg_suporte_encoded}",
+                           link_comercial=f"https://wa.me/5511920504850?text={msg_comercial_encoded}")
 

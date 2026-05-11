@@ -110,14 +110,20 @@ def primeiro_acesso():
             
             AlocacaoCorretora.query.filter_by(user_id=user.id).delete()
             
+            soma_capital = 0.0 # Inicializa o contador de capital
+            
             for corretora, capital in zip(corretoras_selecionadas, capitais_alocados):
                 if corretora and capital:
+                    valor_capital = float(capital)
                     nova_alocacao = AlocacaoCorretora(
                         user_id=user.id,
                         nome_corretora=corretora.upper(),
-                        capital_alocado=float(capital)
+                        capital_alocado=valor_capital
                     )
                     db.session.add(nova_alocacao)
+                    soma_capital += valor_capital # Soma o capital de cada corretora adicionada
+            
+            user.capital_alocado = soma_capital # Salva o total calculado no perfil do cliente
             
             db.session.commit()
             flash('Cadastro concluído com sucesso! Bem-vindo à DW Capital.', 'auth_success')
