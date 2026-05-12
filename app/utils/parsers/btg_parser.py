@@ -20,8 +20,11 @@ def extrair_dados_btg(caminho_arquivo):
         data_pregao = match_data.group(1) if match_data else None
         print(f"[BTG_PARSER] Data encontrada: {data_pregao}\n")
 
-        # --- A VACINA CONTRA O LIXO DO RODAPÉ ---
-        texto_completo = re.split(r'Custos BM&F', texto_completo_original, flags=re.IGNORECASE)[0]
+        # --- FILTRO INTELIGENTE DE RODAPÉ ---
+        # Apaga o lixo linha por linha, garantindo que o "Total líquido da nota" não seja deletado acidentalmente
+        linhas = texto_completo_original.split('\n')
+        linhas_limpas = [l for l in linhas if not any(x in l.upper() for x in ['CUSTOS BM&F', 'OZ1', 'OZ2', 'OZ3', 'OUVIDORIA', 'TOTAL REMUNERAÇÃO', 'CAPITAIS E REGIÕES'])]
+        texto_completo = '\n'.join(linhas_limpas)
 
         def extrair_por_posicao(nome_campo, padrao, texto, posicao, aceita_cd=False, janela_tras=0, janela_frente=200):
             print(f"\n  [BUSCA] Analisando Campo: '{nome_campo}'")
@@ -86,17 +89,19 @@ def extrair_dados_btg(caminho_arquivo):
                 print(f"    -> [ERRO] A palavra-chave '{padrao}' sumiu do PDF.")
             return 0.0
 
-        # --- NOVA EXTRAÇÃO SIMPLIFICADA (BRUTO E LÍQUIDO) ---
+        # --- ESTRATÉGIA UNIFICADA (BRUTO E LÍQUIDO) ---
         v_bruto = extrair_por_posicao("Valor Bruto", r"Ajuste day trade", texto_completo, 10, aceita_cd=True, janela_tras=0, janela_frente=300)
         
-        # Pega a âncora "Total líquido da nota" e fisga o ÚLTIMO valor numérico (-1) que aparecer no bloco de texto (Janela expandida)
-        v_liquido_pregao = extrair_por_posicao("Líquido da Nota", r"Total l[ií]quido da nota", texto_completo, -1, aceita_cd=True, janela_tras=0, janela_frente=1500)
+        # Como limpamos o rodapé de forma segura, podemos buscar o -1 na janela expandida sem medo de pegar cotação de ouro
+        v_liquido_pregao = extrair_por_posicao("Líquido da Nota", r"Total l[ií]quido da nota", texto_completo, -1, aceita_cd=True, janela_tras=0, janela_frente=600)
 
         print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS DO PREGÃO ---")
         
+        # Custos Operacionais = Diferença Absoluta entre o Bruto e o Líquido
         v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
         print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
 
+        # Para manter compatibilidade com o Banco de Dados sem migrations
         v_taxas_b3 = v_custos_unificados
         v_irrf_1 = 0.0
 
@@ -110,7 +115,7 @@ def extrair_dados_btg(caminho_arquivo):
             print(f"    Fórmula: IRRF 19% = 0.00 (Pregão foi LOSS ou Zero)")
             
         v_liquido_dia = round(v_liquido_pregao - v_irrf_19, 2)
-        print(f"    Fórmula: Líquido do Dia = {v_liquido_pregao} - {v_irrf_19} = {v_liquido_dia}")
+        print(f"    Fórmula: Líquido Real = {v_liquido_pregao} - {v_irrf_19} = {v_liquido_dia}")
         
         if v_liquido_dia > 0:
             v_repasse = round(v_liquido_dia * 0.30, 2)
