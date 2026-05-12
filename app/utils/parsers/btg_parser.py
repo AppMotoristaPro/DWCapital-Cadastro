@@ -20,11 +20,12 @@ def extrair_dados_btg(caminho_arquivo):
         data_pregao = match_data.group(1) if match_data else None
         print(f"[BTG_PARSER] Data encontrada: {data_pregao}\n")
 
-        # --- FILTRO INTELIGENTE DE RODAPÉ ---
-        # Apaga o lixo linha por linha, garantindo que o "Total líquido da nota" não seja deletado acidentalmente
-        linhas = texto_completo_original.split('\n')
-        linhas_limpas = [l for l in linhas if not any(x in l.upper() for x in ['CUSTOS BM&F', 'OZ1', 'OZ2', 'OZ3', 'OUVIDORIA', 'TOTAL REMUNERAÇÃO', 'CAPITAIS E REGIÕES'])]
-        texto_completo = '\n'.join(linhas_limpas)
+        # --- LIMPEZA CIRÚRGICA DE RODAPÉ ---
+        # Substitui os valores fantasmas por espaço para não explodir a linha e preservar as âncoras
+        texto_completo = texto_completo_original
+        texto_completo = re.sub(r'(?:OZ1|OZ2|OZ3)[-\s]*\d+,\d+\s*grs\.?', ' ', texto_completo, flags=re.IGNORECASE)
+        texto_completo = re.sub(r'(?:0800|4007|4004)[-\s]*\d{3,4}[-\s]*\d{4}', ' ', texto_completo)
+        texto_completo = re.sub(r'Total remunera[çc][ãa]o.*', ' ', texto_completo, flags=re.IGNORECASE)
 
         def extrair_por_posicao(nome_campo, padrao, texto, posicao, aceita_cd=False, janela_tras=0, janela_frente=200):
             print(f"\n  [BUSCA] Analisando Campo: '{nome_campo}'")
@@ -36,18 +37,12 @@ def extrair_dados_btg(caminho_arquivo):
                 fim = min(len(texto), match.end() + janela_frente)
                 bloco = texto[inicio:fim]
                 
-                print(f"    -> [TEXTO CRU LIDO]:")
-                print(f"       {repr(bloco)}")
-                
                 bloco_limpo = bloco.replace('|', ' ')
                 bloco_limpo = re.sub(r'\b1\s+D\b', ' D', bloco_limpo, flags=re.IGNORECASE)
                 bloco_limpo = re.sub(r'\b1\s+C\b', ' C', bloco_limpo, flags=re.IGNORECASE)
                 bloco_limpo = re.sub(r'(,\d{2})1\s*([CDcd])\b', r'\1 \2', bloco_limpo)
                 bloco_limpo = re.sub(r'(,\d{2})\s*([CDcd])\b', r'\1 \2', bloco_limpo)
                 
-                print(f"    -> [TEXTO LIMPO (Tratamento de Letras e Pipes)]:")
-                print(f"       {repr(bloco_limpo)}")
-
                 regex_numeros = r"(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})\s*([CDcd])?"
                 matches = re.findall(regex_numeros, bloco_limpo)
                 
@@ -92,8 +87,8 @@ def extrair_dados_btg(caminho_arquivo):
         # --- ESTRATÉGIA UNIFICADA (BRUTO E LÍQUIDO) ---
         v_bruto = extrair_por_posicao("Valor Bruto", r"Ajuste day trade", texto_completo, 10, aceita_cd=True, janela_tras=0, janela_frente=300)
         
-        # Como limpamos o rodapé de forma segura, podemos buscar o -1 na janela expandida sem medo de pegar cotação de ouro
-        v_liquido_pregao = extrair_por_posicao("Líquido da Nota", r"Total l[ií]quido da nota", texto_completo, -1, aceita_cd=True, janela_tras=0, janela_frente=600)
+        # Janela ampla para frente e para trás para garantir a captura independentemente da ordem do parser
+        v_liquido_pregao = extrair_por_posicao("Líquido da Nota", r"Total l[ií]quido da nota", texto_completo, -1, aceita_cd=True, janela_tras=500, janela_frente=1500)
 
         print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS DO PREGÃO ---")
         
