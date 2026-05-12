@@ -38,28 +38,42 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
     else:
         faturas_filtradas = faturas_base.all()
         
-    faturamento_total = sum(f.repasse for f in faturas_filtradas)
-    faturamento_bruto_total = sum(f.bruto for f in faturas_filtradas)
-    
+    # Inicializa variáveis
+    faturamento_total = 0.0
+    faturamento_bruto_total = 0.0
     dados_grafico_raw = {}
     rois_clientes = {}
 
+    # Varredura granular, dia a dia, respeitando o filtro
     for f in faturas_filtradas:
         capital_cliente = f.cliente.capital_alocado or 0.0
         
         if f.user_id not in rois_clientes:
-            # Iniciamos com um 'set' para garantir que, mesmo operando em 3 corretoras no dia 05/05, conte apenas como 1 dia operado
+            # Iniciamos com um 'set' para garantir que, mesmo operando em 3 corretoras no dia, conte apenas como 1 dia operado
             rois_clientes[f.user_id] = {
                 'bruto_acumulado': 0.0, 
                 'capital': capital_cliente,
                 'dias_operados': set()
             }
             
-        rois_clientes[f.user_id]['bruto_acumulado'] += f.bruto
-
         for d in f.dias:
-            if d.status == 'relatorio_enviado' and d.bruto != 0:
-                rois_clientes[f.user_id]['dias_operados'].add(d.data_pregao)
+            # Se filtrou por dia específico, ignora os outros dias da semana
+            if filtro_dia and d.data_pregao != dt_dia:
+                continue
+                
+            # Se filtrou por ano, garante que o dia está no ano
+            if filtro_ano and d.data_pregao.year != ano:
+                continue
+
+            if d.status == 'relatorio_enviado':
+                # Soma os valores globais do admin baseados apenas nos dias filtrados
+                faturamento_total += d.repasse
+                faturamento_bruto_total += d.bruto
+                
+                if d.bruto != 0:
+                    rois_clientes[f.user_id]['bruto_acumulado'] += d.bruto
+                    rois_clientes[f.user_id]['dias_operados'].add(d.data_pregao)
+                    
                 dados_grafico_raw[d.data_pregao] = dados_grafico_raw.get(d.data_pregao, 0.0) + d.bruto
 
     datas_ordenadas = sorted(dados_grafico_raw.keys())
@@ -98,6 +112,7 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
     
     capital_total = alocado_row[0] or 0.0
     
+    # Agora a média de clientes usa a divisão pelo total de clientes ativos (ou número de faturas filtradas)
     qtd_faturas = len(faturas_filtradas)
     media_cliente = faturamento_bruto_total / qtd_faturas if qtd_faturas > 0 else 0.0
     
@@ -156,15 +171,21 @@ def obter_dados_dashboard_cliente(user_id, filtro_dia, filtro_semana_dia, filtro
             faturas_filtradas = []
             label_periodo = "Semana Atual"
 
-    bruto_total = sum(f.bruto for f in faturas_filtradas)
-    liquido_total = sum(f.liquido for f in faturas_filtradas)
-    
+    bruto_total = 0.0
+    liquido_total = 0.0
     dados_grafico_raw = {}
 
-    # Agrupa por dia, pois o cliente pode ter 3 corretoras no mesmo dia. O gráfico soma todas as operações diárias.
+    # Agrupa por dia para garantir que os filtros diários também afetem os cards
     for f in faturas_filtradas:
         for d in f.dias:
+            if filtro_dia and d.data_pregao != dt_dia:
+                continue
+            if filtro_ano and d.data_pregao.year != ano:
+                continue
+                
             if d.status == 'relatorio_enviado':
+                bruto_total += d.bruto
+                liquido_total += d.liquido
                 dados_grafico_raw[d.data_pregao] = dados_grafico_raw.get(d.data_pregao, 0.0) + d.liquido
 
     datas_ordenadas = sorted(dados_grafico_raw.keys())
