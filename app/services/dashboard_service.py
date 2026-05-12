@@ -5,7 +5,7 @@ from app.models import Fatura, User
 def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
     """
     Processa toda a matemática do dashboard admin: filtros de data, 
-    faturamento bruto/líquido, cálculo de ROI e agregação do gráfico.
+    faturamento bruto/líquido, cálculo de ROI Diário Médio e agregação do gráfico.
     """
     faturas_base = Fatura.query.join(User).filter(
         Fatura.status.in_(['parcial', 'completo', 'pago', 'inadimplente']),
@@ -48,12 +48,18 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
         capital_cliente = f.cliente.capital_alocado or 0.0
         
         if f.user_id not in rois_clientes:
-            rois_clientes[f.user_id] = {'bruto_acumulado': 0.0, 'capital': capital_cliente}
+            # Iniciamos com um 'set' para garantir que, mesmo operando em 3 corretoras no dia 05/05, conte apenas como 1 dia operado
+            rois_clientes[f.user_id] = {
+                'bruto_acumulado': 0.0, 
+                'capital': capital_cliente,
+                'dias_operados': set()
+            }
             
         rois_clientes[f.user_id]['bruto_acumulado'] += f.bruto
 
         for d in f.dias:
             if d.status == 'relatorio_enviado' and d.bruto != 0:
+                rois_clientes[f.user_id]['dias_operados'].add(d.data_pregao)
                 dados_grafico_raw[d.data_pregao] = dados_grafico_raw.get(d.data_pregao, 0.0) + d.bruto
 
     datas_ordenadas = sorted(dados_grafico_raw.keys())
@@ -62,9 +68,12 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
 
     lista_rois = []
     for uid, dados in rois_clientes.items():
-        if dados['capital'] > 0 and dados['bruto_acumulado'] != 0:
-            roi_cliente = (dados['bruto_acumulado'] / dados['capital']) * 100
-            lista_rois.append(roi_cliente)
+        qtd_dias = len(dados['dias_operados'])
+        # Só calcula o ROI se o cliente tiver capital, dinheiro bruto gerado e dias operados computados
+        if dados['capital'] > 0 and dados['bruto_acumulado'] != 0 and qtd_dias > 0:
+            media_diaria_bruta = dados['bruto_acumulado'] / qtd_dias
+            roi_cliente_diario = (media_diaria_bruta / dados['capital']) * 100
+            lista_rois.append(roi_cliente_diario)
 
     if lista_rois:
         roi_min = min(lista_rois)
