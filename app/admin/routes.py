@@ -1,6 +1,8 @@
 import os
 import random
 import string
+import requests
+from tempfile import NamedTemporaryFile
 from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app
 from flask_login import current_user
 from werkzeug.security import generate_password_hash
@@ -11,6 +13,7 @@ from app.utils.decorators import admin_required
 from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo
 from app.services.documento_service import disparar_lote
 from app.services.dashboard_service import obter_dados_dashboard
+from app.utils.parsers.gerenciador_pdf import processar_pdf
 import pytz
 
 tz_br = pytz.timezone('America/Sao_Paulo')
@@ -417,4 +420,72 @@ def disparar_documento():
         flash(f'Ocorreu um erro inesperado: {str(e)}', 'error')
         
     return redirect(url_for('admin.documentos'))
+
+# --- ROTA DE REPROCESSAMENTO EM LOTE (BATCH JOB) ---
+@admin_bp.route('/reprocessar_notas_antigas', methods=['GET'])
+@admin_required
+def reprocessar_notas_antigas():
+    # Busca todas as faturas diárias que já têm um PDF anexado
+    dias_enviados = FaturaDiaria.query.filter(
+        FaturaDiaria.status == 'relatorio_enviado',
+        FaturaDiaria.arquivo_pdf.isnot(None)
+    ).all()
+    
+    sucesso = 0
+    erros = 0
+    faturas_afetadas = set()
+    
+    for dia in dias_enviados:
+        try:
+            # Baixa o PDF do Cloudinary temporariamente para a memória do servidor
+            response = requests.get(dia.arquivo_pdf, timeout=15)
+            if response.status_code == 200:
+                with NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
+                    temp_pdf.write(response.content)
+                    temp_path = temp_pdf.name
+                
+                # Identifica o CPF do cliente para repassar ao motor de leitura (necessário para XP)
+                cpf_cliente = dia.fatura_semanal.cliente.cpf
+                
+                # Passa o PDF no motor cérebro atualizado
+                dados = processar_pdf(temp_path, dia.nome_corretora, cpf_cliente, None)
+                
+                if dados:
+                    # Sobrescreve os dados velhos com a matemática perfeita unificada
+                    dia.bruto = dados.get('bruto')
+                    dia.taxas_b3 = dados.get('taxas_b3') # Guarda Custos Unificados (B3+IR)
+                    dia.irrf_1 = 0.0                     # Zera pois já está nos custos unificados
+                    dia.liquido_pregao = dados.get('liquido_pregao')
+                    dia.irrf_19 = dados.get('irrf_19')
+                    dia.liquido = dados.get('liquido_dia')
+                    
+                    if getattr(dia.fatura_semanal.cliente, 'is_isento', False):
+                        dia.repasse = 0.0
+                    else:
+                        dia.repasse = dados.get('repasse_dw')
+                    
+                    faturas_afetadas.add(dia.fatura_semanal)
+                    sucesso += 1
+                else:
+                    erros += 1
+                    
+                # Apaga o PDF temporário do servidor
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+            else:
+                erros += 1
+        except Exception as e:
+            print(f"Erro ao reprocessar dia {dia.id}: {str(e)}")
+            erros += 1
+            
+    # Recalcula a gaveta semanal para propagar o repasse da DW
+    for fatura in faturas_afetadas:
+        atualizar_totais_semana(fatura)
+        
+    db.session.commit()
+    
+    registrar_log(f"Executou Batch Job: Reprocessou e corrigiu {sucesso} notas antigas (Falhas: {erros}).", "Sistema")
+    flash(f'Reprocessamento concluído com sucesso! {sucesso} notas financeiras foram corrigidas com o novo motor unificado ({erros} não puderam ser lidas).', 'success')
+    
+    return redirect(url_for('admin.dashboard'))
 
