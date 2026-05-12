@@ -3,22 +3,25 @@ from pypdf import PdfReader
 
 def extrair_dados_genial(caminho_arquivo):
     print(f"\n==================================================")
-    print(f"[GENIAL_PARSER] INICIANDO ROBÔ GENIAL (HÍBRIDO + JANELA)")
+    print(f"[GENIAL_PARSER] INICIANDO ROBÔ GENIAL (UNIFICADA + MATEMÁTICA BLINDADA)")
     print(f"==================================================")
     print(f"[GENIAL_PARSER] Arquivo alvo: {caminho_arquivo}")
     try:
         leitor = PdfReader(caminho_arquivo)
         ultima_pagina = leitor.pages[-1]
-        texto_completo = ultima_pagina.extract_text()
+        texto_completo_original = ultima_pagina.extract_text()
         print("[GENIAL_PARSER] Texto lido com sucesso.")
 
-        if "GENIAL" not in texto_completo.upper():
+        if "GENIAL" not in texto_completo_original.upper():
             print("[GENIAL_PARSER] ERRO: O PDF não pertence à Genial Investimentos.")
             return None
 
-        match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo)
+        match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo_original)
         data_pregao = match_data.group(1) if match_data else None
         print(f"[GENIAL_PARSER] Data encontrada: {data_pregao}\n")
+
+        # --- A VACINA CONTRA O LIXO DO RODAPÉ ---
+        texto_completo = re.split(r'Custos BM&F', texto_completo_original, flags=re.IGNORECASE)[0]
 
         def extrair_por_posicao(nome_campo, padrao, texto, posicao, aceita_cd=False, janela_tras=0, janela_frente=200):
             print(f"\n  [BUSCA] Analisando Campo: '{nome_campo}'")
@@ -30,22 +33,10 @@ def extrair_dados_genial(caminho_arquivo):
                 fim = min(len(texto), match.end() + janela_frente)
                 bloco = texto[inicio:fim]
 
-                print(f"    -> [TEXTO CRU LIDO]:")
-                print(f"       {repr(bloco[:150])}...")
-
-                # LIMPEZA ESPECÍFICA DA GENIAL
                 bloco_limpo = bloco.replace('|', ' ')
-                
-                # O Aspirador de Zeros: Sugando '0,00' que separa o Valor da Letra (Ex: 820,00 0,00 D -> 820,00 D)
                 bloco_limpo = re.sub(r'(,\d{2})\s+(?:0,00\s*)+([CDcd])\b', r'\1 \2', bloco_limpo, flags=re.IGNORECASE)
-                
-                # Garantindo que a letra grude no número se tiver apenas espaço (Ex: 100,00 C -> 100,00 C)
                 bloco_limpo = re.sub(r'(,\d{2})\s*([CDcd])\b', r'\1 \2', bloco_limpo, flags=re.IGNORECASE)
 
-                print(f"    -> [TEXTO LIMPO (Sem zeros intrusos)]:")
-                print(f"       {repr(bloco_limpo[:150])}...")
-
-                # A REGEX PREDADORA
                 regex_numeros = r"(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})\s*([CDcd])?"
                 matches = re.findall(regex_numeros, bloco_limpo)
 
@@ -87,17 +78,29 @@ def extrair_dados_genial(caminho_arquivo):
                 print(f"    -> [ERRO] A palavra-chave '{padrao}' sumiu do PDF.")
             return 0.0
 
-        # --- EXTRAÇÃO DE DADOS POR POSIÇÃO NA GENIAL ---
-        # ATUALIZADO: Posição do IRRF alterada de 2 para 1 conforme análise dos logs
+        # --- EXTRAÇÃO SIMPLIFICADA (BRUTO E LÍQUIDO) ---
         v_bruto = extrair_por_posicao("Valor Bruto", r"Valor dos negócios", texto_completo, 1, aceita_cd=True, janela_tras=0, janela_frente=200)
-        v_irrf_1 = extrair_por_posicao("IRRF Day Trade (1%)", r"IRRF Day Trade", texto_completo, 1, aceita_cd=False, janela_tras=0, janela_frente=200)
-        v_taxas_b3 = extrair_por_posicao("Taxas B3", r"Total das despesas", texto_completo, 4, aceita_cd=False, janela_tras=0, janela_frente=200)
+        v_liquido_pregao = extrair_por_posicao("Líquido da Nota", r"Total l[ií]quido da nota", texto_completo, -1, aceita_cd=True, janela_tras=0, janela_frente=200)
 
         print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS DO PREGÃO ---")
+        
+        v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+        
+        # --- A VACINA MATEMÁTICA: CORREÇÃO DE SINAL ---
+        # Se os custos derem negativo, significa que o PDF separou a letra 'D' do Líquido e o robô o leu como positivo.
+        if v_custos_unificados < 0:
+            print(f"    [!] Anomalia detectada: Custos negativos ({v_custos_unificados}). O PDF ocultou o sinal de Loss!")
+            v_liquido_pregao = -abs(v_liquido_pregao)
+            v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+            print(f"    [!] Correção aplicada. Novo Líquido: {v_liquido_pregao} | Novos Custos: {v_custos_unificados}")
+        else:
+            print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
 
-        print(f"    Fórmula: Líquido Pregão = Bruto ({v_bruto}) - Taxas B3 ({v_taxas_b3}) - IRRF 1% ({v_irrf_1})")
-        v_liquido_pregao = round(v_bruto - v_taxas_b3 - v_irrf_1, 2)
-        print(f"    Resultado Líquido Pregão: {v_liquido_pregao}")
+        # Para manter compatibilidade com o Banco de Dados
+        v_taxas_b3 = v_custos_unificados
+        v_irrf_1 = 0.0
+
+        print(f"    Fórmula: Líquido Pregão (Extraído Direto) = {v_liquido_pregao}")
 
         if v_liquido_pregao > 0:
             v_irrf_19 = round(v_liquido_pregao * 0.19, 2)
@@ -107,7 +110,7 @@ def extrair_dados_genial(caminho_arquivo):
             print(f"    Fórmula: IRRF 19% = 0.00 (Pregão foi LOSS ou Zero)")
 
         v_liquido_dia = round(v_liquido_pregao - v_irrf_19, 2)
-        print(f"    Fórmula: Líquido do Dia = {v_liquido_pregao} - {v_irrf_19} = {v_liquido_dia}")
+        print(f"    Fórmula: Líquido Real = {v_liquido_pregao} - {v_irrf_19} = {v_liquido_dia}")
 
         if v_liquido_dia > 0:
             v_repasse = round(v_liquido_dia * 0.30, 2)
