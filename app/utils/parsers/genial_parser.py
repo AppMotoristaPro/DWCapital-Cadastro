@@ -3,7 +3,7 @@ from pypdf import PdfReader
 
 def extrair_dados_genial(caminho_arquivo):
     print(f"\n==================================================")
-    print(f"[GENIAL_PARSER] INICIANDO ROBÔ GENIAL (UNIFICADA + BLINDADA)")
+    print(f"[GENIAL_PARSER] INICIANDO ROBÔ GENIAL (UNIFICADA + MATEMÁTICA BLINDADA)")
     print(f"==================================================")
     print(f"[GENIAL_PARSER] Arquivo alvo: {caminho_arquivo}")
     try:
@@ -21,7 +21,6 @@ def extrair_dados_genial(caminho_arquivo):
         print(f"[GENIAL_PARSER] Data encontrada: {data_pregao}\n")
 
         # --- A VACINA CONTRA O LIXO DO RODAPÉ ---
-        # Cortamos todo o texto de rodapé (taxas fixas e regras de ouro) para que o "-1" seja realmente o final
         texto_completo = re.split(r'Custos BM&F', texto_completo_original, flags=re.IGNORECASE)[0]
 
         def extrair_por_posicao(nome_campo, padrao, texto, posicao, aceita_cd=False, janela_tras=0, janela_frente=200):
@@ -79,17 +78,23 @@ def extrair_dados_genial(caminho_arquivo):
                 print(f"    -> [ERRO] A palavra-chave '{padrao}' sumiu do PDF.")
             return 0.0
 
-        # --- NOVA EXTRAÇÃO SIMPLIFICADA (BRUTO E LÍQUIDO) ---
+        # --- EXTRAÇÃO SIMPLIFICADA (BRUTO E LÍQUIDO) ---
         v_bruto = extrair_por_posicao("Valor Bruto", r"Valor dos negócios", texto_completo, 1, aceita_cd=True, janela_tras=0, janela_frente=200)
-        
-        # Como limpamos o rodapé, a posição -1 achará com perfeição o valor absoluto correto
         v_liquido_pregao = extrair_por_posicao("Líquido da Nota", r"Total l[ií]quido da nota", texto_completo, -1, aceita_cd=True, janela_tras=0, janela_frente=200)
 
         print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS DO PREGÃO ---")
         
-        # Custos Operacionais = Diferença Absoluta entre o Bruto e o Líquido
         v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
-        print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
+        
+        # --- A VACINA MATEMÁTICA: CORREÇÃO DE SINAL ---
+        # Se os custos derem negativo, significa que o PDF separou a letra 'D' do Líquido e o robô o leu como positivo.
+        if v_custos_unificados < 0:
+            print(f"    [!] Anomalia detectada: Custos negativos ({v_custos_unificados}). O PDF ocultou o sinal de Loss!")
+            v_liquido_pregao = -abs(v_liquido_pregao)
+            v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+            print(f"    [!] Correção aplicada. Novo Líquido: {v_liquido_pregao} | Novos Custos: {v_custos_unificados}")
+        else:
+            print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
 
         # Para manter compatibilidade com o Banco de Dados
         v_taxas_b3 = v_custos_unificados
@@ -105,7 +110,7 @@ def extrair_dados_genial(caminho_arquivo):
             print(f"    Fórmula: IRRF 19% = 0.00 (Pregão foi LOSS ou Zero)")
 
         v_liquido_dia = round(v_liquido_pregao - v_irrf_19, 2)
-        print(f"    Fórmula: Líquido do Dia = {v_liquido_pregao} - {v_irrf_19} = {v_liquido_dia}")
+        print(f"    Fórmula: Líquido Real = {v_liquido_pregao} - {v_irrf_19} = {v_liquido_dia}")
 
         if v_liquido_dia > 0:
             v_repasse = round(v_liquido_dia * 0.30, 2)
