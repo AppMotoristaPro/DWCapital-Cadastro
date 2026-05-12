@@ -15,7 +15,7 @@ def gerar_matricula_unica():
             return mat
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
-@limiter.limit("5 per minute")
+@limiter.limit("5 per minute", methods=["POST"]) # <-- CORREÇÃO: Limita apenas envios de form, não recarregamentos
 def login():
     if current_user.is_authenticated:
         if getattr(current_user, 'precisa_trocar_senha', False):
@@ -110,7 +110,7 @@ def primeiro_acesso():
             
             AlocacaoCorretora.query.filter_by(user_id=user.id).delete()
             
-            soma_capital = 0.0 # Inicializa o contador de capital
+            soma_capital = 0.0 
             
             for corretora, capital in zip(corretoras_selecionadas, capitais_alocados):
                 if corretora and capital:
@@ -121,9 +121,9 @@ def primeiro_acesso():
                         capital_alocado=valor_capital
                     )
                     db.session.add(nova_alocacao)
-                    soma_capital += valor_capital # Soma o capital de cada corretora adicionada
+                    soma_capital += valor_capital 
             
-            user.capital_alocado = soma_capital # Salva o total calculado no perfil do cliente
+            user.capital_alocado = soma_capital 
             
             db.session.commit()
             flash('Cadastro concluído com sucesso! Bem-vindo à DW Capital.', 'auth_success')

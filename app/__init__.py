@@ -5,22 +5,32 @@ from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from werkzeug.middleware.proxy_fix import ProxyFix
 import os
 from dotenv import load_dotenv
 import cloudinary
 import cloudinary.uploader
 from app.utils.filters import format_brl, to_tz_br
-# A importação do cli.py foi removida daqui do topo!
 
 db = SQLAlchemy()
 migrate = Migrate()
 login_manager = LoginManager()
 csrf = CSRFProtect()
-limiter = Limiter(key_func=get_remote_address)
+
+# Limiter configurado com headers ativos para avisar o navegador
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri="memory://",
+    strategy="fixed-window",
+    headers_enabled=True
+)
 
 def create_app():
     app = Flask(__name__)
     load_dotenv()
+    
+    # AJUSTE RENDER: Confia nos cabeçalhos de proxy para capturar o IP real do cliente
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
     
     secret_key = os.getenv('SECRET_KEY')
     if not secret_key:
@@ -96,7 +106,7 @@ def create_app():
 
     @app.errorhandler(429)
     def ratelimit_handler(e):
-        return "Calma aí! Você excedeu o limite de acessos. Tente novamente em alguns instantes.", 429
+        return render_template('errors/429.html'), 429
 
     return app
 
