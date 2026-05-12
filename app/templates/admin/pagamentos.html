@@ -1,48 +1,54 @@
 {% extends "admin/layout.html" %}
 {% block admin_content %}
-<div class="max-w-6xl mx-auto relative z-10 pb-20">
+<div class="max-w-7xl mx-auto relative z-10 pb-20">
     
     {% if not exibe_clientes %}
     <div class="flex justify-between items-end mb-8">
         <div>
-            <h1 class="text-4xl font-black text-navy tracking-tight">Gavetas Operacionais</h1>
-            <p class="text-gray-500 mt-2 font-medium">Selecione uma semana abaixo para auditar os pagamentos.</p>
+            <h1 class="text-4xl font-black text-navy tracking-tight">Auditoria Semanal</h1>
+            <p class="text-gray-500 mt-2 font-medium">Selecione o ciclo de faturamento para realizar o fechamento e repasse.</p>
         </div>
     </div>
 
-    <form method="GET" action="{{ url_for('admin.pagamentos') }}" class="mb-8 flex gap-4 bg-white p-2 rounded-2xl shadow-sm border border-gray-100 max-w-lg">
-        <input type="text" name="q" placeholder="Procurar um cliente específico..." class="flex-1 px-4 py-2 outline-none text-sm font-bold text-navy bg-transparent">
-        <button type="submit" class="px-6 py-3 bg-navy text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition">Buscar Cliente</button>
+    <form method="GET" action="{{ url_for('admin.pagamentos') }}" class="mb-10 flex gap-4 bg-white/60 backdrop-blur-xl p-3 rounded-[2rem] shadow-sm border border-white w-max max-w-full">
+        <input type="date" name="ciclo" required class="flex-1 px-5 py-3 outline-none text-sm font-bold text-navy bg-white rounded-xl border border-gray-100 cursor-pointer shadow-inner">
+        <button type="submit" class="px-8 py-3 bg-navy text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition shadow-md">Carregar Gaveta</button>
     </form>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {% for gaveta in gavetas %}
-        <a href="{{ url_for('admin.pagamentos', ciclo=gaveta.data_inicio.strftime('%Y-%m-%d')) }}" class="block bg-white p-6 rounded-3xl shadow-lg border border-gray-100 hover:border-royal hover:-translate-y-1 hover:shadow-xl transition-all duration-300 group">
-            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Ciclo de Operação</p>
-            <h3 class="text-2xl font-black text-navy group-hover:text-royal transition">{{ gaveta.data_inicio.strftime('%d/%m') }} <span class="text-gray-400 text-lg">a</span> {{ gaveta.data_fim.strftime('%d/%m/%Y') }}</h3>
+        <a href="{{ url_for('admin.pagamentos', ciclo=gaveta.data_inicio.strftime('%Y-%m-%d')) }}" class="block bg-white/80 backdrop-blur-xl p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white hover:border-royal/30 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 group">
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Ciclo de Operação</p>
+            <h3 class="text-2xl font-black text-navy group-hover:text-royal transition-colors">{{ gaveta.data_inicio.strftime('%d/%m') }} <span class="text-gray-300 text-lg mx-1">a</span> {{ gaveta.data_fim.strftime('%d/%m/%Y') }}</h3>
             
-            <div class="mt-6 flex items-center justify-between border-t border-gray-100 pt-4">
-                <span class="text-xs font-bold text-gray-500">{{ gaveta.total_clientes }} Clientes</span>
+            <div class="mt-8 flex flex-col gap-3 border-t border-gray-100 pt-5">
+                <div class="flex justify-between items-center">
+                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Base Ativa</span>
+                    <span class="text-xs font-black text-navy">{{ gaveta.total_clientes }} Parceiros</span>
+                </div>
                 
-                {% if gaveta.pendentes > 0 %}
-                    <span class="px-3 py-1.5 bg-yellow-100 text-yellow-700 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> {{ gaveta.pendentes }} Pendentes</span>
-                {% else %}
-                    <span class="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> 100% Completo</span>
-                {% endif %}
+                <div class="flex justify-between items-center">
+                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</span>
+                    {% if gaveta.pendentes > 0 %}
+                        <span class="px-3 py-1 bg-yellow-50 text-yellow-600 border border-yellow-100 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> {{ gaveta.pendentes }} Pendentes</span>
+                    {% else %}
+                        <span class="px-3 py-1 bg-green-50 text-green-600 border border-green-100 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Completo</span>
+                    {% endif %}
+                </div>
             </div>
         </a>
         {% else %}
-        <div class="col-span-full p-10 bg-white rounded-3xl shadow-sm text-center border border-gray-100">
-            <p class="text-gray-400 font-bold uppercase tracking-widest text-sm">Nenhum ciclo ativo encontrado.</p>
+        <div class="col-span-full p-12 bg-white/60 backdrop-blur-xl rounded-[2rem] shadow-sm text-center border border-white">
+            <p class="text-gray-400 font-bold uppercase tracking-widest text-sm">Nenhuma gaveta financeira gerada até o momento.</p>
         </div>
         {% endfor %}
     </div>
 
     {% else %}
     
-    <div class="mb-6 flex items-center gap-4 border-b border-gray-200 pb-4">
-        <a href="{{ url_for('admin.pagamentos') }}" class="px-4 py-2 bg-white text-xs font-black text-gray-500 uppercase tracking-widest rounded-xl hover:text-navy hover:shadow-md transition duration-200 border border-gray-200">< Voltar para Gavetas</a>
-        <h2 class="text-2xl font-black text-navy tracking-tight">Semana: <span class="text-royal">{{ ciclo_data.strftime('%d/%m/%Y') }}</span></h2>
+    <div class="mb-8 flex items-center gap-5 border-b border-gray-200 pb-6">
+        <a href="{{ url_for('admin.pagamentos') }}" class="px-5 py-3 bg-white text-[10px] font-black text-gray-500 uppercase tracking-widest rounded-xl hover:text-navy hover:shadow-md transition duration-200 border border-gray-200 flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg> Voltar</a>
+        <h2 class="text-3xl font-black text-navy tracking-tight">Ciclo: <span class="text-royal">{{ ciclo_data.strftime('%d/%m/%Y') }}</span></h2>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -51,106 +57,107 @@
       {% endfor %}{% endif %}
     {% endwith %}
 
-    {% if not busca %}
-    <div class="mb-8 flex items-center gap-4 bg-purple-50 rounded-2xl border border-purple-100 px-6 py-4 shadow-sm w-max">
-        <div>
-            <p class="text-xs font-black text-purple-900 uppercase tracking-widest">Isentar Dia?</p>
-            <p class="text-[10px] text-purple-600 font-bold mt-0.5">Aplica a todos deste ciclo.</p>
-        </div>
-        
-        <form action="{{ url_for('admin.isentar_dia_global') }}" method="POST" id="form-isentar-global" class="flex items-center m-0">
-            <input type="hidden" name="ciclo_atual" value="{{ ciclo_data.strftime('%Y-%m-%d') }}">
-            <select name="data_isencao" id="select-dia-isencao" class="bg-white border border-purple-200 text-purple-800 text-xs font-bold rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full px-3 py-2 cursor-pointer outline-none shadow-sm transition">
-                <option value="" selected disabled>Escolha o dia...</option>
-                {% for dia_util in dias_uteis %}
-                <option value="{{ dia_util.strftime('%Y-%m-%d') }}">{{ ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'][dia_util.weekday()] }} ({{ dia_util.strftime('%d/%m') }})</option>
-                {% endfor %}
-            </select>
+    <div class="flex flex-col xl:flex-row xl:items-center gap-6 mb-10">
+        <form method="GET" action="{{ url_for('admin.pagamentos') }}" class="flex gap-3 bg-white/60 backdrop-blur-xl p-3 rounded-[2rem] shadow-sm border border-white flex-1">
+            <input type="hidden" name="ciclo" value="{{ ciclo_data.strftime('%Y-%m-%d') }}">
+            <input type="text" name="q" value="{{ busca }}" placeholder="Filtrar parceiro neste ciclo..." class="flex-1 px-5 py-3 outline-none text-sm font-bold text-navy bg-white rounded-xl border border-gray-100 shadow-inner">
+            <button type="submit" class="px-8 py-3 bg-navy text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition shadow-md">Buscar</button>
         </form>
-        
-        <script>
-            document.getElementById('select-dia-isencao').addEventListener('change', function() {
-                var select = this;
-                var form = document.getElementById('form-isentar-global');
-                var diaEscolhido = select.options[select.selectedIndex].text;
-                
-                if (select.value) {
-                    if (confirm('ATENÇÃO: Deseja realmente isentar TODOS os clientes na ' + diaEscolhido + '? Isso apagará qualquer nota já enviada nesse dia.')) {
-                        form.submit();
-                    } else {
-                        select.value = ""; 
-                    }
-                }
-            });
-        </script>
-    </div>
-    {% endif %}
 
-    {% if busca %}
-    <div class="mb-6 flex items-center justify-between">
-        <p class="text-sm font-bold text-gray-500">Resultados da busca para: <span class="text-navy">"{{ busca }}"</span></p>
-        <a href="{{ url_for('admin.pagamentos') }}" class="text-xs font-black text-red-500 uppercase tracking-widest hover:underline">Limpar Busca</a>
+        {% if not busca %}
+        <div class="flex items-center gap-5 bg-white/80 backdrop-blur-xl rounded-[2rem] border border-white p-3 shadow-sm shrink-0">
+            <div class="pl-4 hidden sm:block">
+                <p class="text-[10px] font-black text-purple-600 uppercase tracking-widest">Ação Global em Lote</p>
+                <p class="text-[9px] text-gray-500 font-bold mt-0.5">Isentar dia (Feriado)</p>
+            </div>
+            
+            <form action="{{ url_for('admin.isentar_dia_global') }}" method="POST" id="form-isentar-global" class="flex items-center m-0 gap-2">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <input type="hidden" name="ciclo_atual" value="{{ ciclo_data.strftime('%Y-%m-%d') }}">
+                <select name="data_isencao" id="select-dia-isencao" class="bg-white border border-gray-200 text-navy text-xs font-bold rounded-xl focus:border-purple-400 px-4 py-3 cursor-pointer outline-none shadow-inner transition w-48">
+                    <option value="" selected disabled>Escolha o dia...</option>
+                    {% for dia_util in dias_uteis %}
+                    <option value="{{ dia_util.strftime('%Y-%m-%d') }}">{{ ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'][dia_util.weekday()] }} ({{ dia_util.strftime('%d/%m') }})</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+        {% endif %}
     </div>
-    {% endif %}
 
-    <div class="bg-white rounded-3xl shadow-lg border border-gray-100 overflow-hidden">
-        <table class="w-full text-left">
-            <thead class="bg-ice text-gray-400 text-[10px] font-black uppercase tracking-wider">
-                <tr>
-                    <th class="px-6 py-4">Cliente Ativo</th>
-                    <th class="px-6 py-4">Status da Semana ({{ ciclo_data.strftime('%d/%m') }})</th>
-                    <th class="px-6 py-4 text-right">Ação</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-                {% for item in clientes_dados %}
-                <tr class="hover:bg-gray-50 transition">
-                    <td class="px-6 py-5">
-                        <div class="font-bold text-navy text-sm flex items-center gap-2">
-                            {{ item.info.nome }}
-                            {% if item.info.is_isento %}
-                            <span class="px-2 py-0.5 bg-purple-100 text-purple-700 border border-purple-200 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">Conta Isenta</span>
-                            {% endif %}
-                        </div>
-                    </td>
-                    <td class="px-6 py-5">
-                        {% if item.status_semana == 'sem_fatura' %}
-                            <span class="px-3 py-1 bg-gray-50 text-gray-400 rounded-full text-[10px] font-black uppercase tracking-wider">Sem Fatura</span>
-                        {% else %}
-                            <div class="flex flex-wrap gap-2">
-                                {% for corretora, progresso in item.detalhes_corretoras.items() %}
-                                    {% set num_ok = progresso.split('/')[0] | int %}
-                                    {% set num_total = progresso.split('/')[1] | int %}
-                                    
-                                    {% if num_ok == num_total and num_total > 0 %}
-                                        <span class="px-2 py-1 bg-green-100 text-green-700 border border-green-200 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">{{ corretora }} ({{ progresso }})</span>
-                                    {% elif num_ok > 0 %}
-                                        <span class="px-2 py-1 bg-blue-100 text-blue-700 border border-blue-200 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">{{ corretora }} ({{ progresso }})</span>
-                                    {% else %}
-                                        <span class="px-2 py-1 bg-gray-100 text-gray-500 border border-gray-200 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">{{ corretora }} ({{ progresso }})</span>
-                                    {% endif %}
-                                {% endfor %}
-                                
-                                {% if item.status_semana == 'pago' %}
-                                    <span class="px-2 py-1 bg-green-700 text-white rounded text-[9px] font-black uppercase tracking-widest ml-1 shadow-sm">Pago</span>
-                                {% elif item.status_semana == 'inadimplente' %}
-                                    <span class="px-2 py-1 bg-red-100 text-red-700 border border-red-200 rounded text-[9px] font-black uppercase tracking-widest ml-1 shadow-sm">Inadimplente</span>
+    <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-white/50 border-b border-gray-100 text-gray-400 text-[10px] font-black uppercase tracking-wider">
+                    <tr>
+                        <th class="px-8 py-5">Parceiro Financeiro</th>
+                        <th class="px-6 py-5">Dashboard do Ciclo</th>
+                        <th class="px-8 py-5 text-right">Ação</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                    {% for item in clientes_dados %}
+                    <tr class="hover:bg-gray-50/50 transition-colors">
+                        <td class="px-8 py-6">
+                            <div class="font-black text-navy text-sm flex items-center gap-2">
+                                {{ item.info.nome }}
+                                {% if item.info.is_isento %}
+                                <span class="px-2 py-0.5 bg-purple-50 text-purple-600 border border-purple-100 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">Conta Isenta</span>
                                 {% endif %}
                             </div>
-                        {% endif %}
-                    </td>
-                    <td class="px-6 py-5 text-right">
-                        <a href="{{ url_for('admin.pagamentos_cliente', id=item.info.id, ciclo=ciclo_data.strftime('%Y-%m-%d')) }}" class="px-4 py-2 bg-blue-50 text-[10px] font-black text-royal uppercase tracking-widest rounded-lg hover:bg-blue-100 transition border border-blue-100 shadow-sm">Auditar Extratos -></a>
-                    </td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="3" class="px-6 py-10 text-center text-gray-400 font-medium">Nenhum cliente encontrado neste ciclo.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                        </td>
+                        <td class="px-6 py-6">
+                            {% if item.status_semana == 'sem_fatura' %}
+                                <span class="px-3 py-1 bg-gray-100 text-gray-400 rounded-lg text-[9px] font-black uppercase tracking-widest border border-gray-200">Sem Fatura Ativa</span>
+                            {% else %}
+                                <div class="flex flex-wrap gap-2">
+                                    {% for corretora, progresso in item.detalhes_corretoras.items() %}
+                                        {% set num_ok = progresso.split('/')[0] | int %}
+                                        {% set num_total = progresso.split('/')[1] | int %}
+                                        
+                                        {% if num_ok == num_total and num_total > 0 %}
+                                            <span class="px-3 py-1 bg-green-50 text-green-700 border border-green-100 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">{{ corretora }} ({{ progresso }})</span>
+                                        {% elif num_ok > 0 %}
+                                            <span class="px-3 py-1 bg-blue-50 text-royal border border-blue-100 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">{{ corretora }} ({{ progresso }})</span>
+                                        {% else %}
+                                            <span class="px-3 py-1 bg-white text-gray-500 border border-gray-200 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">{{ corretora }} ({{ progresso }})</span>
+                                        {% endif %}
+                                    {% endfor %}
+                                    
+                                    {% if item.status_semana == 'pago' %}
+                                        <span class="px-3 py-1 bg-navy text-white rounded-lg text-[9px] font-black uppercase tracking-widest ml-2 shadow-md">Pago</span>
+                                    {% elif item.status_semana == 'inadimplente' %}
+                                        <span class="px-3 py-1 bg-red-50 text-red-600 border border-red-100 rounded-lg text-[9px] font-black uppercase tracking-widest ml-2 shadow-sm">Pendente</span>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        </td>
+                        <td class="px-8 py-6 text-right">
+                            <a href="{{ url_for('admin.pagamentos_cliente', id=item.info.id, ciclo=ciclo_data.strftime('%Y-%m-%d')) }}" class="px-5 py-3 bg-white text-[10px] font-black text-royal uppercase tracking-widest rounded-xl hover:bg-blue-50 transition border border-blue-100 shadow-sm inline-block">Auditar Notas -></a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="3" class="px-8 py-12 text-center text-gray-400 font-bold text-sm">Nenhum registro encontrado para este ciclo financeiro.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
+
+    <script>
+        document.getElementById('select-dia-isencao')?.addEventListener('change', function() {
+            var select = this;
+            var form = document.getElementById('form-isentar-global');
+            var diaEscolhido = select.options[select.selectedIndex].text;
+            if (select.value) {
+                if (confirm('AÇÃO EM LOTE: Deseja isentar TODOS os clientes na ' + diaEscolhido + ' e remover as notas já enviadas para esse dia?')) {
+                    form.submit();
+                } else { select.value = ""; }
+            }
+        });
+    </script>
     {% endif %}
 </div>
 {% endblock %}

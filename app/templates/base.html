@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DW Capital</title>
+    <title>DW Capital | Portal Exclusivo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -18,16 +18,19 @@
                     colors: { 
                         royal: '#4169E1', 
                         'royal-dark': '#27408B',
-                        'navy': '#0A192F',       // Azul bem escuro para menus e login
-                        'navy-light': '#112240', // Tom para hover nos menus
-                        'ice': '#F4F7FA'         // Fundo gelo/azulado bem claro para o dashboard
-                    } 
+                        'navy': '#0A192F',       
+                        'navy-light': '#112240', 
+                        'ice': '#F4F7FA'         
+                    },
+                    backgroundImage: {
+                        'corporate-gradient': 'linear-gradient(135deg, #0A192F 0%, #112240 100%)',
+                    }
                 }
             }
         }
     </script>
 </head>
-<body class="bg-ice min-h-screen text-slate-800 antialiased selection:bg-royal selection:text-white">
+<body class="bg-ice min-h-screen text-slate-800 antialiased selection:bg-royal selection:text-white flex flex-col">
     {% block content %}{% endblock %}
 </body>
 </html>

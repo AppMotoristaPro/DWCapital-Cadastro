@@ -3,9 +3,8 @@ import string
 from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import text  # IMPORTAÇÃO ADICIONADA PARA EXECUTAR SQL PURO
-from app.models import User, AlocacaoCorretora, FaturaDiaria
-from app import db
+from app.models import User, AlocacaoCorretora
+from app import db, limiter
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
@@ -16,6 +15,7 @@ def gerar_matricula_unica():
             return mat
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit("5 per minute", methods=["POST"]) # <-- CORREÇÃO: Limita apenas envios de form, não recarregamentos
 def login():
     if current_user.is_authenticated:
         if getattr(current_user, 'precisa_trocar_senha', False):
@@ -59,6 +59,7 @@ def forcar_troca_senha():
     return render_template('auth/trocar_senha.html')
 
 @auth_bp.route('/api/verificar_cpf', methods=['POST'])
+@limiter.limit("5 per minute")
 def verificar_cpf():
     data = request.get_json()
     if not data or 'cpf' not in data:
@@ -82,7 +83,16 @@ def primeiro_acesso():
         user = User.query.filter_by(cpf=cpf, status_acesso='pendente_cadastro').first()
 
         if user:
-            user.nome = request.form.get('nome')
+            corretoras_selecionadas = request.form.getlist('corretora[]')
+            capitais_alocados = request.form.getlist('capital[]')
+            
+            for cap in capitais_alocados:
+                if cap and float(cap) < 10000:
+                    flash('Operação cancelada: O capital mínimo exigido por corretora é de R$ 10.000,00.', 'error')
+                    return render_template('auth/primeiro_acesso.html')
+
+            nome_raw = request.form.get('nome', '')
+            user.nome = nome_raw.strip().title()
             user.email = request.form.get('email')
             user.celular = request.form.get('celular')
             
@@ -97,24 +107,23 @@ def primeiro_acesso():
             user.password_hash = generate_password_hash(request.form.get('senha'))
             user.matricula = gerar_matricula_unica() 
             user.status_acesso = 'ativo'
-            # O campo user.is_isento não é tocado aqui, garantindo que a escolha do Admin na liberação do CPF seja mantida intacta.
             
-            # Limpeza de alocações antigas em caso de erro na tela (Prevenção)
             AlocacaoCorretora.query.filter_by(user_id=user.id).delete()
             
-            # Recupera as listas enviadas pelo Frontend (Os Arrays Dinâmicos)
-            corretoras_selecionadas = request.form.getlist('corretora[]')
-            capitais_alocados = request.form.getlist('capital[]')
+            soma_capital = 0.0 
             
-            # Zíper: Junta a corretora 1 com o capital 1, e salva.
             for corretora, capital in zip(corretoras_selecionadas, capitais_alocados):
                 if corretora and capital:
+                    valor_capital = float(capital)
                     nova_alocacao = AlocacaoCorretora(
                         user_id=user.id,
                         nome_corretora=corretora.upper(),
-                        capital_alocado=float(capital)
+                        capital_alocado=valor_capital
                     )
                     db.session.add(nova_alocacao)
+                    soma_capital += valor_capital 
+            
+            user.capital_alocado = soma_capital 
             
             db.session.commit()
             flash('Cadastro concluído com sucesso! Bem-vindo à DW Capital.', 'auth_success')
@@ -123,97 +132,6 @@ def primeiro_acesso():
         flash('CPF não liberado ou cadastro já ativo.', 'error')
 
     return render_template('auth/primeiro_acesso.html')
-
-@auth_bp.route('/setup_secreto_dw')
-def setup_secreto():
-    try:
-        db.create_all()
-        
-        # 1. Aposentar o usuário genérico antigo (dwcapital)
-        admin_antigo = User.query.filter_by(username='dwcapital').first()
-        if admin_antigo:
-            admin_antigo.status_acesso = 'inativo'
-            admin_antigo.username = 'dwcapital_inativo' # Libera o username
-            
-        # 2. Criar a nova estrutura de Sócios
-        novos_admins = [
-            {'username': 'dwigor', 'nome': 'Igor Mikael'},
-            {'username': 'dwwilliam', 'nome': 'William'},
-            {'username': 'dwthaynara', 'nome': 'Thaynara'},
-            {'username': 'dwdema', 'nome': 'Dermevaldo'}
-        ]
-        
-        criados = 0
-        for admin_data in novos_admins:
-            existe = User.query.filter_by(username=admin_data['username']).first()
-            if not existe:
-                novo_admin = User(
-                    username=admin_data['username'],
-                    nome=admin_data['nome'],
-                    password_hash=generate_password_hash('dwtemp2026'), # Senha temporária
-                    role='admin',
-                    status_acesso='ativo',
-                    precisa_trocar_senha=True # Obriga a criar senha pessoal no 1º login
-                )
-                db.session.add(novo_admin)
-                criados += 1
-                
-        db.session.commit()
-        return f"✅ Setup Corporativo Concluído! {criados} novos acessos administrativos foram gerados com sucesso."
-    except Exception as e:
-        db.session.rollback()
-        return f"❌ Erro no setup: {e}"
-
-@auth_bp.route('/migracao_secreta_dw')
-def migracao_secreta():
-    try:
-        # 1. INJEÇÃO SQL FORÇADA: Cria a coluna que faltava na tabela antiga
-        try:
-            db.session.execute(text('ALTER TABLE fatura_diaria ADD COLUMN IF NOT EXISTS nome_corretora VARCHAR(50);'))
-            db.session.commit()
-            msg_coluna = "Coluna 'nome_corretora' forçada com sucesso! "
-        except Exception as e_sql:
-            db.session.rollback()
-            msg_coluna = f"Aviso sobre a coluna (pode já existir): {str(e_sql)}. "
-
-        # 2. MIGRAÇÃO DE DADOS DOS CLIENTES
-        usuarios = User.query.all()
-        alocacoes_criadas = 0
-        faturas_corrigidas = 0
-        
-        for user in usuarios:
-            # Pula clientes que não possuem corretora antiga cadastrada
-            if not user.corretora:
-                continue
-                
-            # Verifica se já migrou antes para não duplicar
-            existe = AlocacaoCorretora.query.filter_by(
-                user_id=user.id, 
-                nome_corretora=user.corretora
-            ).first()
-            
-            if not existe:
-                nova_alocacao = AlocacaoCorretora(
-                    user_id=user.id,
-                    nome_corretora=user.corretora.upper(),
-                    capital_alocado=user.capital_alocado or 0.0
-                )
-                db.session.add(nova_alocacao)
-                alocacoes_criadas += 1
-
-            # 3. CURATIVO PARA DADOS LEGADOS: Preencher o nome_corretora vazio (NULL) nas faturas velhas
-            for fatura in user.faturas:
-                for dia in fatura.dias:
-                    if dia.nome_corretora is None or dia.nome_corretora.strip() == '':
-                        dia.nome_corretora = user.corretora.upper()
-                        faturas_corrigidas += 1
-        
-        db.session.commit()
-        return f"✅ {msg_coluna} MIGRAÇÃO CONCLUÍDA! {alocacoes_criadas} alocações convertidas e {faturas_corrigidas} dias corrigidos com sucesso. O histórico dos clientes está a salvo."
-        
-    except Exception as e:
-        db.session.rollback()
-        return f"❌ Erro ao salvar migração: {str(e)}"
 
 @auth_bp.route('/logout')
 def logout():

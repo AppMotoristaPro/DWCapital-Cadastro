@@ -1,0 +1,144 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_content %}
+<div class="max-w-7xl mx-auto relative z-10 pb-20">
+    <div class="flex justify-between items-end mb-8">
+        <div>
+            <h1 class="text-4xl font-black text-navy tracking-tight">Gestão de Assinaturas</h1>
+            <p class="text-gray-500 mt-2 font-medium">Vincule PDFs locais e dispare documentos digitais em lote via Autentique.</p>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}{% for category, message in messages %}
+        <div class="p-4 mb-8 rounded-2xl font-bold shadow-sm {% if category == 'error' %}bg-red-50 text-red-700 border-red-100{% else %}bg-green-50 text-green-700 border-green-100{% endif %} border">{{ message }}</div>
+      {% endfor %}{% endif %}
+    {% endwith %}
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <div class="lg:col-span-1 space-y-8">
+            
+            <div class="bg-white/80 backdrop-blur-xl p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white">
+                <div class="flex items-center gap-4 mb-6 border-b border-gray-100 pb-6">
+                    <div class="w-12 h-12 bg-purple-50 border border-purple-100 text-purple-600 rounded-xl flex items-center justify-center shadow-sm">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-black text-navy uppercase tracking-widest">Novo Disparo</h2>
+                        <p class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">Lote Eletrônico</p>
+                    </div>
+                </div>
+
+                <form method="POST" action="{{ url_for('admin.disparar_documento') }}" onsubmit="return confirm('Tem certeza que deseja disparar este contrato para os parceiros selecionados?')" class="space-y-6">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    
+                    <div>
+                        <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Modelo Selecionado</label>
+                        <select name="template_id" required class="w-full px-5 py-4 bg-white border border-gray-200 rounded-xl outline-none font-bold text-sm text-navy focus:border-purple-400 shadow-inner transition cursor-pointer">
+                            <option value="" disabled selected>Escolha o documento...</option>
+                            {% for temp in templates %}
+                                <option value="{{ temp.id }}">{{ temp.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Selecionar Parceiros</label>
+                        <div class="bg-white border border-gray-200 rounded-xl h-48 overflow-y-auto p-3 space-y-1 custom-scrollbar shadow-inner">
+                            {% for cliente in clientes %}
+                            <label class="flex items-center p-3 hover:bg-purple-50 rounded-lg cursor-pointer border border-transparent hover:border-purple-100 transition group">
+                                <input type="checkbox" name="clientes[]" value="{{ cliente.id }}" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer">
+                                <span class="ml-3 text-xs font-bold text-navy group-hover:text-purple-700 transition">{{ cliente.nome }}</span>
+                            </label>
+                            {% else %}
+                            <p class="text-xs text-gray-400 font-medium p-4 text-center">Nenhum parceiro ativo.</p>
+                            {% endfor %}
+                        </div>
+                        <p class="text-[9px] text-gray-400 mt-2 font-bold uppercase tracking-widest text-right">*Múltipla seleção permitida</p>
+                    </div>
+
+                    <button type="submit" class="w-full py-4 bg-gradient-to-r from-purple-600 to-royal text-white font-black uppercase tracking-widest rounded-xl text-xs shadow-md hover:shadow-lg hover:-translate-y-0.5 transition border border-purple-700">Disparar Lote</button>
+                </form>
+            </div>
+
+            <div class="bg-gray-50/80 backdrop-blur-md p-8 rounded-[2rem] border border-gray-200 border-dashed">
+                <h2 class="text-xs font-black text-gray-500 uppercase tracking-widest mb-5">Vincular PDF da Pasta Static</h2>
+                <form method="POST" action="{{ url_for('admin.cadastrar_template') }}" class="space-y-5">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <div>
+                        <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 block mb-1">Nome de Exibição</label>
+                        <input type="text" name="nome" placeholder="Ex: Contrato de Aporte" required class="w-full px-5 py-3.5 bg-white border border-gray-200 rounded-xl outline-none font-bold text-xs text-navy focus:border-gray-400 transition shadow-sm">
+                    </div>
+                    <div>
+                        <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 block mb-1">Arquivo Físico (.pdf)</label>
+                        <input type="text" name="arquivo_local" placeholder="Ex: aditivo_v1.pdf" required class="w-full px-5 py-3.5 bg-white border border-gray-200 rounded-xl outline-none font-bold text-xs text-navy focus:border-gray-400 transition font-mono shadow-sm">
+                    </div>
+                    <button type="submit" class="w-full py-4 bg-white text-gray-600 hover:bg-navy hover:text-white border border-gray-200 font-black uppercase tracking-widest rounded-xl text-[10px] transition shadow-sm">Salvar Modelo no Banco</button>
+                </form>
+            </div>
+            
+        </div>
+
+        <div class="lg:col-span-2">
+            <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden">
+                <div class="p-8 border-b border-gray-100 bg-white/50 flex justify-between items-center">
+                    <div>
+                        <h2 class="text-xl font-black text-navy tracking-tight">Histórico de Disparos</h2>
+                        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Cofre Administrativo</p>
+                    </div>
+                    <span class="px-4 py-2 bg-gray-50 border border-gray-200 text-gray-500 text-[9px] font-black uppercase tracking-widest rounded-lg shadow-sm">Top 100 Registros</span>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-gray-50/50 border-b border-gray-100 text-gray-400 text-[10px] font-black uppercase tracking-wider">
+                            <tr>
+                                <th class="px-8 py-5">Identificação do Lote</th>
+                                <th class="px-6 py-5">Parceiro Destino</th>
+                                <th class="px-6 py-5">Data da Emissão</th>
+                                <th class="px-8 py-5 text-right">Status Atual</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-50 bg-white">
+                            {% for doc in historico %}
+                            <tr class="hover:bg-gray-50/50 transition-colors">
+                                <td class="px-8 py-6">
+                                    <span class="text-sm font-black text-navy">{{ doc.template.nome }}</span>
+                                </td>
+                                <td class="px-6 py-6">
+                                    <span class="text-xs font-bold text-gray-600">{{ doc.cliente.nome }}</span>
+                                </td>
+                                <td class="px-6 py-6">
+                                    <span class="text-[10px] font-bold text-gray-500 tracking-widest uppercase block">{{ doc.data_envio.strftime('%d/%m/%Y') }}</span>
+                                    <span class="text-[9px] font-black text-gray-400">{{ doc.data_envio.strftime('%H:%M') }}</span>
+                                </td>
+                                <td class="px-8 py-6 text-right">
+                                    {% if doc.status == 'assinado' %}
+                                        <span class="inline-flex items-center px-3 py-1.5 bg-green-50 text-green-600 border border-green-200 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm gap-1.5">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> Assinado
+                                        </span>
+                                    {% else %}
+                                        <span class="inline-flex items-center px-3 py-1.5 bg-yellow-50 text-yellow-600 border border-yellow-200 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm gap-1.5">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Pendente
+                                        </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4" class="px-8 py-16 text-center text-gray-400 font-medium">
+                                    Nenhum contrato disparado pela mesa.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+

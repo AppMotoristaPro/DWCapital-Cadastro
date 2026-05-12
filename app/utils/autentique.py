@@ -3,14 +3,12 @@ import requests
 import json
 
 AUTENTIQUE_TOKEN = os.getenv('AUTENTIQUE_TOKEN', '').strip()
-# Lógica para definir se é Sandbox ou Produção via Variável de Ambiente
-# Se não estiver configurado no Render, ele assume True (Sandbox) por segurança
 AUTENTIQUE_SANDBOX = os.getenv('AUTENTIQUE_SANDBOX', 'true').lower() == 'true'
 
 URL = "https://api.autentique.com.br/v2/graphql"
 
+# Mantida intacta para não quebrar o "Termo de Adesão" do Primeiro Acesso
 def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
-    # Tornamos o campo 'sandbox' dinâmico através da variável $sandbox
     query = """
     mutation CreateDocumentMutation(
         $document: DocumentInput!,
@@ -41,7 +39,7 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
                 "action": "SIGN"
             }
         ],
-        "sandbox": AUTENTIQUE_SANDBOX  # Aqui a mágica acontece
+        "sandbox": AUTENTIQUE_SANDBOX
     }
 
     operations = json.dumps({
@@ -73,6 +71,85 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
         
         doc_id = data.get('data', {}).get('createDocument', {}).get('id')
         return doc_id
+    else:
+        raise Exception(f"Falha de comunicação HTTP: {response.text}")
+
+# NOVA FUNÇÃO (FASE 4): Sobe o PDF local e captura o Link de Assinatura para a DW Capital
+def enviar_documento_local_com_link(nome_signer, email_signer, caminho_pdf, nome_documento):
+    query = """
+    mutation CreateDocumentMutation(
+        $document: DocumentInput!,
+        $signers: [SignerInput!]!,
+        $file: Upload!,
+        $sandbox: Boolean!
+    ) {
+        createDocument(
+            sandbox: $sandbox,
+            document: $document,
+            signers: $signers,
+            file: $file
+        ) {
+            id
+            name
+            signatures {
+                link { short_link }
+            }
+        }
+    }
+    """
+
+    variables = {
+        "document": {
+            "name": nome_documento
+        },
+        "signers": [
+            {
+                "name": nome_signer,
+                "email": email_signer,
+                "action": "SIGN"
+            }
+        ],
+        "sandbox": AUTENTIQUE_SANDBOX
+    }
+
+    operations = json.dumps({
+        "query": query,
+        "variables": variables
+    })
+
+    map_dict = json.dumps({
+        "0": ["variables.file"]
+    })
+
+    headers = {
+        "Authorization": f"Bearer {AUTENTIQUE_TOKEN}"
+    }
+
+    with open(caminho_pdf, 'rb') as f:
+        nome_arq = os.path.basename(caminho_pdf)
+        files = {
+            'operations': (None, operations),
+            'map': (None, map_dict),
+            '0': (nome_arq, f, 'application/pdf')
+        }
+        
+        response = requests.post(URL, headers=headers, files=files)
+
+    if response.status_code == 200:
+        data = response.json()
+        if "errors" in data:
+            raise Exception(f"{data['errors'][0]['message']}")
+        
+        doc = data.get('data', {}).get('createDocument', {})
+        doc_id = doc.get('id')
+        
+        link = None
+        try:
+            link = doc.get('signatures', [])[0].get('link', {}).get('short_link')
+        except:
+            pass
+            
+        return doc_id, link
     else:
         raise Exception(f"Falha de comunicação HTTP: {response.text}")
 

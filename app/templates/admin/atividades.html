@@ -9,52 +9,54 @@
         </div>
     </div>
 
-    <form method="GET" action="{{ url_for('admin.atividades') }}" class="mb-6 flex flex-wrap gap-4 bg-white p-2 rounded-2xl shadow-sm border border-gray-100 max-w-2xl">
-        <input type="text" name="q" value="{{ busca }}" placeholder="Buscar por administrador, ação ou corretora..." class="flex-1 px-4 py-2 outline-none text-sm font-bold text-navy bg-transparent min-w-[200px]">
-        <button type="submit" class="px-6 py-3 bg-navy text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition">Pesquisar</button>
+    <form method="GET" action="{{ url_for('admin.atividades') }}" class="mb-8 flex flex-wrap gap-4 bg-white/60 backdrop-blur-xl p-3 rounded-3xl shadow-sm border border-white max-w-2xl">
+        <input type="text" name="q" value="{{ busca }}" placeholder="Buscar por administrador, ação ou corretora..." class="flex-1 px-5 py-3 outline-none text-sm font-bold text-navy bg-white rounded-xl border border-gray-100 min-w-[200px] shadow-inner">
+        <button type="submit" class="px-8 py-3 bg-navy text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition shadow-md">Pesquisar</button>
         {% if busca %}
-        <a href="{{ url_for('admin.atividades') }}" class="px-4 py-3 text-gray-400 hover:text-red-500 font-bold text-xs flex items-center">Limpar</a>
+        <a href="{{ url_for('admin.atividades') }}" class="px-5 py-3 text-gray-400 hover:text-red-500 font-bold text-xs flex items-center">Limpar</a>
         {% endif %}
     </form>
 
-    <div class="bg-white rounded-3xl shadow-lg border border-gray-100 overflow-hidden">
-        <table class="w-full text-left border-collapse">
-            <thead class="bg-ice text-gray-400 text-[10px] font-black uppercase tracking-wider">
-                <tr>
-                    <th class="px-6 py-4 w-48 border-b border-gray-100">Data e Hora</th>
-                    <th class="px-6 py-4 w-32 border-b border-gray-100">Categoria</th>
-                    <th class="px-6 py-4 border-b border-gray-100">Detalhes da Ação</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-                {% for log in logs %}
-                <tr class="hover:bg-gray-50 transition">
-                    <td class="px-6 py-5">
-                        <span class="text-xs font-bold text-navy">{{ (log.timestamp | to_tz_br).strftime('%d/%m/%Y') }}</span>
-                        <span class="text-[10px] text-gray-400 font-black ml-1">{{ (log.timestamp | to_tz_br).strftime('%H:%M') }}</span>
-                    </td>
-                    <td class="px-6 py-5">
-                        <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border 
-                            {% if log.categoria == 'Segurança' %}bg-red-50 text-red-600 border-red-100
-                            {% elif log.categoria == 'Pagamentos' %}bg-green-50 text-green-600 border-green-100
-                            {% else %}bg-blue-50 text-royal border-blue-100{% endif %}">
-                            {{ log.categoria }}
-                        </span>
-                    </td>
-                    <td class="px-6 py-5">
-                        <p class="text-sm text-gray-600 font-medium leading-relaxed">
-                            <span class="font-black text-navy">{{ log.admin_nome }}</span> 
-                            {{ log.acao_detalhada }}
-                        </p>
-                    </td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="3" class="px-6 py-10 text-center text-gray-400 font-medium">Nenhum registro de atividade encontrado na base.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-white/50 border-b border-gray-100 text-gray-400 text-[10px] font-black uppercase tracking-wider">
+                    <tr>
+                        <th class="px-8 py-5 w-48">Data e Hora</th>
+                        <th class="px-6 py-5 w-40">Categoria</th>
+                        <th class="px-6 py-5">Detalhes da Ação Sistêmica</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                    {% for log in logs %}
+                    <tr class="hover:bg-gray-50/50 transition-colors">
+                        <td class="px-8 py-6">
+                            <span class="text-xs font-bold text-navy uppercase block mb-0.5">{{ (log.timestamp | to_tz_br).strftime('%d/%m/%Y') }}</span>
+                            <span class="text-[10px] text-gray-500 font-bold tracking-widest">{{ (log.timestamp | to_tz_br).strftime('%H:%M') }}</span>
+                        </td>
+                        <td class="px-6 py-6">
+                            <span class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border shadow-sm
+                                {% if log.categoria == 'Segurança' %}bg-red-50 text-red-600 border-red-100
+                                {% elif log.categoria == 'Pagamentos' %}bg-green-50 text-green-600 border-green-100
+                                {% else %}bg-blue-50 text-royal border-blue-100{% endif %}">
+                                {{ log.categoria }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-6">
+                            <p class="text-sm text-gray-600 font-medium leading-relaxed pr-6">
+                                <span class="font-black text-navy bg-gray-50 px-2 py-0.5 rounded border border-gray-200 text-[11px] uppercase tracking-widest mr-2">{{ log.admin_nome }}</span> 
+                                {{ log.acao_detalhada }}
+                            </p>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="3" class="px-8 py-16 text-center text-gray-400 font-medium">Nenhum registro de atividade encontrado na base.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 {% endblock %}
