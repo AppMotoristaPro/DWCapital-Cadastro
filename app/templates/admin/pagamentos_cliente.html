@@ -79,7 +79,7 @@
                                     <tr>
                                         <th class="px-6 py-4">Data do Pregão</th>
                                         <th class="px-5 py-4">Valor Bruto</th>
-                                        <th class="px-5 py-4">Taxas / IR</th>
+                                        <th class="px-5 py-4">Custos (B3 + IR)</th>
                                         <th class="px-5 py-4">Líquido Dia</th>
                                         <th class="px-5 py-4 bg-green-50/50 text-green-600">Repasse DW</th>
                                         <th class="px-6 py-4 text-right">Auditoria</th>
@@ -97,8 +97,7 @@
                                         {% if dia.status == 'relatorio_enviado' %}
                                             <td class="px-5 py-5 text-sm font-bold text-navy">R$ {{ dia.bruto|format_brl }}</td>
                                             <td class="px-5 py-5">
-                                                <p class="text-[10px] font-bold text-red-400 uppercase">B3: {{ dia.taxas_b3|format_brl }}</p>
-                                                <p class="text-[10px] font-bold text-red-400 uppercase mt-0.5">IR: {{ (dia.irrf_1 + dia.irrf_19)|format_brl }}</p>
+                                                <p class="text-[10px] font-bold text-red-400 uppercase">Custos: {{ (dia.taxas_b3 + dia.irrf_1)|format_brl }}</p>
                                             </td>
                                             <td class="px-5 py-5 text-sm font-bold text-navy">R$ {{ dia.liquido|format_brl }}</td>
                                             <td class="px-5 py-5 bg-green-50/30 font-black text-green-600">R$ {{ dia.repasse|format_brl }}</td>
@@ -171,8 +170,7 @@
                 <p class="text-xs text-gray-500 font-bold uppercase tracking-widest mb-8 border-b border-gray-100 pb-4">Ciclo: {{ fatura.data_inicio.strftime('%d/%m') }} - {{ fatura.data_fim.strftime('%d/%m') }}</p>
                 <div class="space-y-4 font-medium text-sm text-gray-600">
                     <div class="flex justify-between items-center"><span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Bruto</span> <span class="font-black text-navy">R$ {{ fatura.bruto|format_brl }}</span></div>
-                    <div class="flex justify-between items-center"><span class="text-[10px] font-black uppercase tracking-widest text-red-400">Taxas B3</span> <span class="font-bold text-red-500">R$ {{ fatura.taxas_b3|format_brl }}</span></div>
-                    <div class="flex justify-between items-center"><span class="text-[10px] font-black uppercase tracking-widest text-red-400">IRRF 1%</span> <span class="font-bold text-red-500">R$ {{ fatura.irrf_1|format_brl }}</span></div>
+                    <div class="flex justify-between items-center"><span class="text-[10px] font-black uppercase tracking-widest text-red-400">Custos Unificados</span> <span class="font-bold text-red-500">R$ {{ (fatura.taxas_b3 + fatura.irrf_1)|format_brl }}</span></div>
                     <div class="flex justify-between items-center pt-2 border-t border-gray-50"><span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Líq. Pregão</span> <span class="font-black text-navy">R$ {{ fatura.liquido_pregao|format_brl }}</span></div>
                     <div class="flex justify-between items-center"><span class="text-[10px] font-black uppercase tracking-widest text-red-400">IRRF 19%</span> <span class="font-bold text-red-500">R$ {{ fatura.irrf_19|format_brl }}</span></div>
                     <div class="flex justify-between items-center pt-2 border-t border-gray-50"><span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Líq. Dia</span> <span class="font-black text-navy">R$ {{ fatura.liquido|format_brl }}</span></div>
@@ -193,8 +191,7 @@
                     <p class="text-xs text-gray-500 font-bold uppercase tracking-widest mb-8 border-b border-gray-100 pb-4">{{ dia.data_pregao.strftime('%d/%m/%Y') }}</p>
                     <div class="space-y-4 font-medium text-sm text-gray-600">
                         <div class="flex justify-between items-center"><span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Bruto</span> <span class="font-black text-navy">R$ {{ dia.bruto|format_brl }}</span></div>
-                        <div class="flex justify-between items-center"><span class="text-[10px] font-black uppercase tracking-widest text-red-400">Taxas B3</span> <span class="font-bold text-red-500">R$ {{ dia.taxas_b3|format_brl }}</span></div>
-                        <div class="flex justify-between items-center"><span class="text-[10px] font-black uppercase tracking-widest text-red-400">IRRF 1%</span> <span class="font-bold text-red-500">R$ {{ dia.irrf_1|format_brl }}</span></div>
+                        <div class="flex justify-between items-center"><span class="text-[10px] font-black uppercase tracking-widest text-red-400">Custos Unificados</span> <span class="font-bold text-red-500">R$ {{ (dia.taxas_b3 + dia.irrf_1)|format_brl }}</span></div>
                         <div class="flex justify-between items-center pt-2 border-t border-gray-50"><span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Líq. Pregão</span> <span class="font-black text-navy">R$ {{ dia.liquido_pregao|format_brl }}</span></div>
                         <div class="flex justify-between items-center"><span class="text-[10px] font-black uppercase tracking-widest text-red-400">IRRF 19%</span> <span class="font-bold text-red-500">R$ {{ dia.irrf_19|format_brl }}</span></div>
                         <div class="flex justify-between items-center pt-2 border-t border-gray-50"><span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Líq. Dia</span> <span class="font-black text-navy">R$ {{ dia.liquido|format_brl }}</span></div>
