@@ -25,7 +25,7 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
 
             leitor = PdfReader(buffer_limpo)
             ultima_pagina = leitor.pages[-1]
-            texto_completo = ultima_pagina.extract_text()
+            texto_completo_original = ultima_pagina.extract_text()
                 
         except pikepdf.PasswordError:
             raise Exception("SENHA_INCORRETA")
@@ -35,15 +35,18 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
                 if leitor.is_encrypted:
                     leitor.decrypt(senha_final)
                 ultima_pagina = leitor.pages[-1]
-                texto_completo = ultima_pagina.extract_text()
+                texto_completo_original = ultima_pagina.extract_text()
             except Exception:
                 raise Exception("SENHA_INCORRETA")
 
-        if "XP INVESTIMENTOS" not in texto_completo.upper():
+        if "XP INVESTIMENTOS" not in texto_completo_original.upper():
             return None
         
-        match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo)
+        match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo_original)
         data_pregao = match_data.group(1) if match_data else None
+
+        # --- A VACINA CONTRA O LIXO DO RODAPÉ ---
+        texto_completo = re.split(r'Custos BM&F', texto_completo_original, flags=re.IGNORECASE)[0]
 
         def extrair_por_posicao(nome_campo, padrao, texto, posicao, aceita_cd=False, janela_tras=0, janela_frente=250):
             print(f"\n  [BUSCA] Campo: '{nome_campo}'")
@@ -90,16 +93,14 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
         # --- NOVA EXTRAÇÃO SIMPLIFICADA (BRUTO E LÍQUIDO) ---
         v_bruto = extrair_por_posicao("Valor Bruto", r"Ajuste day trade", texto_completo, 4, aceita_cd=True)
         
-        # Na XP, também pegamos o último valor atrelado à âncora do Total Líquido
-        v_liquido_pregao = extrair_por_posicao("Líquido da Nota", r"Total l[ií]quido da nota", texto_completo, -1, aceita_cd=True)
+        # Na XP, pegamos o último valor atrelado à âncora do Total Líquido expandindo a janela para 1500
+        v_liquido_pregao = extrair_por_posicao("Líquido da Nota", r"Total l[ií]quido da nota", texto_completo, -1, aceita_cd=True, janela_frente=1500)
 
         print("\n  [MATEMÁTICA] --- PROCESSAMENTO ---")
         
-        # Custos Operacionais = Diferença Absoluta entre o Bruto e o Líquido
         v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
         print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
 
-        # Para manter compatibilidade com o Banco de Dados sem migrations
         v_taxas_b3 = v_custos_unificados
         v_irrf_1 = 0.0
 

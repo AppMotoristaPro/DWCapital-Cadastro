@@ -9,16 +9,19 @@ def extrair_dados_btg(caminho_arquivo):
     try:
         leitor = PdfReader(caminho_arquivo)
         ultima_pagina = leitor.pages[-1]
-        texto_completo = ultima_pagina.extract_text()
+        texto_completo_original = ultima_pagina.extract_text()
         print("[BTG_PARSER] Texto lido com sucesso.")
         
-        if "BTG PACTUAL" not in texto_completo.upper():
+        if "BTG PACTUAL" not in texto_completo_original.upper():
             print("[BTG_PARSER] ERRO: O PDF não pertence ao BTG Pactual.")
             return None
         
-        match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo)
+        match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo_original)
         data_pregao = match_data.group(1) if match_data else None
         print(f"[BTG_PARSER] Data encontrada: {data_pregao}\n")
+
+        # --- A VACINA CONTRA O LIXO DO RODAPÉ ---
+        texto_completo = re.split(r'Custos BM&F', texto_completo_original, flags=re.IGNORECASE)[0]
 
         def extrair_por_posicao(nome_campo, padrao, texto, posicao, aceita_cd=False, janela_tras=0, janela_frente=200):
             print(f"\n  [BUSCA] Analisando Campo: '{nome_campo}'")
@@ -86,16 +89,14 @@ def extrair_dados_btg(caminho_arquivo):
         # --- NOVA EXTRAÇÃO SIMPLIFICADA (BRUTO E LÍQUIDO) ---
         v_bruto = extrair_por_posicao("Valor Bruto", r"Ajuste day trade", texto_completo, 10, aceita_cd=True, janela_tras=0, janela_frente=300)
         
-        # Pega a âncora "Total líquido da nota" e fisga o ÚLTIMO valor numérico (-1) que aparecer no bloco de texto.
-        v_liquido_pregao = extrair_por_posicao("Líquido da Nota", r"Total l[ií]quido da nota", texto_completo, -1, aceita_cd=True, janela_tras=0, janela_frente=200)
+        # Pega a âncora "Total líquido da nota" e fisga o ÚLTIMO valor numérico (-1) que aparecer no bloco de texto (Janela expandida)
+        v_liquido_pregao = extrair_por_posicao("Líquido da Nota", r"Total l[ií]quido da nota", texto_completo, -1, aceita_cd=True, janela_tras=0, janela_frente=1500)
 
         print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS DO PREGÃO ---")
         
-        # Custos Operacionais = Diferença Absoluta entre o Bruto e o Líquido
         v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
         print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
 
-        # Para manter compatibilidade com o Banco de Dados sem migrations
         v_taxas_b3 = v_custos_unificados
         v_irrf_1 = 0.0
 
