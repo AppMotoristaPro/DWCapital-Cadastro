@@ -3,22 +3,26 @@ from pypdf import PdfReader
 
 def extrair_dados_genial(caminho_arquivo):
     print(f"\n==================================================")
-    print(f"[GENIAL_PARSER] INICIANDO ROBÔ GENIAL (ESTRATÉGIA UNIFICADA)")
+    print(f"[GENIAL_PARSER] INICIANDO ROBÔ GENIAL (UNIFICADA + BLINDADA)")
     print(f"==================================================")
     print(f"[GENIAL_PARSER] Arquivo alvo: {caminho_arquivo}")
     try:
         leitor = PdfReader(caminho_arquivo)
         ultima_pagina = leitor.pages[-1]
-        texto_completo = ultima_pagina.extract_text()
+        texto_completo_original = ultima_pagina.extract_text()
         print("[GENIAL_PARSER] Texto lido com sucesso.")
 
-        if "GENIAL" not in texto_completo.upper():
+        if "GENIAL" not in texto_completo_original.upper():
             print("[GENIAL_PARSER] ERRO: O PDF não pertence à Genial Investimentos.")
             return None
 
-        match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo)
+        match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo_original)
         data_pregao = match_data.group(1) if match_data else None
         print(f"[GENIAL_PARSER] Data encontrada: {data_pregao}\n")
+
+        # --- A VACINA CONTRA O LIXO DO RODAPÉ ---
+        # Cortamos todo o texto de rodapé (taxas fixas e regras de ouro) para que o "-1" seja realmente o final
+        texto_completo = re.split(r'Custos BM&F', texto_completo_original, flags=re.IGNORECASE)[0]
 
         def extrair_por_posicao(nome_campo, padrao, texto, posicao, aceita_cd=False, janela_tras=0, janela_frente=200):
             print(f"\n  [BUSCA] Analisando Campo: '{nome_campo}'")
@@ -30,15 +34,9 @@ def extrair_dados_genial(caminho_arquivo):
                 fim = min(len(texto), match.end() + janela_frente)
                 bloco = texto[inicio:fim]
 
-                print(f"    -> [TEXTO CRU LIDO]:")
-                print(f"       {repr(bloco[:150])}...")
-
                 bloco_limpo = bloco.replace('|', ' ')
                 bloco_limpo = re.sub(r'(,\d{2})\s+(?:0,00\s*)+([CDcd])\b', r'\1 \2', bloco_limpo, flags=re.IGNORECASE)
                 bloco_limpo = re.sub(r'(,\d{2})\s*([CDcd])\b', r'\1 \2', bloco_limpo, flags=re.IGNORECASE)
-
-                print(f"    -> [TEXTO LIMPO (Sem zeros intrusos)]:")
-                print(f"       {repr(bloco_limpo[:150])}...")
 
                 regex_numeros = r"(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})\s*([CDcd])?"
                 matches = re.findall(regex_numeros, bloco_limpo)
@@ -84,8 +82,7 @@ def extrair_dados_genial(caminho_arquivo):
         # --- NOVA EXTRAÇÃO SIMPLIFICADA (BRUTO E LÍQUIDO) ---
         v_bruto = extrair_por_posicao("Valor Bruto", r"Valor dos negócios", texto_completo, 1, aceita_cd=True, janela_tras=0, janela_frente=200)
         
-        # Pega a âncora "Total líquido da nota" e fisga o ÚLTIMO valor numérico (-1) que aparecer no bloco de texto. 
-        # Funciona perfeitamente independente da bagunça das colunas.
+        # Como limpamos o rodapé, a posição -1 achará com perfeição o valor absoluto correto
         v_liquido_pregao = extrair_por_posicao("Líquido da Nota", r"Total l[ií]quido da nota", texto_completo, -1, aceita_cd=True, janela_tras=0, janela_frente=200)
 
         print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS DO PREGÃO ---")
@@ -94,7 +91,7 @@ def extrair_dados_genial(caminho_arquivo):
         v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
         print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
 
-        # Para manter compatibilidade com o Banco de Dados sem migrations
+        # Para manter compatibilidade com o Banco de Dados
         v_taxas_b3 = v_custos_unificados
         v_irrf_1 = 0.0
 
