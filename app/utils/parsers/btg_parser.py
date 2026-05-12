@@ -97,9 +97,16 @@ def extrair_dados_btg(caminho_arquivo):
 
         print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS DO PREGÃO ---")
         
-        # Custos Operacionais = Diferença Absoluta entre o Bruto e o Líquido
         v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
-        print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
+        
+        # --- A VACINA MATEMÁTICA: CORREÇÃO DE SINAL ---
+        if v_custos_unificados < 0:
+            print(f"    [!] Anomalia detectada: Custos negativos ({v_custos_unificados}). O PDF ocultou o sinal de Loss!")
+            v_liquido_pregao = -abs(v_liquido_pregao)
+            v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+            print(f"    [!] Correção aplicada. Novo Líquido: {v_liquido_pregao} | Novos Custos: {v_custos_unificados}")
+        else:
+            print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
 
         # Para manter compatibilidade com o Banco de Dados sem migrations
         v_taxas_b3 = v_custos_unificados
