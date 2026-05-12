@@ -1,6 +1,9 @@
 from datetime import datetime, timedelta
 from app import db
 from app.models import Fatura, User
+import pytz
+
+tz_br = pytz.timezone('America/Sao_Paulo')
 
 def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
     """
@@ -11,8 +14,6 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
         Fatura.status.in_(['parcial', 'completo', 'pago', 'inadimplente']),
         db.or_(User.is_isento == False, User.is_isento.is_(None))
     )
-    
-    label_periodo = "Todo o Período"
     
     if filtro_dia:
         dt_dia = datetime.strptime(filtro_dia, '%Y-%m-%d').date()
@@ -36,20 +37,23 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
         label_periodo = f"Ano {ano}"
         
     else:
-        faturas_filtradas = faturas_base.all()
+        # AJUSTE: Se não tiver nenhum filtro, carrega o ano atual por padrão
+        ano = datetime.now(tz_br).year
+        dt_inicio_ano = datetime(ano, 1, 1).date()
+        dt_fim_ano = datetime(ano, 12, 31).date()
+        faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_ano, Fatura.data_inicio <= dt_fim_ano).all()
+        label_periodo = f"Ano {ano}"
         
-    # Inicializa variáveis
+    # Inicializa variáveis para os cálculos granulares
     faturamento_total = 0.0
     faturamento_bruto_total = 0.0
     dados_grafico_raw = {}
     rois_clientes = {}
 
-    # Varredura granular, dia a dia, respeitando o filtro
     for f in faturas_filtradas:
         capital_cliente = f.cliente.capital_alocado or 0.0
         
         if f.user_id not in rois_clientes:
-            # Iniciamos com um 'set' para garantir que, mesmo operando em 3 corretoras no dia, conte apenas como 1 dia operado
             rois_clientes[f.user_id] = {
                 'bruto_acumulado': 0.0, 
                 'capital': capital_cliente,
@@ -57,16 +61,14 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
             }
             
         for d in f.dias:
-            # Se filtrou por dia específico, ignora os outros dias da semana
+            # Filtro granular por dia (se aplicável)
             if filtro_dia and d.data_pregao != dt_dia:
                 continue
-                
-            # Se filtrou por ano, garante que o dia está no ano
-            if filtro_ano and d.data_pregao.year != ano:
+            # Filtro granular por ano (para garantir consistência na visão anual padrão)
+            if d.data_pregao.year != ano and (filtro_ano or not any([filtro_dia, filtro_semana_dia])):
                 continue
 
             if d.status == 'relatorio_enviado':
-                # Soma os valores globais do admin baseados apenas nos dias filtrados
                 faturamento_total += d.repasse
                 faturamento_bruto_total += d.bruto
                 
@@ -83,7 +85,6 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
     lista_rois = []
     for uid, dados in rois_clientes.items():
         qtd_dias = len(dados['dias_operados'])
-        # Só calcula o ROI se o cliente tiver capital, dinheiro bruto gerado e dias operados computados
         if dados['capital'] > 0 and dados['bruto_acumulado'] != 0 and qtd_dias > 0:
             media_diaria_bruta = dados['bruto_acumulado'] / qtd_dias
             roi_cliente_diario = (media_diaria_bruta / dados['capital']) * 100
@@ -112,17 +113,12 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
     
     capital_total = alocado_row[0] or 0.0
     
-    # Agora a média de clientes usa a divisão pelo total de clientes ativos (ou número de faturas filtradas)
-    qtd_faturas = len(faturas_filtradas)
-    media_cliente = faturamento_bruto_total / qtd_faturas if qtd_faturas > 0 else 0.0
-    
     return {
         'clientes_ativos': clientes_ativos,
         'clientes_inativos': clientes_inativos,
         'capital_total': capital_total,
         'faturamento_total': faturamento_total,
         'faturamento_bruto_total': faturamento_bruto_total,
-        'media_cliente': media_cliente,
         'label_periodo': label_periodo,
         'chart_labels': chart_labels,
         'chart_data': chart_data,
@@ -137,8 +133,6 @@ def obter_dados_dashboard_cliente(user_id, filtro_dia, filtro_semana_dia, filtro
     faturamento bruto, faturamento líquido (sem taxa de 30%) e média.
     """
     faturas_base = Fatura.query.filter_by(user_id=user_id)
-    
-    label_periodo = "Todo o Período"
     
     if filtro_dia:
         dt_dia = datetime.strptime(filtro_dia, '%Y-%m-%d').date()
@@ -162,7 +156,6 @@ def obter_dados_dashboard_cliente(user_id, filtro_dia, filtro_semana_dia, filtro
         label_periodo = f"Ano {ano}"
         
     else:
-        # Se não filtrar nada, pega apenas a fatura atual (semana rodando) para não misturar todo o histórico logo de cara
         faturas_filtradas = faturas_base.order_by(Fatura.data_inicio.desc()).limit(1).all()
         if faturas_filtradas:
             f = faturas_filtradas[0]
@@ -175,12 +168,11 @@ def obter_dados_dashboard_cliente(user_id, filtro_dia, filtro_semana_dia, filtro
     liquido_total = 0.0
     dados_grafico_raw = {}
 
-    # Agrupa por dia para garantir que os filtros diários também afetem os cards
     for f in faturas_filtradas:
         for d in f.dias:
             if filtro_dia and d.data_pregao != dt_dia:
                 continue
-            if filtro_ano and d.data_pregao.year != ano:
+            if filtro_ano and d.data_pregao.year != int(filtro_ano):
                 continue
                 
             if d.status == 'relatorio_enviado':
