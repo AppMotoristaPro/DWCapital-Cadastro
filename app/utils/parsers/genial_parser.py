@@ -88,9 +88,9 @@ def extrair_dados_genial(caminho_arquivo):
             return 0.0
 
         # --- EXTRAÇÃO DE DADOS POR POSIÇÃO NA GENIAL ---
-        # Chutes iniciais (1, 2, 4) para testarmos no log!
+        # ATUALIZADO: Posição do IRRF alterada de 2 para 1 conforme análise dos logs
         v_bruto = extrair_por_posicao("Valor Bruto", r"Valor dos negócios", texto_completo, 1, aceita_cd=True, janela_tras=0, janela_frente=200)
-        v_irrf_1 = extrair_por_posicao("IRRF Day Trade (1%)", r"IRRF Day Trade", texto_completo, 2, aceita_cd=False, janela_tras=0, janela_frente=200)
+        v_irrf_1 = extrair_por_posicao("IRRF Day Trade (1%)", r"IRRF Day Trade", texto_completo, 1, aceita_cd=False, janela_tras=0, janela_frente=200)
         v_taxas_b3 = extrair_por_posicao("Taxas B3", r"Total das despesas", texto_completo, 4, aceita_cd=False, janela_tras=0, janela_frente=200)
 
         print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS DO PREGÃO ---")
