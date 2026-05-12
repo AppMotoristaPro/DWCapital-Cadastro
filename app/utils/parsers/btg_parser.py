@@ -3,33 +3,26 @@ from pypdf import PdfReader
 
 def extrair_dados_btg(caminho_arquivo):
     print(f"\n==================================================")
-    print(f"[BTG_PARSER] INICIANDO ROBÔ BTG (ÚLTIMA PÁGINA + UNIFICADA)")
+    print(f"[BTG_PARSER] INICIANDO ROBÔ BTG (ENGENHARIA REVERSA UNIFICADA)")
     print(f"==================================================")
     print(f"[BTG_PARSER] Arquivo alvo: {caminho_arquivo}")
     try:
         leitor = PdfReader(caminho_arquivo)
-        # O comando abaixo garante que o robô ignore todas as páginas e leia APENAS A ÚLTIMA
         ultima_pagina = leitor.pages[-1]
-        texto_completo_original = ultima_pagina.extract_text()
+        texto_completo = ultima_pagina.extract_text()
         print("[BTG_PARSER] Texto lido com sucesso.")
         
-        if "BTG PACTUAL" not in texto_completo_original.upper():
+        if "BTG PACTUAL" not in texto_completo.upper():
             print("[BTG_PARSER] ERRO: O PDF não pertence ao BTG Pactual.")
             return None
         
-        match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo_original)
+        match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo)
         data_pregao = match_data.group(1) if match_data else None
         print(f"[BTG_PARSER] Data encontrada: {data_pregao}\n")
 
-        # --- FILTRO INTELIGENTE DE RODAPÉ ---
-        # Apaga o lixo linha por linha, garantindo que a base de cálculo não seja corrompida
-        linhas = texto_completo_original.split('\n')
-        linhas_limpas = [l for l in linhas if not any(x in l.upper() for x in ['CUSTOS BM&F', 'OZ1', 'OZ2', 'OZ3', 'OUVIDORIA', 'TOTAL REMUNERAÇÃO', 'CAPITAIS E REGIÕES'])]
-        texto_completo = '\n'.join(linhas_limpas)
-
         def extrair_por_posicao(nome_campo, padrao, texto, posicao, aceita_cd=False, janela_tras=0, janela_frente=200):
             print(f"\n  [BUSCA] Analisando Campo: '{nome_campo}'")
-            print(f"  [BUSCA] Padrão (Regex): '{padrao}' | Posição-Alvo: {posicao} | Janela: -{janela_tras} a +{janela_frente}")
+            print(f"  [BUSCA] Padrão (Regex): '{padrao}' | Direção: Para trás")
             
             match = re.search(padrao, texto, re.IGNORECASE)
             if match:
@@ -48,14 +41,9 @@ def extrair_dados_btg(caminho_arquivo):
                 
                 if matches:
                     try:
-                        if posicao > 0:
-                            alvo = matches[posicao - 1]
-                        else:
-                            alvo = matches[posicao] 
-                            
+                        alvo = matches[posicao - 1] if posicao > 0 else matches[posicao] 
                         valor_str, letra = alvo
-                        num_str = valor_str.replace('.', '').replace(',', '.')
-                        num = float(num_str)
+                        num = float(valor_str.replace('.', '').replace(',', '.'))
                         
                         if aceita_cd:
                             if letra and letra.upper() == 'D':
@@ -64,46 +52,40 @@ def extrair_dados_btg(caminho_arquivo):
                             elif letra and letra.upper() == 'C':
                                 print(f"    -> [SUCESSO] Letra 'C' aplicada. Retornando GAIN (Positivo): {num}")
                             else:
-                                print(f"    -> [SUCESSO] Nenhuma letra C/D detectada. Assumindo Positivo: {num}")
+                                print(f"    -> [SUCESSO] Nenhuma letra C/D. Assumindo Positivo: {num}")
                         else:
                             num = abs(num) 
                             print(f"    -> [SUCESSO] Campo de Despesa/Taxa. Forçado Absoluto: {num}")
                             
                         return num
                     except IndexError:
-                        print(f"    -> [ERRO] A posição {posicao} não existe na lista acima.")
+                        print(f"    -> [ERRO] A posição não existe.")
                 else:
                     print(f"    -> [ERRO] Nenhum número encontrado na janela.")
             else:
-                print(f"    -> [ERRO] A palavra-chave '{padrao}' sumiu do PDF.")
+                print(f"    -> [ERRO] A âncora '{padrao}' sumiu do PDF.")
             return 0.0
 
-        # --- ESTRATÉGIA UNIFICADA (BRUTO E LÍQUIDO) ---
-        # Janela de 300 mantida para o Bruto, pois ela já estava encontrando a posição 10 perfeitamente no log
-        v_bruto = extrair_por_posicao("Valor Bruto", r"Ajuste day trade", texto_completo, 10, aceita_cd=True, janela_tras=0, janela_frente=300)
+        # --- ENGENHARIA REVERSA ---
+        # 1. Pega o Líquido da Nota olhando estritamente para TRÁS da frase "Custos BM&F" (garante a captura do sinal C/D)
+        v_liquido_pregao = extrair_por_posicao("Líquido da Nota", r"Custos BM&F", texto_completo, -1, aceita_cd=True, janela_tras=100, janela_frente=0)
         
-        # O FÔLEGO: Janela expandida para 5000 para varrer até o fim da página e encontrar o saldo absoluto verdadeiro (-1)
-        v_liquido_pregao = extrair_por_posicao("Líquido da Nota", r"Total l[ií]quido da nota", texto_completo, -1, aceita_cd=True, janela_tras=0, janela_frente=5000)
+        # 2. Pega as Taxas olhando para TRÁS da frase "Total das despesas"
+        v_taxas_b3 = extrair_por_posicao("Taxas B3", r"Total das despesas", texto_completo, -1, aceita_cd=False, janela_tras=40, janela_frente=0)
+        
+        # 3. Pega o IR olhando para TRÁS da frase "IRRF Day Trade"
+        v_irrf_1 = extrair_por_posicao("IRRF Day Trade 1%", r"IRRF Day Trade", texto_completo, -1, aceita_cd=False, janela_tras=40, janela_frente=0)
 
         print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS DO PREGÃO ---")
         
-        v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+        v_custos_unificados = round(v_taxas_b3 + v_irrf_1, 2)
         
-        # --- A VACINA MATEMÁTICA: CORREÇÃO DE SINAL ---
-        if v_custos_unificados < 0:
-            print(f"    [!] Anomalia detectada: Custos negativos ({v_custos_unificados}). O PDF ocultou o sinal de Loss!")
-            v_liquido_pregao = -abs(v_liquido_pregao)
-            v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
-            print(f"    [!] Correção aplicada. Novo Líquido: {v_liquido_pregao} | Novos Custos: {v_custos_unificados}")
-        else:
-            print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
-
-        # Para manter compatibilidade com o Banco de Dados
-        v_taxas_b3 = v_custos_unificados
-        v_irrf_1 = 0.0
-
-        print(f"    Fórmula: Líquido Pregão (Extraído Direto) = {v_liquido_pregao}")
+        # O Bruto é reconstruído matematicamente: Líquido + Custos
+        v_bruto = round(v_liquido_pregao + v_custos_unificados, 2)
         
+        print(f"    Custos Unificados Extraídos: {v_custos_unificados}")
+        print(f"    Bruto Reconstruído: Líquido ({v_liquido_pregao}) + Custos ({v_custos_unificados}) = {v_bruto}")
+
         if v_liquido_pregao > 0:
             v_irrf_19 = round(v_liquido_pregao * 0.19, 2)
             print(f"    Fórmula: IRRF 19% = {v_liquido_pregao} * 0.19 = {v_irrf_19}")
@@ -126,8 +108,8 @@ def extrair_dados_btg(caminho_arquivo):
         return {
             'data_pregao': data_pregao,
             'bruto': v_bruto,
-            'taxas_b3': v_taxas_b3,
-            'irrf_1': v_irrf_1,
+            'taxas_b3': v_custos_unificados,
+            'irrf_1': 0.0,  # Fica zerado no BD pois já está dentro de taxas_b3 (Unificado)
             'liquido_pregao': v_liquido_pregao,
             'irrf_19': v_irrf_19,
             'liquido_dia': v_liquido_dia,
