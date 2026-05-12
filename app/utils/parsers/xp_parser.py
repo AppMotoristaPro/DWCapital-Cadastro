@@ -5,7 +5,7 @@ from pypdf import PdfReader
 
 def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
     print(f"\n==================================================")
-    print(f"[XP_PARSER] INICIANDO ROBÔ XP (CALIBRADO)")
+    print(f"[XP_PARSER] INICIANDO ROBÔ XP (ESTRATÉGIA UNIFICADA)")
     print(f"==================================================")
     try:
         if senha_manual:
@@ -53,7 +53,6 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
                 fim = min(len(texto), match.end() + janela_frente)
                 bloco = texto[inicio:fim]
 
-                # Limpeza de caracteres que confundem a XP
                 bloco_limpo = re.sub(r'[\|/]', ' ', bloco)
                 bloco_limpo = re.sub(r'(,\d{2})\s*([CDcd])\b', r'\1 \2', bloco_limpo)
 
@@ -67,7 +66,11 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
 
                 if matches:
                     try:
-                        alvo = matches[posicao - 1]
+                        if posicao > 0:
+                            alvo = matches[posicao - 1]
+                        else:
+                            alvo = matches[posicao] 
+                            
                         valor_str, letra = alvo
                         num = float(valor_str.replace('.', '').replace(',', '.'))
 
@@ -84,20 +87,23 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
                         print(f"    -> [ERRO] Posição {posicao} não encontrada.")
             return 0.0
 
-        # --- CALIBRAÇÃO FINAL DAS POSIÇÕES XP ---
-        
-        # 1. Bruto: No log, o lucro de 75,00 C apareceu na Posição 4 do resumo
+        # --- NOVA EXTRAÇÃO SIMPLIFICADA (BRUTO E LÍQUIDO) ---
         v_bruto = extrair_por_posicao("Valor Bruto", r"Ajuste day trade", texto_completo, 4, aceita_cd=True)
         
-        # 2. IRRF 1%: O valor de 0,36 aparece na Posição 2
-        v_irrf_1 = extrair_por_posicao("IRRF Day Trade (1%)", r"IRRF Day Trade", texto_completo, 2, aceita_cd=False)
-        
-        # 3. Taxas B3: O custo de 38,89 aparece na Posição 5
-        v_taxas_b3 = extrair_por_posicao("Taxas B3", r"Total de custos operacionais", texto_completo, 5, aceita_cd=False)
+        # Na XP, também pegamos o último valor atrelado à âncora do Total Líquido
+        v_liquido_pregao = extrair_por_posicao("Líquido da Nota", r"Total l[ií]quido da nota", texto_completo, -1, aceita_cd=True)
 
         print("\n  [MATEMÁTICA] --- PROCESSAMENTO ---")
-        v_liquido_pregao = round(v_bruto - v_taxas_b3 - v_irrf_1, 2)
-        print(f"    Líquido Pregão: {v_liquido_pregao}")
+        
+        # Custos Operacionais = Diferença Absoluta entre o Bruto e o Líquido
+        v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+        print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
+
+        # Para manter compatibilidade com o Banco de Dados sem migrations
+        v_taxas_b3 = v_custos_unificados
+        v_irrf_1 = 0.0
+
+        print(f"    Líquido Pregão (Extraído Direto): {v_liquido_pregao}")
         
         v_irrf_19 = round(v_liquido_pregao * 0.19, 2) if v_liquido_pregao > 0 else 0.0
         v_liquido_dia = round(v_liquido_pregao - v_irrf_19, 2)
