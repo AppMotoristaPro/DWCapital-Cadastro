@@ -3,11 +3,12 @@ from pypdf import PdfReader
 
 def extrair_dados_btg(caminho_arquivo):
     print(f"\n==================================================")
-    print(f"[BTG_PARSER] INICIANDO ROBÔ BTG (ESTRATÉGIA UNIFICADA)")
+    print(f"[BTG_PARSER] INICIANDO ROBÔ BTG (ÚLTIMA PÁGINA + UNIFICADA)")
     print(f"==================================================")
     print(f"[BTG_PARSER] Arquivo alvo: {caminho_arquivo}")
     try:
         leitor = PdfReader(caminho_arquivo)
+        # O comando abaixo garante que o robô ignore todas as páginas e leia APENAS A ÚLTIMA
         ultima_pagina = leitor.pages[-1]
         texto_completo_original = ultima_pagina.extract_text()
         print("[BTG_PARSER] Texto lido com sucesso.")
@@ -20,12 +21,11 @@ def extrair_dados_btg(caminho_arquivo):
         data_pregao = match_data.group(1) if match_data else None
         print(f"[BTG_PARSER] Data encontrada: {data_pregao}\n")
 
-        # --- LIMPEZA CIRÚRGICA DE RODAPÉ ---
-        # Substitui os valores fantasmas por espaço para não explodir a linha e preservar as âncoras
-        texto_completo = texto_completo_original
-        texto_completo = re.sub(r'(?:OZ1|OZ2|OZ3)[-\s]*\d+,\d+\s*grs\.?', ' ', texto_completo, flags=re.IGNORECASE)
-        texto_completo = re.sub(r'(?:0800|4007|4004)[-\s]*\d{3,4}[-\s]*\d{4}', ' ', texto_completo)
-        texto_completo = re.sub(r'Total remunera[çc][ãa]o.*', ' ', texto_completo, flags=re.IGNORECASE)
+        # --- FILTRO INTELIGENTE DE RODAPÉ ---
+        # Apaga o lixo linha por linha, garantindo que a base de cálculo não seja corrompida
+        linhas = texto_completo_original.split('\n')
+        linhas_limpas = [l for l in linhas if not any(x in l.upper() for x in ['CUSTOS BM&F', 'OZ1', 'OZ2', 'OZ3', 'OUVIDORIA', 'TOTAL REMUNERAÇÃO', 'CAPITAIS E REGIÕES'])]
+        texto_completo = '\n'.join(linhas_limpas)
 
         def extrair_por_posicao(nome_campo, padrao, texto, posicao, aceita_cd=False, janela_tras=0, janela_frente=200):
             print(f"\n  [BUSCA] Analisando Campo: '{nome_campo}'")
@@ -45,12 +45,6 @@ def extrair_dados_btg(caminho_arquivo):
                 
                 regex_numeros = r"(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})\s*([CDcd])?"
                 matches = re.findall(regex_numeros, bloco_limpo)
-                
-                print(f"    -> Valores e Letras localizados na janela:")
-                for i, m in enumerate(matches):
-                    idx_rev = i - len(matches)
-                    letra_print = m[1] if m[1] else "(Sem Letra)"
-                    print(f"       [Pos: {i+1} | Rev: {idx_rev}] -> {m[0]} {letra_print}")
                 
                 if matches:
                     try:
@@ -85,10 +79,11 @@ def extrair_dados_btg(caminho_arquivo):
             return 0.0
 
         # --- ESTRATÉGIA UNIFICADA (BRUTO E LÍQUIDO) ---
+        # Janela de 300 mantida para o Bruto, pois ela já estava encontrando a posição 10 perfeitamente no log
         v_bruto = extrair_por_posicao("Valor Bruto", r"Ajuste day trade", texto_completo, 10, aceita_cd=True, janela_tras=0, janela_frente=300)
         
-        # Janela ampla para frente e para trás para garantir a captura independentemente da ordem do parser
-        v_liquido_pregao = extrair_por_posicao("Líquido da Nota", r"Total l[ií]quido da nota", texto_completo, -1, aceita_cd=True, janela_tras=500, janela_frente=1500)
+        # O FÔLEGO: Janela expandida para 5000 para varrer até o fim da página e encontrar o saldo absoluto verdadeiro (-1)
+        v_liquido_pregao = extrair_por_posicao("Líquido da Nota", r"Total l[ií]quido da nota", texto_completo, -1, aceita_cd=True, janela_tras=0, janela_frente=5000)
 
         print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS DO PREGÃO ---")
         
@@ -103,7 +98,7 @@ def extrair_dados_btg(caminho_arquivo):
         else:
             print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
 
-        # Para manter compatibilidade com o Banco de Dados sem migrations
+        # Para manter compatibilidade com o Banco de Dados
         v_taxas_b3 = v_custos_unificados
         v_irrf_1 = 0.0
 
