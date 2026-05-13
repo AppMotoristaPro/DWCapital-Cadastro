@@ -30,7 +30,7 @@
                     </div>
                 </div>
 
-                <form method="POST" action="{{ url_for('admin.disparar_documento') }}" onsubmit="return confirm('Tem certeza que deseja disparar este contrato para os parceiros selecionados?')" class="space-y-6">
+                <form id="form-disparo-lote" class="space-y-6">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                     
                     <div>
@@ -45,11 +45,19 @@
 
                     <div>
                         <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Selecionar Parceiros</label>
-                        <div class="bg-white border border-gray-200 rounded-xl h-48 overflow-y-auto p-3 space-y-1 custom-scrollbar shadow-inner">
+                        <div class="bg-white border border-gray-200 rounded-xl h-48 overflow-y-auto p-3 space-y-1 custom-scrollbar shadow-inner relative">
+                            
+                            {% if clientes %}
+                            <label class="flex items-center p-3 mb-2 bg-purple-50 rounded-lg cursor-pointer border border-purple-100 hover:border-purple-300 transition group sticky top-0 z-10 shadow-sm">
+                                <input type="checkbox" id="check-todos" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer">
+                                <span class="ml-3 text-[10px] font-black text-navy uppercase tracking-widest group-hover:text-purple-700 transition">Selecionar Todos</span>
+                            </label>
+                            {% endif %}
+                            
                             {% for cliente in clientes %}
-                            <label class="flex items-center p-3 hover:bg-purple-50 rounded-lg cursor-pointer border border-transparent hover:border-purple-100 transition group">
-                                <input type="checkbox" name="clientes[]" value="{{ cliente.id }}" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer">
-                                <span class="ml-3 text-xs font-bold text-navy group-hover:text-purple-700 transition">{{ cliente.nome }}</span>
+                            <label class="flex items-center p-3 hover:bg-gray-50 rounded-lg cursor-pointer border border-transparent hover:border-gray-200 transition group">
+                                <input type="checkbox" name="clientes[]" value="{{ cliente.id }}" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer cli-checkbox">
+                                <span class="ml-3 text-xs font-bold text-navy transition">{{ cliente.nome }}</span>
                             </label>
                             {% else %}
                             <p class="text-xs text-gray-400 font-medium p-4 text-center">Nenhum parceiro ativo.</p>
@@ -140,5 +148,120 @@
 
     </div>
 </div>
-{% endblock %}
 
+<div id="modal-progresso-disparo" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-navy/80 backdrop-blur-md p-4">
+    <div class="bg-white w-full max-w-md rounded-[2rem] shadow-2xl p-10 relative text-center border border-gray-100">
+        
+        <div class="w-16 h-16 bg-purple-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-purple-600 border border-purple-100 shadow-sm">
+            <svg class="w-8 h-8 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+        </div>
+        
+        <h3 class="text-xl font-black text-navy mb-2">Disparando Lote...</h3>
+        <p id="progresso-texto" class="text-xs text-gray-500 font-medium mb-6">Iniciando comunicação com a Autentique...</p>
+        
+        <div class="h-3 w-full bg-gray-100 rounded-full overflow-hidden shadow-inner mb-4">
+            <div id="barra-progresso" class="h-full bg-gradient-to-r from-purple-600 to-royal transition-all duration-300 w-0"></div>
+        </div>
+        <p id="progresso-contador" class="text-[10px] font-black text-gray-400 uppercase tracking-widest">0 de 0 concluídos</p>
+        
+        <div id="progresso-erros" class="hidden mt-6 text-left bg-red-50 p-4 rounded-xl border border-red-100 max-h-32 overflow-y-auto custom-scrollbar">
+            <p class="text-[9px] font-black text-red-500 uppercase tracking-widest mb-2">Avisos e Erros:</p>
+            <ul id="lista-erros" class="text-[10px] font-bold text-red-400 space-y-1"></ul>
+        </div>
+
+        <button id="btn-fechar-progresso" onclick="window.location.reload()" class="hidden w-full py-4 mt-8 bg-navy text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg hover:-translate-y-1 transition">Concluir e Atualizar</button>
+    </div>
+</div>
+
+<script>
+// ==========================================
+// LÓGICA DO CHECKBOX "SELECIONAR TODOS"
+// ==========================================
+document.getElementById('check-todos')?.addEventListener('change', function() {
+    const isChecked = this.checked;
+    const checkboxes = document.querySelectorAll('.cli-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = isChecked;
+    });
+});
+
+// ==========================================
+// MOTOR DE FILA NO NAVEGADOR (FASE 3 - PLANO A)
+// ==========================================
+document.getElementById('form-disparo-lote').addEventListener('submit', async function(e) {
+    e.preventDefault(); 
+    
+    const templateSelect = document.querySelector('select[name="template_id"]');
+    const templateId = templateSelect.value;
+    
+    const checkboxes = document.querySelectorAll('input[name="clientes[]"]:checked');
+    if(checkboxes.length === 0) {
+        alert('Selecione ao menos um parceiro na lista para efetuar o disparo.');
+        return;
+    }
+    
+    if(!confirm(`Você está preste a enviar este contrato para ${checkboxes.length} parceiros.\nDeseja iniciar a esteira?`)) return;
+
+    const modal = document.getElementById('modal-progresso-disparo');
+    const barra = document.getElementById('barra-progresso');
+    const texto = document.getElementById('progresso-texto');
+    const contador = document.getElementById('progresso-contador');
+    const divErros = document.getElementById('progresso-erros');
+    const listaErros = document.getElementById('lista-erros');
+    const btnFechar = document.getElementById('btn-fechar-progresso');
+    
+    modal.classList.remove('hidden');
+    listaErros.innerHTML = '';
+    divErros.classList.add('hidden');
+    btnFechar.classList.add('hidden');
+    barra.style.width = '0%';
+    
+    let sucesso = 0;
+    let falha = 0;
+    const total = checkboxes.length;
+    
+    for(let i = 0; i < total; i++) {
+        const userId = checkboxes[i].value;
+        const clientName = checkboxes[i].nextElementSibling.innerText;
+        
+        texto.innerText = `Processando a fila: ${clientName}...`;
+        
+        try {
+            const response = await fetch("{{ url_for('admin.api_disparar_unico') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({
+                    template_id: templateId,
+                    user_id: userId
+                })
+            });
+            
+            const data = await response.json();
+            
+            if(data.success) {
+                sucesso++;
+            } else {
+                falha++;
+                divErros.classList.remove('hidden');
+                listaErros.innerHTML += `<li>• ${clientName}: ${data.message}</li>`;
+            }
+        } catch(error) {
+            falha++;
+            divErros.classList.remove('hidden');
+            listaErros.innerHTML += `<li>• ${clientName}: Timeout / Queda de Conexão.</li>`;
+        }
+        
+        const perc = Math.round(((i + 1) / total) * 100);
+        barra.style.width = perc + '%';
+        contador.innerText = `${i + 1} de ${total} processados`;
+    }
+    
+    texto.innerText = `Esteira finalizada! ${sucesso} enviados com sucesso.`;
+    texto.classList.add('text-green-500', 'font-bold');
+    btnFechar.classList.remove('hidden');
+});
+</script>
+{% endblock %}

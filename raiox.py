@@ -2,11 +2,14 @@ import os
 
 # Configurações
 DIRETORIO_RAIZ = "."
-ARQUIVO_SAIDA = os.path.expanduser("~/storage/downloads/raiox_projeto_python.txt")
+ARQUIVO_SAIDA = "raiox_projeto_python.txt"  # Salva direto na raiz da pasta atual (DWCapital)
 
 # O que NÃO queremos ler (para não travar o script nem gerar lixo)
 PASTAS_IGNORADAS = {'.git', '__pycache__', 'venv', '.venv', 'node_modules', 'instance'}
 EXTENSOES_PERMITIDAS = {'.py', '.html', '.css', '.js', '.txt', '.md', '.env.example'}
+
+# Proteção para o script não ler o próprio arquivo de saída enquanto o escreve
+ARQUIVOS_IGNORADOS = {ARQUIVO_SAIDA, '.gitignore'} 
 
 def gerar_arvore(caminho, prefixo=""):
     """Gera a representação visual da estrutura de pastas (Tree)."""
@@ -20,6 +23,7 @@ def gerar_arvore(caminho, prefixo=""):
     itens_filtrados = [
         i for i in itens 
         if i not in PASTAS_IGNORADAS 
+        and i not in ARQUIVOS_IGNORADOS
         and not i.endswith('.sqlite3') 
         and not i.endswith('.pdf')
         and not i.endswith('.pyc')
@@ -61,6 +65,10 @@ def compilar_projeto():
             pastas[:] = [p for p in pastas if p not in PASTAS_IGNORADAS]
             
             for arquivo in sorted(arquivos):
+                # Pula o próprio arquivo de saída para não duplicar
+                if arquivo in ARQUIVOS_IGNORADOS:
+                    continue
+                    
                 caminho_completo = os.path.join(raiz, arquivo)
                 _, extensao = os.path.splitext(arquivo)
                 
@@ -76,8 +84,7 @@ def compilar_projeto():
                     except Exception as e:
                         f_saida.write(f"[⚠️ Erro ao tentar ler arquivo: {e}]\n")
 
-    print(f"✅ Sucesso absoluto! O arquivo foi salvo em: {ARQUIVO_SAIDA}")
+    print(f"✅ Sucesso absoluto! O arquivo foi salvo em: {os.path.abspath(ARQUIVO_SAIDA)}")
 
 if __name__ == "__main__":
     compilar_projeto()
-

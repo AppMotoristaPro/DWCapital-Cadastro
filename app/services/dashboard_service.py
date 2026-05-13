@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from sqlalchemy.orm import joinedload, contains_eager
 from app import db
 from app.models import Fatura, User
 import pytz
@@ -10,7 +11,11 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
     Processa toda a matemática do dashboard admin: filtros de data, 
     faturamento bruto/líquido, cálculo de ROI Diário Médio e agregação do gráfico.
     """
-    faturas_base = Fatura.query.join(User).filter(
+    # OTIMIZAÇÃO MAX: Traz os dados do Cliente e das Faturas Diárias na mesma consulta!
+    faturas_base = Fatura.query.join(User).options(
+        contains_eager(Fatura.cliente),
+        joinedload(Fatura.dias)
+    ).filter(
         Fatura.status.in_(['parcial', 'completo', 'pago', 'inadimplente']),
         db.or_(User.is_isento == False, User.is_isento.is_(None))
     )
@@ -132,7 +137,8 @@ def obter_dados_dashboard_cliente(user_id, filtro_dia, filtro_semana_dia, filtro
     Processa a matemática do dashboard do cliente: filtros de data, 
     faturamento bruto, faturamento líquido (sem taxa de 30%) e média.
     """
-    faturas_base = Fatura.query.filter_by(user_id=user_id)
+    # OTIMIZAÇÃO: Traz os dias diários do cliente em uma única query!
+    faturas_base = Fatura.query.filter_by(user_id=user_id).options(joinedload(Fatura.dias))
     
     if filtro_dia:
         dt_dia = datetime.strptime(filtro_dia, '%Y-%m-%d').date()
@@ -195,4 +201,3 @@ def obter_dados_dashboard_cliente(user_id, filtro_dia, filtro_semana_dia, filtro
         'chart_labels': chart_labels,
         'chart_data': chart_data
     }
-
