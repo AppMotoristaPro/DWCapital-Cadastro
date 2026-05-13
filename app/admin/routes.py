@@ -6,6 +6,7 @@ from tempfile import NamedTemporaryFile
 from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app
 from flask_login import current_user
 from werkzeug.security import generate_password_hash
+from sqlalchemy.orm import joinedload
 from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria, DocumentoTemplate, DocumentoCliente
 from app import db
 from datetime import datetime, timedelta
@@ -45,7 +46,8 @@ def clientes_list():
     busca = request.args.get('q', '')
     status_filtro = request.args.get('status', '')
     
-    query = User.query.filter_by(role='cliente')
+    # OTIMIZAÇÃO: Trazendo as alocações na mesma query (Resolve N+1)
+    query = User.query.filter_by(role='cliente').options(joinedload(User.alocacoes))
     
     if busca:
         query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
@@ -157,7 +159,9 @@ def pagamentos():
     ciclo = request.args.get('ciclo')
     
     if ciclo or busca:
-        query = User.query.filter_by(role='cliente', status_acesso='ativo')
+        # OTIMIZAÇÃO: Trazendo as alocações na mesma query
+        query = User.query.filter_by(role='cliente', status_acesso='ativo').options(joinedload(User.alocacoes))
+        
         if busca:
             query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
         ativos = query.order_by(User.nome.asc()).all()
@@ -186,7 +190,8 @@ def pagamentos():
         clientes_dados = []
         for c in ativos:
             auto_gerar_ciclo(c, data_base=inicio_ciclo)
-            fatura_atual = Fatura.query.filter_by(user_id=c.id, data_inicio=inicio_ciclo).first()
+            # OTIMIZAÇÃO: Trazendo os dias da fatura na mesma viagem
+            fatura_atual = Fatura.query.options(joinedload(Fatura.dias)).filter_by(user_id=c.id, data_inicio=inicio_ciclo).first()
             detalhes_corretoras = {}
             
             if fatura_atual:
@@ -242,16 +247,18 @@ def pagamentos_cliente(id):
     cliente = User.query.get_or_404(id)
     ciclo = request.args.get('ciclo')
     
+    # OTIMIZAÇÃO: Trazendo os dias em uma única query
+    query = Fatura.query.filter_by(user_id=cliente.id).options(joinedload(Fatura.dias))
+    
     if ciclo:
         try:
             dt_inicio = datetime.strptime(ciclo, '%Y-%m-%d').date()
             auto_gerar_ciclo(cliente, data_base=dt_inicio)
-            query = Fatura.query.filter_by(user_id=cliente.id, data_inicio=dt_inicio)
+            query = query.filter_by(data_inicio=dt_inicio)
         except ValueError:
-            query = Fatura.query.filter_by(user_id=cliente.id)
+            pass
     else:
         auto_gerar_ciclo(cliente)
-        query = Fatura.query.filter_by(user_id=cliente.id)
             
     faturas = query.order_by(Fatura.data_inicio.desc()).all()
     return render_template('admin/pagamentos_cliente.html', cliente=cliente, faturas=faturas, ciclo_voltar=ciclo)
@@ -282,7 +289,7 @@ def isentar_dia_global():
         
         faturas_afetadas = set()
         for dia in dias_afetados:
-            dia.zerar_valores(isentar=True) # <-- FAT MODEL EM AÇÃO!
+            dia.zerar_valores(isentar=True)
             faturas_afetadas.add(dia.fatura_semanal)
             
         for fatura in faturas_afetadas:
@@ -301,7 +308,7 @@ def isentar_dia_global():
 def isentar_dia(dia_id):
     dia = FaturaDiaria.query.get_or_404(dia_id)
     
-    dia.zerar_valores(isentar=True) # <-- FAT MODEL EM AÇÃO!
+    dia.zerar_valores(isentar=True)
     registrar_log(f"Marcou como Isento o dia {dia.data_pregao.strftime('%d/%m/%Y')} (Corretora: {dia.nome_corretora}) do cliente {dia.fatura_semanal.cliente.nome}.", "Pagamentos")
     
     atualizar_totais_semana(dia.fatura_semanal)
@@ -313,7 +320,7 @@ def isentar_dia(dia_id):
 def remover_isencao_dia(dia_id):
     dia = FaturaDiaria.query.get_or_404(dia_id)
     
-    dia.zerar_valores(isentar=False) # <-- FAT MODEL EM AÇÃO!
+    dia.zerar_valores(isentar=False)
     registrar_log(f"Removeu a isenção do dia {dia.data_pregao.strftime('%d/%m/%Y')} (Corretora: {dia.nome_corretora}) do cliente {dia.fatura_semanal.cliente.nome}.", "Pagamentos")
     
     atualizar_totais_semana(dia.fatura_semanal)
@@ -327,7 +334,7 @@ def rejeitar_relatorio(dia_id):
     
     registrar_log(f"Rejeitou e excluiu o relatório de {dia.fatura_semanal.cliente.nome} do pregão {dia.data_pregao.strftime('%d/%m/%Y')} (Corretora: {dia.nome_corretora}).", "Pagamentos")
     
-    dia.zerar_valores(isentar=False) # <-- FAT MODEL EM AÇÃO!
+    dia.zerar_valores(isentar=False)
     atualizar_totais_semana(dia.fatura_semanal)
     
     flash('Relatório rejeitado e valores recalculados.', 'success')
@@ -340,7 +347,7 @@ def forcar_limpeza_dia(dia_id):
     
     registrar_log(f"Forçou a limpeza de valores fantasmas do pregão {dia.data_pregao.strftime('%d/%m/%Y')} (Corretora: {dia.nome_corretora}) do cliente {dia.fatura_semanal.cliente.nome}.", "Pagamentos")
     
-    dia.zerar_valores(isentar=False) # <-- FAT MODEL EM AÇÃO!
+    dia.zerar_valores(isentar=False)
     atualizar_totais_semana(dia.fatura_semanal)
     
     flash('Limpeza forçada! Todos os valores fantasmas deste dia foram zerados.', 'success')
@@ -378,7 +385,13 @@ def atividades():
 def documentos():
     templates = DocumentoTemplate.query.all()
     clientes = User.query.filter_by(role='cliente', status_acesso='ativo').order_by(User.nome.asc()).all()
-    historico = DocumentoCliente.query.order_by(DocumentoCliente.data_envio.desc()).limit(100).all()
+    
+    # OTIMIZAÇÃO: Traz as ligações com cliente e modelo numa viagem só (Evita dezenas de consultas N+1 na tabela)
+    historico = DocumentoCliente.query.options(
+        joinedload(DocumentoCliente.cliente), 
+        joinedload(DocumentoCliente.template)
+    ).order_by(DocumentoCliente.data_envio.desc()).limit(100).all()
+    
     return render_template('admin/documentos.html', templates=templates, clientes=clientes, historico=historico)
 
 @admin_bp.route('/documentos/cadastrar_template', methods=['POST'])
@@ -425,8 +438,10 @@ def disparar_documento():
 @admin_bp.route('/reprocessar_notas_antigas', methods=['GET'])
 @admin_required
 def reprocessar_notas_antigas():
-    # Busca todas as faturas diárias que já têm um PDF anexado
-    dias_enviados = FaturaDiaria.query.filter(
+    # OTIMIZAÇÃO MAX: Puxa todos os dias enviados, a fatura semanal e os dados do cliente de uma vez só!
+    dias_enviados = FaturaDiaria.query.options(
+        joinedload(FaturaDiaria.fatura_semanal).joinedload(Fatura.cliente)
+    ).filter(
         FaturaDiaria.status == 'relatorio_enviado',
         FaturaDiaria.arquivo_pdf.isnot(None)
     ).all()
@@ -437,24 +452,19 @@ def reprocessar_notas_antigas():
     
     for dia in dias_enviados:
         try:
-            # Baixa o PDF do Cloudinary temporariamente para a memória do servidor
             response = requests.get(dia.arquivo_pdf, timeout=15)
             if response.status_code == 200:
                 with NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
                     temp_pdf.write(response.content)
                     temp_path = temp_pdf.name
                 
-                # Identifica o CPF do cliente para repassar ao motor de leitura (necessário para XP)
                 cpf_cliente = dia.fatura_semanal.cliente.cpf
-                
-                # Passa o PDF no motor cérebro atualizado
                 dados = processar_pdf(temp_path, dia.nome_corretora, cpf_cliente, None)
                 
                 if dados:
-                    # Sobrescreve os dados velhos com a matemática perfeita unificada
                     dia.bruto = dados.get('bruto')
-                    dia.taxas_b3 = dados.get('taxas_b3') # Guarda Custos Unificados (B3+IR)
-                    dia.irrf_1 = 0.0                     # Zera pois já está nos custos unificados
+                    dia.taxas_b3 = dados.get('taxas_b3') 
+                    dia.irrf_1 = 0.0                     
                     dia.liquido_pregao = dados.get('liquido_pregao')
                     dia.irrf_19 = dados.get('irrf_19')
                     dia.liquido = dados.get('liquido_dia')
@@ -469,7 +479,6 @@ def reprocessar_notas_antigas():
                 else:
                     erros += 1
                     
-                # Apaga o PDF temporário do servidor
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
             else:
@@ -478,7 +487,6 @@ def reprocessar_notas_antigas():
             print(f"Erro ao reprocessar dia {dia.id}: {str(e)}")
             erros += 1
             
-    # Recalcula a gaveta semanal para propagar o repasse da DW
     for fatura in faturas_afetadas:
         atualizar_totais_semana(fatura)
         
@@ -488,4 +496,3 @@ def reprocessar_notas_antigas():
     flash(f'Reprocessamento concluído com sucesso! {sucesso} notas financeiras foram corrigidas com o novo motor unificado ({erros} não puderam ser lidas).', 'success')
     
     return redirect(url_for('admin.dashboard'))
-
