@@ -1,3 +1,4 @@
+import os
 import click
 from flask.cli import with_appcontext
 from sqlalchemy import text
@@ -13,6 +14,13 @@ def register_cli_commands(app):
         """Comando de segurança: Cria as tabelas e os 4 diretores da DW Capital."""
         click.echo("Iniciando setup corporativo da DW Capital...")
         db.create_all()
+        
+        # 🛡️ PROTEÇÃO FASE 1: Lendo a senha segura do ambiente (.env ou Render)
+        senha_padrao = os.getenv('ADMIN_DEFAULT_PASSWORD')
+        if not senha_padrao:
+            click.echo("⚠️ ERRO CRÍTICO: A variável ADMIN_DEFAULT_PASSWORD não está configurada no ambiente!")
+            click.echo("Abortando a criação dos usuários para manter a segurança do banco de dados.")
+            return
         
         admin_antigo = User.query.filter_by(username='dwcapital').first()
         if admin_antigo:
@@ -33,7 +41,7 @@ def register_cli_commands(app):
                 novo_admin = User(
                     username=admin_data['username'],
                     nome=admin_data['nome'],
-                    password_hash=generate_password_hash('dwtemp2026'),
+                    password_hash=generate_password_hash(senha_padrao),
                     role='admin',
                     status_acesso='ativo',
                     precisa_trocar_senha=True 
@@ -42,7 +50,7 @@ def register_cli_commands(app):
                 criados += 1
                 
         db.session.commit()
-        click.echo(f"✅ Setup Concluído! {criados} novos acessos administrativos gerados.")
+        click.echo(f"✅ Setup Concluído! {criados} novos acessos administrativos gerados com sucesso.")
 
     @app.cli.command('migrar-corretoras')
     @with_appcontext
@@ -83,4 +91,3 @@ def register_cli_commands(app):
         
         db.session.commit()
         click.echo(f"✅ MIGRAÇÃO CONCLUÍDA! {alocacoes_criadas} alocações geradas e {faturas_corrigidas} dias corrigidos.")
-

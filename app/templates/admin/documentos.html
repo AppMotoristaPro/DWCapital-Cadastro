@@ -45,11 +45,19 @@
 
                     <div>
                         <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Selecionar Parceiros</label>
-                        <div class="bg-white border border-gray-200 rounded-xl h-48 overflow-y-auto p-3 space-y-1 custom-scrollbar shadow-inner">
+                        <div class="bg-white border border-gray-200 rounded-xl h-48 overflow-y-auto p-3 space-y-1 custom-scrollbar shadow-inner relative">
+                            
+                            {% if clientes %}
+                            <label class="flex items-center p-3 mb-2 bg-purple-50 rounded-lg cursor-pointer border border-purple-100 hover:border-purple-300 transition group sticky top-0 z-10 shadow-sm">
+                                <input type="checkbox" id="check-todos" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer">
+                                <span class="ml-3 text-[10px] font-black text-navy uppercase tracking-widest group-hover:text-purple-700 transition">Selecionar Todos</span>
+                            </label>
+                            {% endif %}
+                            
                             {% for cliente in clientes %}
-                            <label class="flex items-center p-3 hover:bg-purple-50 rounded-lg cursor-pointer border border-transparent hover:border-purple-100 transition group">
-                                <input type="checkbox" name="clientes[]" value="{{ cliente.id }}" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer">
-                                <span class="ml-3 text-xs font-bold text-navy group-hover:text-purple-700 transition">{{ cliente.nome }}</span>
+                            <label class="flex items-center p-3 hover:bg-gray-50 rounded-lg cursor-pointer border border-transparent hover:border-gray-200 transition group">
+                                <input type="checkbox" name="clientes[]" value="{{ cliente.id }}" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer cli-checkbox">
+                                <span class="ml-3 text-xs font-bold text-navy transition">{{ cliente.nome }}</span>
                             </label>
                             {% else %}
                             <p class="text-xs text-gray-400 font-medium p-4 text-center">Nenhum parceiro ativo.</p>
@@ -167,11 +175,21 @@
 
 <script>
 // ==========================================
+// LÓGICA DO CHECKBOX "SELECIONAR TODOS"
+// ==========================================
+document.getElementById('check-todos')?.addEventListener('change', function() {
+    const isChecked = this.checked;
+    const checkboxes = document.querySelectorAll('.cli-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = isChecked;
+    });
+});
+
+// ==========================================
 // MOTOR DE FILA NO NAVEGADOR (FASE 3 - PLANO A)
-// Intercepta o clique e manda um disparo por vez para a API do Flask
 // ==========================================
 document.getElementById('form-disparo-lote').addEventListener('submit', async function(e) {
-    e.preventDefault(); // Impede a página de recarregar
+    e.preventDefault(); 
     
     const templateSelect = document.querySelector('select[name="template_id"]');
     const templateId = templateSelect.value;
@@ -184,7 +202,6 @@ document.getElementById('form-disparo-lote').addEventListener('submit', async fu
     
     if(!confirm(`Você está preste a enviar este contrato para ${checkboxes.length} parceiros.\nDeseja iniciar a esteira?`)) return;
 
-    // Resgata os elementos do Modal de Progresso
     const modal = document.getElementById('modal-progresso-disparo');
     const barra = document.getElementById('barra-progresso');
     const texto = document.getElementById('progresso-texto');
@@ -193,7 +210,6 @@ document.getElementById('form-disparo-lote').addEventListener('submit', async fu
     const listaErros = document.getElementById('lista-erros');
     const btnFechar = document.getElementById('btn-fechar-progresso');
     
-    // Reseta e Mostra o Modal
     modal.classList.remove('hidden');
     listaErros.innerHTML = '';
     divErros.classList.add('hidden');
@@ -204,7 +220,6 @@ document.getElementById('form-disparo-lote').addEventListener('submit', async fu
     let falha = 0;
     const total = checkboxes.length;
     
-    // O Loop de Espera (A Mágica)
     for(let i = 0; i < total; i++) {
         const userId = checkboxes[i].value;
         const clientName = checkboxes[i].nextElementSibling.innerText;
@@ -212,7 +227,6 @@ document.getElementById('form-disparo-lote').addEventListener('submit', async fu
         texto.innerText = `Processando a fila: ${clientName}...`;
         
         try {
-            // Chama a nova API oculta no backend
             const response = await fetch("{{ url_for('admin.api_disparar_unico') }}", {
                 method: 'POST',
                 headers: {
@@ -240,13 +254,11 @@ document.getElementById('form-disparo-lote').addEventListener('submit', async fu
             listaErros.innerHTML += `<li>• ${clientName}: Timeout / Queda de Conexão.</li>`;
         }
         
-        // Atualiza a barra verde graficamente
         const perc = Math.round(((i + 1) / total) * 100);
         barra.style.width = perc + '%';
         contador.innerText = `${i + 1} de ${total} processados`;
     }
     
-    // Finalização
     texto.innerText = `Esteira finalizada! ${sucesso} enviados com sucesso.`;
     texto.classList.add('text-green-500', 'font-bold');
     btnFechar.classList.remove('hidden');
