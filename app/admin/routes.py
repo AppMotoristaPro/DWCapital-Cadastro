@@ -3,7 +3,7 @@ import random
 import string
 import requests
 from tempfile import NamedTemporaryFile
-from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app
+from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app, jsonify
 from flask_login import current_user
 from werkzeug.security import generate_password_hash
 from sqlalchemy.orm import joinedload
@@ -12,7 +12,7 @@ from app import db
 from datetime import datetime, timedelta
 from app.utils.decorators import admin_required
 from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo
-from app.services.documento_service import disparar_lote
+from app.services.documento_service import disparar_lote, disparar_unico
 from app.services.dashboard_service import obter_dados_dashboard
 from app.utils.parsers.gerenciador_pdf import processar_pdf
 import pytz
@@ -408,6 +408,7 @@ def cadastrar_template():
     flash(f'Modelo "{nome}" registrado! Certifique-se de que o arquivo "{arquivo_local}" esteja na pasta static/documentos/.', 'success')
     return redirect(url_for('admin.documentos'))
 
+# ROTA ANTIGA (Mantida como fallback se precisar usar sem JS)
 @admin_bp.route('/documentos/disparar', methods=['POST'])
 @admin_required
 def disparar_documento():
@@ -433,6 +434,27 @@ def disparar_documento():
         flash(f'Ocorreu um erro inesperado: {str(e)}', 'error')
         
     return redirect(url_for('admin.documentos'))
+
+# ==========================================
+# NOVA ROTA: FASE 3 (PLANO A - API JS)
+# Rota oculta que o Modal de Progresso chama para não travar a tela
+# ==========================================
+@admin_bp.route('/documentos/disparar_unico', methods=['POST'])
+@admin_required
+def api_disparar_unico():
+    data = request.get_json()
+    template_id = data.get('template_id')
+    user_id = data.get('user_id')
+    
+    if not template_id or not user_id:
+        return jsonify({"success": False, "message": "Dados incompletos enviados pela tela."}), 400
+        
+    resultado = disparar_unico(template_id, user_id)
+    
+    if resultado.get("success"):
+        registrar_log(f"Disparou contrato '{resultado.get('nome_template')}' via arquivo local para o ID de cliente {user_id}.", "Assinaturas")
+        
+    return jsonify(resultado)
 
 # --- ROTA DE REPROCESSAMENTO EM LOTE (BATCH JOB) ---
 @admin_bp.route('/reprocessar_notas_antigas', methods=['GET'])

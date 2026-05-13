@@ -50,6 +50,54 @@ def disparar_lote(template_id, user_ids):
     db.session.commit()
     return enviados, erros, sem_email, template.nome
 
+# ==========================================
+# NOVA FUNÇÃO: FASE 3 (PLANO A)
+# Processa apenas UM disparo e retorna para o JS
+# ==========================================
+def disparar_unico(template_id, user_id):
+    """
+    Dispara um template específico para UM único cliente.
+    Feito para rodar em loop no frontend para evitar timeout no Render.
+    """
+    template = DocumentoTemplate.query.get(template_id)
+    if not template:
+        return {"success": False, "message": "Modelo não encontrado no banco de dados."}
+        
+    caminho_pdf = os.path.join(current_app.root_path, 'static', 'documentos', template.arquivo_local)
+    
+    if not os.path.exists(caminho_pdf):
+        return {"success": False, "message": f"Arquivo físico PDF não encontrado no servidor."}
+
+    cliente = User.query.get(user_id)
+    if not cliente:
+        return {"success": False, "message": "Cliente não localizado."}
+        
+    if not cliente.email:
+        return {"success": False, "message": "Cliente não possui e-mail cadastrado."}
+        
+    try:
+        nome_doc = f"{template.nome} - {cliente.nome}"
+        doc_id, link = enviar_documento_local_com_link(cliente.nome, cliente.email, caminho_pdf, nome_doc)
+        
+        novo_doc = DocumentoCliente(
+            user_id=cliente.id,
+            template_id=template.id,
+            autentique_document_id=doc_id,
+            link_assinatura=link,
+            status='pendente'
+        )
+        db.session.add(novo_doc)
+        db.session.commit()
+        
+        return {
+            "success": True, 
+            "message": "Enviado com sucesso.", 
+            "nome_template": template.nome
+        }
+    except Exception as e:
+        db.session.rollback()
+        return {"success": False, "message": str(e)}
+
 def gerar_termo_adesao(user):
     """Gera o termo de adesão seguro para o primeiro acesso do investidor."""
     caminho_pdf = os.path.join(current_app.root_path, 'static', 'documentos', 'termo_adesao.pdf')
@@ -96,4 +144,3 @@ def verificar_status_documento_cliente(doc_id, user_id):
         pass
         
     return True, False
-
