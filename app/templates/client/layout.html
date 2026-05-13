@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+
 {% block content %}
 <div class="flex h-screen bg-ice relative overflow-hidden">
     <div class="absolute top-[-10%] left-[-5%] w-[40rem] h-[40rem] bg-royal/10 rounded-full mix-blend-multiply filter blur-[128px] pointer-events-none z-0"></div>
@@ -28,18 +29,24 @@
     </aside>
 
     <script>
-        // Mantém a preferência do usuário sem piscar a tela
         if (localStorage.getItem('sidebarStateClient') === 'closed') {
             document.getElementById('sidebar').classList.add('-ml-72');
         }
     </script>
     
-    <main class="flex-1 p-8 lg:p-12 overflow-y-auto relative z-10 custom-scrollbar flex flex-col">
-        <button onclick="toggleSidebar()" class="absolute top-6 right-6 lg:top-8 lg:right-8 z-50 bg-white/50 backdrop-blur-md border border-gray-200 p-3 rounded-xl shadow-sm text-gray-500 hover:text-royal hover:bg-white transition" title="Alternar Menu">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-        </button>
+    <main class="flex-1 overflow-y-auto relative z-10 custom-scrollbar flex flex-col">
+        
+        <div class="pt-8 px-8 lg:pt-12 lg:px-12 pb-2 flex justify-start w-full">
+            <button onclick="toggleSidebar()" class="bg-white/50 backdrop-blur-md border border-gray-200 p-3 rounded-xl shadow-sm text-gray-500 hover:text-royal hover:bg-white transition flex items-center gap-2" title="Alternar Menu">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                <span class="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Menu</span>
+            </button>
+        </div>
 
-        {% block client_content %}{% endblock %}
+        <div class="px-8 pb-8 lg:px-12 lg:pb-12 pt-4 flex-1">
+            {% block client_content %}{% endblock %}
+        </div>
+        
     </main>
 </div>
 
