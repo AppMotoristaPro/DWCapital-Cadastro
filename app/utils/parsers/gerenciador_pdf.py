@@ -13,9 +13,9 @@ def processar_pdf(caminho_arquivo, corretora, cpf_cliente, senha_manual=None):
         return extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual)
         
     elif corretora == 'BTG':
-        return extrair_dados_btg(caminho_arquivo)
+        # Agora enviamos o CPF para o BTG_Parser mascarar os dados sensíveis (LGPD)
+        return extrair_dados_btg(caminho_arquivo, cpf_cliente)
         
     else:
         print(f"[GERENCIADOR] ERRO: Corretora {corretora} não está configurada.")
         raise Exception(f"Corretora {corretora} não configurada.")
-

@@ -1,108 +1,112 @@
+import os
 import re
+import json
+import google.generativeai as genai
 from pypdf import PdfReader
 
-def extrair_dados_btg(caminho_arquivo):
+def sanitizar_texto(texto, cpf_cliente):
+    """Guilhotina de Privacidade (Data Masking) - Remove dados sensíveis antes de enviar à API"""
+    texto_limpo = texto
+    if cpf_cliente:
+        cpf_limpo = ''.join(filter(str.isdigit, str(cpf_cliente)))
+        if len(cpf_limpo) == 11:
+            cpf_formatado = f"{cpf_limpo[:3]}.{cpf_limpo[3:6]}.{cpf_limpo[6:9]}-{cpf_limpo[9:]}"
+            texto_limpo = texto_limpo.replace(cpf_formatado, "[CPF CENSURADO]")
+            texto_limpo = texto_limpo.replace(cpf_limpo, "[CPF CENSURADO]")
+    
+    # Censura genérica para outros CPFs e CNPJs que possam estar na nota
+    texto_limpo = re.sub(r'\d{3}\.\d{3}\.\d{3}-\d{2}', '[CPF CENSURADO]', texto_limpo)
+    texto_limpo = re.sub(r'\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}', '[CNPJ CENSURADO]', texto_limpo)
+    
+    return texto_limpo
+
+def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
     print(f"\n" + "="*50)
-    print(f"[BTG_PARSER] INICIANDO ROBÔ BTG V2 (BLINDAGEM TOTAL E LOGS)")
+    print(f"[BTG_PARSER] INICIANDO ROBÔ BTG V3 (POWERED BY GEMINI AI)")
     print(f"="*50)
-    print(f"[BTG_PARSER] Arquivo alvo: {caminho_arquivo}")
     try:
+        # 1. Leitura Bruta (Pypdf apenas extrai a maçaroca de texto)
         leitor = PdfReader(caminho_arquivo)
-        ultima_pagina = leitor.pages[-1]
-        texto_original = ultima_pagina.extract_text()
-        print("[BTG_PARSER] Texto lido com sucesso. Iniciando sanitização...")
+        texto_original = leitor.pages[-1].extract_text()
         
         if "BTG PACTUAL" not in texto_original.upper():
             print("[BTG_PARSER] ERRO: O PDF não pertence ao BTG Pactual.")
             return None
-        
-        match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_original)
-        data_pregao = match_data.group(1) if match_data else None
-        print(f"[BTG_PARSER] Data encontrada: {data_pregao}\n")
 
-        # ==================================================
-        # SANITIZAÇÃO DO TEXTO (REMOVENDO FANTASMAS DA BTG)
-        # ==================================================
-        texto_limpo = texto_original
-        
-        # 1. Conserta formatação corrompida de milhares (ex: 1.035.451 C -> 1.035,451 C)
-        texto_limpo = re.sub(r'(\d)\.(\d{2})([1Iil\|]*\s*[CDcd])\b', r'\1,\2\3', texto_limpo)
-        
-        # 2. Remove o fantasma '1' ou 'I' se vier acompanhado de letra C/D (ex: 1.035,451 C -> 1.035,45 C)
-        texto_limpo = re.sub(r'(,\d{2})\s*[1Iil\|]+\s*([CDcd])\b', r'\1 \2', texto_limpo)
-        
-        # 3. Remove o fantasma '1' ou 'I' se for um número solto (ex: 0,001 -> 0,00)
-        texto_limpo = re.sub(r'(,\d{2})\s*[1Iil\|]+\b', r'\1', texto_limpo)
+        # 2. Sanitização (Blindagem LGPD)
+        print("[BTG_PARSER] Sanitizando dados sensíveis (LGPD)...")
+        texto_seguro = sanitizar_texto(texto_original, cpf_cliente)
 
-        # Imprime o terço final do documento para você enxergar no Log do Render
-        print(f"  [DUMP DO RESUMO FINANCEIRO SANITIZADO]")
-        trecho_resumo = texto_limpo[-1200:]
-        for linha in trecho_resumo.split('\n'):
-            if linha.strip(): print(f"    | {linha.strip()}")
-        print(f"  [FIM DO DUMP]\n")
-
-        # ==================================================
-        # 1. EXTRAÇÃO DO LÍQUIDO DA NOTA
-        # Na BTG, o "Total líquido da nota" é SEMPRE o último valor com C ou D no rodapé
-        # ==================================================
-        print("  [BUSCA] Procurando Líquido da Nota (Último valor C/D)")
-        valores_finais = re.findall(r"(\d{1,3}(?:\.\d{3})*,\d{2})\s*([CDcd])\b", trecho_resumo)
-        if not valores_finais:
-            raise Exception("Nenhum valor financeiro encontrado no rodapé sanitizado.")
+        # 3. Configuração e Chamada da API do Gemini
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise Exception("Chave GEMINI_API_KEY não encontrada no ambiente (.env ou Render).")
         
-        ultimo_valor, ultima_letra = valores_finais[-1]
-        v_liquido_pregao = float(ultimo_valor.replace('.', '').replace(',', '.'))
-        if ultima_letra.upper() == 'D':
-            v_liquido_pregao = -v_liquido_pregao
+        genai.configure(api_key=api_key)
+        
+        # Utilizamos o modelo 1.5 Flash (Gratuito, ultra-rápido e excelente para extração)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        prompt = """
+        Você é um analista financeiro extraindo dados de uma nota de corretagem da BTG Pactual.
+        O texto extraído do PDF está muito bagunçado, com números e letras grudados, devido à quebra de colunas.
+        
+        Encontre exatamente 3 informações financeiras da nota:
+        1. Data do Pregão (no formato DD/MM/AAAA).
+        2. Valor Bruto do Day Trade (Geralmente atrelado ao termo 'Ajuste day trade').
+        3. Total Líquido da Nota (Geralmente o último valor financeiro que aparece no final do documento).
+        
+        Regra Estrita de Sinais Financeiros: 
+        Se o valor estiver acompanhado da letra 'D' (Débito) na nota, ele DEVE ser negativo no JSON.
+        Se o valor estiver acompanhado da letra 'C' (Crédito) na nota, ele DEVE ser positivo no JSON.
+        Converta os valores para o formato de programação (ponto como separador decimal, sem separador de milhar).
+        
+        Retorne ÚNICA e EXCLUSIVAMENTE um objeto JSON válido, sem nenhuma formatação markdown ou texto extra, com esta exata estrutura:
+        {
+            "data_pregao": "DD/MM/AAAA",
+            "bruto": 1230.50,
+            "liquido_nota": -450.20
+        }
+        """
+        
+        print("[BTG_PARSER] Enviando texto mascarado para o Cérebro IA...")
+        response = model.generate_content([prompt, texto_seguro])
+        
+        # Limpeza do retorno JSON (Remove markdowns se a IA adicionar)
+        texto_json = response.text.strip()
+        if texto_json.startswith("```json"):
+            texto_json = texto_json[7:]
+        if texto_json.startswith("```"):
+            texto_json = texto_json[3:]
+        if texto_json.endswith("```"):
+            texto_json = texto_json[:-3]
             
-        print(f"    -> [SUCESSO] Líquido Extraído: {v_liquido_pregao}")
+        dados_ia = json.loads(texto_json.strip())
+        
+        data_pregao = dados_ia.get('data_pregao')
+        v_bruto = float(dados_ia.get('bruto', 0.0))
+        v_liquido_pregao = float(dados_ia.get('liquido_nota', 0.0))
+        
+        print(f"    -> [GEMINI] Data Encontrada: {data_pregao}")
+        print(f"    -> [GEMINI] Bruto Extraído: {v_bruto}")
+        print(f"    -> [GEMINI] Líquido Extraído: {v_liquido_pregao}")
 
         # ==================================================
-        # 2. EXTRAÇÃO DO BRUTO (Ajuste Day Trade)
+        # 4. Vacina Matemática e Fechamento (Lógica Offline)
+        # Nenhuma matemática da DW Capital vai para a nuvem.
         # ==================================================
-        print("\n  [BUSCA] Procurando Bloco de Operações ('Total das despesas')")
+        print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS OFF-LINE DA MESA ---")
         
-        # A BTG sempre empilha: Ajuste de Posição (0,00) + Ajuste Day Trade (Bruto) + Total das Despesas (Custos)
-        regex_bloco = r"Total das despesas\s+([\d.,]+)\s*([CDcd])?\s+([\d.,]+)\s*([CDcd])\s+([\d.,]+)\s*([CDcd])"
-        match_bloco = re.search(regex_bloco, texto_limpo, re.IGNORECASE)
-        
-        if match_bloco:
-            _, _, val_dt, cd_dt, _, _ = match_bloco.groups()
-            
-            v_bruto = float(val_dt.replace('.', '').replace(',', '.'))
-            if cd_dt and cd_dt.upper() == 'D':
-                v_bruto = -v_bruto
-            print(f"    -> [SUCESSO] Bruto (Ajuste Day Trade): {v_bruto}")
-        else:
-            # Fallback se o cliente não tiver "Ajuste de posição" na nota (Apenas 2 números)
-            regex_bloco_2 = r"Total das despesas\s+([\d.,]+)\s*([CDcd])\s+([\d.,]+)\s*([CDcd])"
-            match_bloco_2 = re.search(regex_bloco_2, texto_limpo, re.IGNORECASE)
-            if match_bloco_2:
-                val_dt, cd_dt, _, _ = match_bloco_2.groups()
-                v_bruto = float(val_dt.replace('.', '').replace(',', '.'))
-                if cd_dt and cd_dt.upper() == 'D': v_bruto = -v_bruto
-                print(f"    -> [SUCESSO] Bruto: {v_bruto} (Fallback)")
-            else:
-                raise Exception("Falha grave: O bloco 'Total das despesas' e 'Ajuste day trade' sumiu ou mudou de lugar.")
-
-        # ==================================================
-        # 3. VACINA MATEMÁTICA E CÁLCULOS FINAIS
-        # ==================================================
-        print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS DO PREGÃO ---")
-        
-        # Usa a mesma vacina da Genial: Bruto - Líquido engole B3 + IRRF perfeitamente
+        # A vacina infalível: Bruto - Líquido revela todas as taxas e impostos ocultos
         v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
         
-        # Tratamento para notas que dão loss e invertem a lógica matemática do PDF
         if v_custos_unificados < 0:
-            print(f"    [!] Anomalia BTG: Custos negativos detectados ({v_custos_unificados}). O PDF ocultou o sinal de Loss!")
+            print(f"    [!] Anomalia BTG: Custos negativos detectados ({v_custos_unificados}). O PDF inverteu o sinal de loss.")
             v_liquido_pregao = -abs(v_liquido_pregao)
             v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
             print(f"    [!] Correção aplicada. Novo Líquido: {v_liquido_pregao} | Novos Custos: {v_custos_unificados}")
             
-        print(f"    Bruto Extraído: {v_bruto}")
         print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
-        print(f"    Líquido Extraído Direto: {v_liquido_pregao}")
         
         if v_liquido_pregao > 0:
             v_irrf_19 = round(v_liquido_pregao * 0.19, 2)
@@ -133,6 +137,7 @@ def extrair_dados_btg(caminho_arquivo):
             'liquido_dia': v_liquido_dia,
             'repasse_dw': v_repasse
         }
+
     except Exception as e:
-        print(f"[BTG_PARSER] Erro crítico: {str(e)}")
+        print(f"[BTG_PARSER] Erro crítico na extração inteligente: {str(e)}")
         return None
