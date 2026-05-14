@@ -141,10 +141,9 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
 
 def obter_dados_dashboard_cliente(user_id, filtro_dia, filtro_semana_dia, filtro_ano):
     """
-    Processa a matemática do dashboard do cliente: filtros de data, 
+    Processa a matemática do dashboard do parceiro: filtros de data, 
     faturamento bruto, faturamento líquido (sem taxa de 30%) e média.
     """
-    # OTIMIZAÇÃO: Traz os dias diários do cliente em uma única query!
     faturas_base = Fatura.query.filter_by(user_id=user_id).options(joinedload(Fatura.dias))
     
     if filtro_dia:
@@ -199,10 +198,17 @@ def obter_dados_dashboard_cliente(user_id, filtro_dia, filtro_semana_dia, filtro
 
     dias_unicos_operados = len(datas_ordenadas)
     media_diaria = (liquido_total / dias_unicos_operados) if dias_unicos_operados > 0 else 0.0
+    
+    # NOVA MÉTRICA: Lucro Limpo (70% do líquido operacional)
+    # Nota: Se o usuário for isento (is_isento=True), o lucro limpo dele é 100% do líquido operacional.
+    user = User.query.get(user_id)
+    multiplicador = 1.0 if getattr(user, 'is_isento', False) else 0.70
+    lucro_parceiro_total = liquido_total * multiplicador
 
     return {
         'bruto_total': bruto_total,
         'liquido_total': liquido_total,
+        'lucro_parceiro_total': lucro_parceiro_total,
         'media_diaria': media_diaria,
         'label_periodo': label_periodo,
         'chart_labels': chart_labels,
