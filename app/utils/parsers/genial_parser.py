@@ -1,137 +1,165 @@
+import os
 import re
+import json
+import google.generativeai as genai
 from pypdf import PdfReader
 
-def extrair_dados_genial(caminho_arquivo):
-    print(f"\n==================================================")
-    print(f"[GENIAL_PARSER] INICIANDO ROBÔ GENIAL (UNIFICADA + MATEMÁTICA BLINDADA)")
-    print(f"==================================================")
+def sanitizar_texto(texto, cpf_cliente):
+    """Guilhotina de Privacidade (Data Masking) - Remove dados sensíveis antes de enviar à API"""
+    texto_limpo = texto
+    if cpf_cliente:
+        cpf_limpo = ''.join(filter(str.isdigit, str(cpf_cliente)))
+        if len(cpf_limpo) == 11:
+            cpf_formatado = f"{cpf_limpo[:3]}.{cpf_limpo[3:6]}.{cpf_limpo[6:9]}-{cpf_limpo[9:]}"
+            texto_limpo = texto_limpo.replace(cpf_formatado, "[CPF CENSURADO]")
+            texto_limpo = texto_limpo.replace(cpf_limpo, "[CPF CENSURADO]")
+    
+    texto_limpo = re.sub(r'\d{3}\.\d{3}\.\d{3}-\d{2}', '[CPF CENSURADO]', texto_limpo)
+    texto_limpo = re.sub(r'\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}', '[CNPJ CENSURADO]', texto_limpo)
+    
+    return texto_limpo
+
+def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
+    print(f"\n" + "="*50)
+    print(f"[GENIAL_PARSER] INICIANDO ROBÔ GENIAL V3 (POWERED BY GEMINI AI)")
+    print(f"="*50)
     print(f"[GENIAL_PARSER] Arquivo alvo: {caminho_arquivo}")
     try:
         leitor = PdfReader(caminho_arquivo)
-        ultima_pagina = leitor.pages[-1]
-        texto_completo_original = ultima_pagina.extract_text()
+        texto_original = leitor.pages[-1].extract_text()
         print("[GENIAL_PARSER] Texto lido com sucesso.")
 
-        if "GENIAL" not in texto_completo_original.upper():
+        if "GENIAL" not in texto_original.upper():
             print("[GENIAL_PARSER] ERRO: O PDF não pertence à Genial Investimentos.")
             return None
 
-        match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo_original)
-        data_pregao = match_data.group(1) if match_data else None
-        print(f"[GENIAL_PARSER] Data encontrada: {data_pregao}\n")
+        print("[GENIAL_PARSER] Sanitizando dados sensíveis (LGPD)...")
+        texto_seguro = sanitizar_texto(texto_original, cpf_cliente)
 
-        # --- A VACINA CONTRA O LIXO DO RODAPÉ ---
-        texto_completo = re.split(r'Custos BM&F', texto_completo_original, flags=re.IGNORECASE)[0]
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise Exception("Chave GEMINI_API_KEY não encontrada no ambiente (.env ou Render).")
+        
+        genai.configure(api_key=api_key)
+        
+        # ==================================================
+        # DIAGNÓSTICO DE API E SELEÇÃO DINÂMICA
+        # ==================================================
+        print("\n  [GEMINI DIAGNÓSTICO] Verificando ambiente de integração...")
+        print(f"    -> Versão do SDK (google-generativeai): {getattr(genai, '__version__', 'Versão não identificada')}")
+        
+        modelos_suportados = []
+        try:
+            for m in genai.list_models():
+                if 'generateContent' in m.supported_generation_methods:
+                    modelos_suportados.append(m.name)
+        except Exception as e:
+            print(f"    [!] Falha ao listar modelos do Google: {str(e)}")
 
-        def extrair_por_posicao(nome_campo, padrao, texto, posicao, aceita_cd=False, janela_tras=0, janela_frente=200):
-            print(f"\n  [BUSCA] Analisando Campo: '{nome_campo}'")
-            print(f"  [BUSCA] Padrão (Regex): '{padrao}' | Posição-Alvo: {posicao} | Janela: -{janela_tras} a +{janela_frente}")
+        modelos_preferencia = [
+            'gemini-2.5-flash',
+            'gemini-2.0-flash',
+            'gemini-2.0-flash-lite',
+            'gemini-1.5-flash'
+        ]
+        
+        modelo_alvo = 'gemini-1.5-flash' # Fallback absoluto
+        for pref in modelos_preferencia:
+            if f'models/{pref}' in modelos_suportados:
+                modelo_alvo = pref
+                break
+            
+        print(f"    -> Modelo validado e acionado para leitura: {modelo_alvo}\n")
+        
+        model = genai.GenerativeModel(modelo_alvo)
+        
+        prompt = """
+        Você é um analista financeiro extraindo dados de uma nota de corretagem da Genial Investimentos.
+        
+        Encontre exatamente 3 informações financeiras da nota:
+        1. Data do Pregão (no formato DD/MM/AAAA).
+        2. Valor Bruto das operações (Geralmente atrelado ao termo 'Valor dos negócios').
+        3. Total Líquido da Nota (Geralmente atrelado ao termo 'Total líquido da nota').
+        
+        Regra Estrita de Sinais Financeiros: 
+        Se o valor estiver acompanhado da letra 'D' (Débito) na nota, ele DEVE ser negativo no JSON.
+        Se o valor estiver acompanhado da letra 'C' (Crédito) na nota, ele DEVE ser positivo no JSON.
+        Converta os valores para o formato de programação (ponto como separador decimal, sem separador de milhar).
+        
+        Retorne ÚNICA e EXCLUSIVAMENTE um objeto JSON válido, sem nenhuma formatação markdown ou texto extra, com esta exata estrutura:
+        {
+            "data_pregao": "DD/MM/AAAA",
+            "bruto": 1230.50,
+            "liquido_nota": -450.20
+        }
+        """
+        
+        # ==================================================
+        # LOG COMPLETO DE INPUT E OUTPUT
+        # ==================================================
+        print("  [GEMINI REQUEST] Despachando nota mascarada para a nuvem...")
+        
+        response = model.generate_content([prompt, texto_seguro])
+        
+        print("  [GEMINI RESPONSE] Resposta bruta devolvida pela IA:")
+        print("  --- INÍCIO DO RETORNO ---")
+        print(response.text)
+        print("  --- FIM DO RETORNO ---\n")
+        
+        texto_json = response.text.strip()
+        if texto_json.startswith("```json"):
+            texto_json = texto_json[7:]
+        if texto_json.startswith("```"):
+            texto_json = texto_json[3:]
+        if texto_json.endswith("```"):
+            texto_json = texto_json[:-3]
+            
+        dados_ia = json.loads(texto_json.strip())
+        
+        data_pregao = dados_ia.get('data_pregao')
+        v_bruto = float(dados_ia.get('bruto', 0.0))
+        v_liquido_pregao = float(dados_ia.get('liquido_nota', 0.0))
 
-            match = re.search(padrao, texto, re.IGNORECASE)
-            if match:
-                inicio = max(0, match.start() - janela_tras)
-                fim = min(len(texto), match.end() + janela_frente)
-                bloco = texto[inicio:fim]
-
-                bloco_limpo = bloco.replace('|', ' ')
-                bloco_limpo = re.sub(r'(,\d{2})\s+(?:0,00\s*)+([CDcd])\b', r'\1 \2', bloco_limpo, flags=re.IGNORECASE)
-                bloco_limpo = re.sub(r'(,\d{2})\s*([CDcd])\b', r'\1 \2', bloco_limpo, flags=re.IGNORECASE)
-
-                regex_numeros = r"(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})\s*([CDcd])?"
-                matches = re.findall(regex_numeros, bloco_limpo)
-
-                print(f"    -> Valores e Letras localizados na janela:")
-                for i, m in enumerate(matches):
-                    idx_rev = i - len(matches)
-                    letra_print = m[1] if m[1] else "(Sem Letra)"
-                    print(f"       [Pos: {i+1} | Rev: {idx_rev}] -> {m[0]} {letra_print}")
-
-                if matches:
-                    try:
-                        if posicao > 0:
-                            alvo = matches[posicao - 1]
-                        else:
-                            alvo = matches[posicao]
-
-                        valor_str, letra = alvo
-                        num_str = valor_str.replace('.', '').replace(',', '.')
-                        num = float(num_str)
-
-                        if aceita_cd:
-                            if letra and letra.upper() == 'D':
-                                num = -num
-                                print(f"    -> [SUCESSO] Letra 'D' aplicada. Retornando LOSS (Negativo): {num}")
-                            elif letra and letra.upper() == 'C':
-                                print(f"    -> [SUCESSO] Letra 'C' aplicada. Retornando GAIN (Positivo): {num}")
-                            else:
-                                print(f"    -> [SUCESSO] Nenhuma letra detectada. Retornando Positivo: {num}")
-                        else:
-                            num = abs(num)
-                            print(f"    -> [SUCESSO] Campo de Despesa/Taxa. Forçado Absoluto: {num}")
-
-                        return num
-                    except IndexError:
-                        print(f"    -> [ERRO] A posição {posicao} não existe na lista acima.")
-                else:
-                    print(f"    -> [ERRO] Nenhum número encontrado na janela.")
-            else:
-                print(f"    -> [ERRO] A palavra-chave '{padrao}' sumiu do PDF.")
-            return 0.0
-
-        # --- EXTRAÇÃO SIMPLIFICADA (BRUTO E LÍQUIDO) ---
-        v_bruto = extrair_por_posicao("Valor Bruto", r"Valor dos negócios", texto_completo, 1, aceita_cd=True, janela_tras=0, janela_frente=200)
-        v_liquido_pregao = extrair_por_posicao("Líquido da Nota", r"Total l[ií]quido da nota", texto_completo, -1, aceita_cd=True, janela_tras=0, janela_frente=200)
-
-        print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS DO PREGÃO ---")
+        # ==================================================
+        # CÁLCULOS OFF-LINE DA MESA PROPRIETÁRIA
+        # ==================================================
+        print("  [MATEMÁTICA] --- INICIANDO CÁLCULOS OFF-LINE DA MESA ---")
         
         v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
         
-        # --- A VACINA MATEMÁTICA: CORREÇÃO DE SINAL ---
-        # Se os custos derem negativo, significa que o PDF separou a letra 'D' do Líquido e o robô o leu como positivo.
         if v_custos_unificados < 0:
-            print(f"    [!] Anomalia detectada: Custos negativos ({v_custos_unificados}). O PDF ocultou o sinal de Loss!")
+            print(f"    [!] Anomalia Genial: Custos negativos detectados ({v_custos_unificados}). O PDF inverteu o sinal de loss.")
             v_liquido_pregao = -abs(v_liquido_pregao)
             v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
             print(f"    [!] Correção aplicada. Novo Líquido: {v_liquido_pregao} | Novos Custos: {v_custos_unificados}")
-        else:
-            print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
-
-        # Para manter compatibilidade com o Banco de Dados
-        v_taxas_b3 = v_custos_unificados
-        v_irrf_1 = 0.0
-
-        print(f"    Fórmula: Líquido Pregão (Extraído Direto) = {v_liquido_pregao}")
-
+            
+        print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
+        
         if v_liquido_pregao > 0:
             v_irrf_19 = round(v_liquido_pregao * 0.19, 2)
-            print(f"    Fórmula: IRRF 19% = {v_liquido_pregao} * 0.19 = {v_irrf_19}")
         else:
             v_irrf_19 = 0.0
-            print(f"    Fórmula: IRRF 19% = 0.00 (Pregão foi LOSS ou Zero)")
-
+            
         v_liquido_dia = round(v_liquido_pregao - v_irrf_19, 2)
-        print(f"    Fórmula: Líquido Real = {v_liquido_pregao} - {v_irrf_19} = {v_liquido_dia}")
-
+        
         if v_liquido_dia > 0:
             v_repasse = round(v_liquido_dia * 0.30, 2)
-            print(f"    Fórmula: Repasse DW = {v_liquido_dia} * 0.30 = {v_repasse}")
         else:
             v_repasse = 0.0
-            print(f"    Fórmula: Repasse DW = 0.00 (Sem repasse no Loss)")
 
         print("  [MATEMÁTICA] --- FIM DOS CÁLCULOS ---\n")
 
         return {
             'data_pregao': data_pregao,
             'bruto': v_bruto,
-            'taxas_b3': v_taxas_b3,
-            'irrf_1': v_irrf_1,
+            'taxas_b3': v_custos_unificados,
+            'irrf_1': 0.0,
             'liquido_pregao': v_liquido_pregao,
             'irrf_19': v_irrf_19,
             'liquido_dia': v_liquido_dia,
             'repasse_dw': v_repasse
         }
-    except Exception as e:
-        print(f"[GENIAL_PARSER] Erro crítico: {str(e)}")
-        return None
 
+    except Exception as e:
+        print(f"[GENIAL_PARSER] Erro crítico na extração inteligente: {str(e)}")
+        return None

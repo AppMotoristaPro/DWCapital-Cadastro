@@ -67,7 +67,9 @@
                                             <td class="px-8 py-5 text-right">
                                                 <div class="flex items-center justify-end gap-2">
                                                     <input type="file" id="file-{{ dia.id }}" accept=".pdf" class="w-48 text-[10px] text-gray-500 file:mr-2 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-white file:border file:border-gray-200 file:text-navy file:font-bold cursor-pointer outline-none">
-                                                    <button onclick="enviarRelatorio('{{ dia.id }}')" id="btn-{{ dia.id }}" class="bg-royal text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-royal-dark transition shrink-0">Anexar</button>
+                                                    <button onclick="enviarRelatorio('{{ dia.id }}')" id="btn-{{ dia.id }}" class="bg-royal text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-royal-dark transition shrink-0 flex items-center justify-center min-w-[90px]">
+                                                        <span id="btn-text-{{ dia.id }}">Anexar</span>
+                                                    </button>
                                                 </div>
                                             </td>
                                         {% elif dia.status == 'isento' %}
@@ -204,22 +206,42 @@ async function enviarRelatorio(diaId, senhaManual = null) {
     const fileInput = document.getElementById(`file-${diaId}`);
     const btn = document.getElementById(`btn-${diaId}`);
     if (!fileInput.files[0] && !senhaManual) { alert('Selecione um arquivo PDF.'); return; }
+    
     const formData = new FormData();
     formData.append('dia_id', diaId);
     formData.append('csrf_token', '{{ csrf_token() }}');
     if (fileInput.files[0]) formData.append('relatorio_pdf', fileInput.files[0]);
     if (senhaManual) formData.append('senha_manual', senhaManual);
 
+    // EFEITO DE LOADING VISUAL: Desabilita e adiciona o spinner animado (Tailwind)
     btn.disabled = true;
-    btn.innerHTML = 'Processando...';
+    btn.classList.add('opacity-80', 'cursor-not-allowed');
+    btn.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Processando...`;
 
     try {
         const response = await fetch("{{ url_for('client.faturas') }}", { method: 'POST', body: formData });
         const data = await response.json();
-        if (data.success) { window.location.reload(); } 
-        else if (data.error === 'REQUER_SENHA') { abrirModalSenha(diaId); btn.disabled = false; btn.innerHTML = 'Anexar'; } 
-        else { alert(data.message || 'Erro no processamento.'); btn.disabled = false; btn.innerHTML = 'Anexar'; }
-    } catch (e) { alert('Erro de conexão com o servidor.'); btn.disabled = false; btn.innerHTML = 'Anexar'; }
+        
+        if (data.success) { 
+            window.location.reload(); 
+        } else if (data.error === 'REQUER_SENHA') { 
+            abrirModalSenha(diaId); 
+            resetarBotao(btn);
+        } else { 
+            alert(data.message || 'Erro no processamento.'); 
+            resetarBotao(btn);
+        }
+    } catch (e) { 
+        alert('Erro de conexão com o servidor.'); 
+        resetarBotao(btn);
+    }
+}
+
+// Função auxiliar para voltar o botão ao normal em caso de erro
+function resetarBotao(btn) {
+    btn.disabled = false; 
+    btn.classList.remove('opacity-80', 'cursor-not-allowed');
+    btn.innerHTML = `<span id="btn-text-${btn.id.split('-')[1]}">Anexar</span>`;
 }
 
 function abrirModalSenha(diaId) { document.getElementById('modal-dia-id').value = diaId; document.getElementById('modal-senha').classList.remove('hidden'); document.getElementById('input-senha-manual').focus(); }
@@ -240,4 +262,3 @@ function mudarAba(nome) {
 }
 </script>
 {% endblock %}
-

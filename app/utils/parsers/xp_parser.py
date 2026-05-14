@@ -1,13 +1,34 @@
+import os
 import re
+import json
 import io
 import pikepdf
+import google.generativeai as genai
 from pypdf import PdfReader
 
+def sanitizar_texto(texto, cpf_cliente):
+    """Guilhotina de Privacidade (Data Masking) - Remove dados sensíveis antes de enviar à API"""
+    texto_limpo = texto
+    if cpf_cliente:
+        cpf_limpo = ''.join(filter(str.isdigit, str(cpf_cliente)))
+        if len(cpf_limpo) == 11:
+            cpf_formatado = f"{cpf_limpo[:3]}.{cpf_limpo[3:6]}.{cpf_limpo[6:9]}-{cpf_limpo[9:]}"
+            texto_limpo = texto_limpo.replace(cpf_formatado, "[CPF CENSURADO]")
+            texto_limpo = texto_limpo.replace(cpf_limpo, "[CPF CENSURADO]")
+    
+    texto_limpo = re.sub(r'\d{3}\.\d{3}\.\d{3}-\d{2}', '[CPF CENSURADO]', texto_limpo)
+    texto_limpo = re.sub(r'\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}', '[CNPJ CENSURADO]', texto_limpo)
+    
+    return texto_limpo
+
 def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
-    print(f"\n==================================================")
-    print(f"[XP_PARSER] INICIANDO ROBÔ XP (ESTRATÉGIA UNIFICADA)")
-    print(f"==================================================")
+    print(f"\n" + "="*50)
+    print(f"[XP_PARSER] INICIANDO ROBÔ XP V3 (DECRYPT + POWERED BY GEMINI AI)")
+    print(f"="*50)
     try:
+        # ==================================================
+        # DESCRIPTOGRAFIA DO PDF (Mecânica Intacta)
+        # ==================================================
         if senha_manual:
             senha_final = str(senha_manual).strip()
         else:
@@ -24,8 +45,7 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
                 f_out.write(buffer_limpo.getvalue())
 
             leitor = PdfReader(buffer_limpo)
-            ultima_pagina = leitor.pages[-1]
-            texto_completo_original = ultima_pagina.extract_text()
+            texto_original = leitor.pages[-1].extract_text()
                 
         except pikepdf.PasswordError:
             raise Exception("SENHA_INCORRETA")
@@ -34,98 +54,134 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
                 leitor = PdfReader(caminho_arquivo)
                 if leitor.is_encrypted:
                     leitor.decrypt(senha_final)
-                ultima_pagina = leitor.pages[-1]
-                texto_completo_original = ultima_pagina.extract_text()
+                texto_original = leitor.pages[-1].extract_text()
             except Exception:
                 raise Exception("SENHA_INCORRETA")
 
-        if "XP INVESTIMENTOS" not in texto_completo_original.upper():
+        if "XP INVESTIMENTOS" not in texto_original.upper():
             return None
         
-        match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo_original)
-        data_pregao = match_data.group(1) if match_data else None
+        print("[XP_PARSER] Senha validada. Sanitizando dados sensíveis (LGPD)...")
+        texto_seguro = sanitizar_texto(texto_original, cpf_cliente)
 
-        # --- A VACINA CONTRA O LIXO DO RODAPÉ ---
-        texto_completo = re.split(r'Custos BM&F', texto_completo_original, flags=re.IGNORECASE)[0]
-
-        def extrair_por_posicao(nome_campo, padrao, texto, posicao, aceita_cd=False, janela_tras=0, janela_frente=250):
-            print(f"\n  [BUSCA] Campo: '{nome_campo}'")
-            match = re.search(padrao, texto, re.IGNORECASE)
-            if match:
-                inicio = max(0, match.start() - janela_tras)
-                fim = min(len(texto), match.end() + janela_frente)
-                bloco = texto[inicio:fim]
-
-                bloco_limpo = re.sub(r'[\|/]', ' ', bloco)
-                bloco_limpo = re.sub(r'(,\d{2})\s*([CDcd])\b', r'\1 \2', bloco_limpo)
-
-                regex_numeros = r"(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})\s*([CDcd])?"
-                matches = re.findall(regex_numeros, bloco_limpo)
-
-                print(f"    -> Valores localizados na janela:")
-                for i, m in enumerate(matches):
-                    l_print = m[1] if m[1] else "(Sem Letra)"
-                    print(f"       [Pos: {i+1}] -> {m[0]} {l_print}")
-
-                if matches:
-                    try:
-                        if posicao > 0:
-                            alvo = matches[posicao - 1]
-                        else:
-                            alvo = matches[posicao] 
-                            
-                        valor_str, letra = alvo
-                        num = float(valor_str.replace('.', '').replace(',', '.'))
-
-                        if aceita_cd:
-                            if letra and letra.upper() == 'D':
-                                num = -num
-                                print(f"    -> [!] Débito detectado: {num}")
-                            else:
-                                print(f"    -> [!] Crédito detectado: {num}")
-                        else:
-                            num = abs(num)
-                        return num
-                    except IndexError:
-                        print(f"    -> [ERRO] Posição {posicao} não encontrada.")
-            return 0.0
-
-        # --- NOVA EXTRAÇÃO SIMPLIFICADA (BRUTO E LÍQUIDO) ---
-        v_bruto = extrair_por_posicao("Valor Bruto", r"Ajuste day trade", texto_completo, 4, aceita_cd=True)
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise Exception("Chave GEMINI_API_KEY não encontrada.")
         
-        # Na XP, pegamos o último valor atrelado à âncora do Total Líquido expandindo a janela para 1500
-        v_liquido_pregao = extrair_por_posicao("Líquido da Nota", r"Total l[ií]quido da nota", texto_completo, -1, aceita_cd=True, janela_frente=1500)
+        genai.configure(api_key=api_key)
+        
+        # ==================================================
+        # DIAGNÓSTICO DE API E SELEÇÃO DINÂMICA
+        # ==================================================
+        print("\n  [GEMINI DIAGNÓSTICO] Verificando ambiente de integração...")
+        print(f"    -> Versão do SDK (google-generativeai): {getattr(genai, '__version__', 'Versão não identificada')}")
+        
+        modelos_suportados = []
+        try:
+            for m in genai.list_models():
+                if 'generateContent' in m.supported_generation_methods:
+                    modelos_suportados.append(m.name)
+        except Exception as e:
+            print(f"    [!] Falha ao listar modelos do Google: {str(e)}")
 
-        print("\n  [MATEMÁTICA] --- PROCESSAMENTO ---")
+        modelos_preferencia = [
+            'gemini-2.5-flash',
+            'gemini-2.0-flash',
+            'gemini-2.0-flash-lite',
+            'gemini-1.5-flash'
+        ]
+        
+        modelo_alvo = 'gemini-1.5-flash' # Fallback absoluto
+        for pref in modelos_preferencia:
+            if f'models/{pref}' in modelos_suportados:
+                modelo_alvo = pref
+                break
+            
+        print(f"    -> Modelo validado e acionado para leitura: {modelo_alvo}\n")
+        
+        model = genai.GenerativeModel(modelo_alvo)
+        
+        prompt = """
+        Você é um analista financeiro extraindo dados de uma nota de corretagem da XP Investimentos.
+        
+        Encontre exatamente 3 informações financeiras da nota:
+        1. Data do Pregão (no formato DD/MM/AAAA).
+        2. Valor Bruto do Day Trade (Geralmente atrelado ao termo 'Ajuste day trade').
+        3. Total Líquido da Nota (Geralmente atrelado ao termo 'Total líquido da nota').
+        
+        Regra Estrita de Sinais Financeiros: 
+        Se o valor estiver acompanhado da letra 'D' (Débito) na nota, ele DEVE ser negativo no JSON.
+        Se o valor estiver acompanhado da letra 'C' (Crédito) na nota, ele DEVE ser positivo no JSON.
+        Converta os valores para o formato de programação (ponto como separador decimal, sem separador de milhar).
+        
+        Retorne ÚNICA e EXCLUSIVAMENTE um objeto JSON válido, sem nenhuma formatação markdown ou texto extra, com esta exata estrutura:
+        {
+            "data_pregao": "DD/MM/AAAA",
+            "bruto": 1230.50,
+            "liquido_nota": -450.20
+        }
+        """
+        
+        # ==================================================
+        # LOG COMPLETO DE INPUT E OUTPUT
+        # ==================================================
+        print("  [GEMINI REQUEST] Despachando nota mascarada para a nuvem...")
+        
+        response = model.generate_content([prompt, texto_seguro])
+        
+        print("  [GEMINI RESPONSE] Resposta bruta devolvida pela IA:")
+        print("  --- INÍCIO DO RETORNO ---")
+        print(response.text)
+        print("  --- FIM DO RETORNO ---\n")
+        
+        texto_json = response.text.strip()
+        if texto_json.startswith("```json"):
+            texto_json = texto_json[7:]
+        if texto_json.startswith("```"):
+            texto_json = texto_json[3:]
+        if texto_json.endswith("```"):
+            texto_json = texto_json[:-3]
+            
+        dados_ia = json.loads(texto_json.strip())
+        
+        data_pregao = dados_ia.get('data_pregao')
+        v_bruto = float(dados_ia.get('bruto', 0.0))
+        v_liquido_pregao = float(dados_ia.get('liquido_nota', 0.0))
+
+        # ==================================================
+        # CÁLCULOS OFF-LINE DA MESA PROPRIETÁRIA
+        # ==================================================
+        print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS OFF-LINE DA MESA ---")
         
         v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
         
-        # --- A VACINA MATEMÁTICA: CORREÇÃO DE SINAL ---
         if v_custos_unificados < 0:
-            print(f"    [!] Anomalia detectada: Custos negativos ({v_custos_unificados}). O PDF ocultou o sinal de Loss!")
+            print(f"    [!] Anomalia XP: Custos negativos detectados ({v_custos_unificados}). O PDF inverteu o sinal de loss.")
             v_liquido_pregao = -abs(v_liquido_pregao)
             v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
             print(f"    [!] Correção aplicada. Novo Líquido: {v_liquido_pregao} | Novos Custos: {v_custos_unificados}")
-        else:
-            print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
-
-        # Para manter compatibilidade com o Banco de Dados sem migrations
-        v_taxas_b3 = v_custos_unificados
-        v_irrf_1 = 0.0
-
-        print(f"    Líquido Pregão (Extraído Direto): {v_liquido_pregao}")
+            
+        print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
         
-        v_irrf_19 = round(v_liquido_pregao * 0.19, 2) if v_liquido_pregao > 0 else 0.0
+        if v_liquido_pregao > 0:
+            v_irrf_19 = round(v_liquido_pregao * 0.19, 2)
+        else:
+            v_irrf_19 = 0.0
+            
         v_liquido_dia = round(v_liquido_pregao - v_irrf_19, 2)
         
-        v_repasse = round(v_liquido_dia * 0.30, 2) if v_liquido_dia > 0 else 0.0
-        print(f"    Repasse DW Final: R$ {v_repasse}")
+        if v_liquido_dia > 0:
+            v_repasse = round(v_liquido_dia * 0.30, 2)
+        else:
+            v_repasse = 0.0
+
+        print("  [MATEMÁTICA] --- FIM DOS CÁLCULOS ---\n")
 
         return {
             'data_pregao': data_pregao,
             'bruto': v_bruto,
-            'taxas_b3': v_taxas_b3,
-            'irrf_1': v_irrf_1,
+            'taxas_b3': v_custos_unificados,
+            'irrf_1': 0.0,
             'liquido_pregao': v_liquido_pregao,
             'irrf_19': v_irrf_19,
             'liquido_dia': v_liquido_dia,
@@ -135,4 +191,3 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
         print(f"[XP_PARSER] ERRO: {str(e)}")
         if "SENHA_INCORRETA" in str(e): raise Exception("SENHA_INCORRETA")
         return None
-
