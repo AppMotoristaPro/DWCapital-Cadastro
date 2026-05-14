@@ -14,7 +14,6 @@ def sanitizar_texto(texto, cpf_cliente):
             texto_limpo = texto_limpo.replace(cpf_formatado, "[CPF CENSURADO]")
             texto_limpo = texto_limpo.replace(cpf_limpo, "[CPF CENSURADO]")
     
-    # Censura genérica para outros CPFs e CNPJs que possam estar na nota
     texto_limpo = re.sub(r'\d{3}\.\d{3}\.\d{3}-\d{2}', '[CPF CENSURADO]', texto_limpo)
     texto_limpo = re.sub(r'\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}', '[CNPJ CENSURADO]', texto_limpo)
     
@@ -25,7 +24,6 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
     print(f"[BTG_PARSER] INICIANDO ROBÔ BTG V3 (POWERED BY GEMINI AI)")
     print(f"="*50)
     try:
-        # 1. Leitura Bruta (Pypdf apenas extrai a maçaroca de texto)
         leitor = PdfReader(caminho_arquivo)
         texto_original = leitor.pages[-1].extract_text()
         
@@ -33,19 +31,41 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
             print("[BTG_PARSER] ERRO: O PDF não pertence ao BTG Pactual.")
             return None
 
-        # 2. Sanitização (Blindagem LGPD)
         print("[BTG_PARSER] Sanitizando dados sensíveis (LGPD)...")
         texto_seguro = sanitizar_texto(texto_original, cpf_cliente)
 
-        # 3. Configuração e Chamada da API do Gemini
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise Exception("Chave GEMINI_API_KEY não encontrada no ambiente (.env ou Render).")
         
         genai.configure(api_key=api_key)
         
-        # Utilizamos o modelo 1.5 Flash (Gratuito, ultra-rápido e excelente para extração)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # ==================================================
+        # DIAGNÓSTICO DE API E LISTAGEM DE MODELOS
+        # ==================================================
+        print("\n  [GEMINI DIAGNÓSTICO] Verificando ambiente de integração...")
+        print(f"    -> Versão do SDK (google-generativeai): {getattr(genai, '__version__', 'Versão não identificada')}")
+        
+        modelos_suportados = []
+        try:
+            print("    -> Modelos de geração de conteúdo permitidos pela sua API Key:")
+            for m in genai.list_models():
+                if 'generateContent' in m.supported_generation_methods:
+                    modelos_suportados.append(m.name)
+                    print(f"       - {m.name}")
+        except Exception as e:
+            print(f"    [!] Falha ao listar modelos do Google: {str(e)}")
+
+        # Seleção dinâmica inteligente para evitar o Erro 404
+        modelo_alvo = 'gemini-1.5-flash'
+        if 'models/gemini-1.5-flash' not in modelos_suportados and 'models/gemini-1.5-flash-latest' in modelos_suportados:
+            modelo_alvo = 'gemini-1.5-flash-latest'
+        elif 'models/gemini-1.0-pro' in modelos_suportados and 'models/gemini-1.5-flash' not in modelos_suportados:
+            modelo_alvo = 'gemini-1.0-pro'
+            
+        print(f"    -> Modelo acionado para leitura: {modelo_alvo}\n")
+        
+        model = genai.GenerativeModel(modelo_alvo)
         
         prompt = """
         Você é um analista financeiro extraindo dados de uma nota de corretagem da BTG Pactual.
@@ -69,10 +89,21 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
         }
         """
         
-        print("[BTG_PARSER] Enviando texto mascarado para o Cérebro IA...")
+        # ==================================================
+        # LOG COMPLETO DE INPUT E OUTPUT
+        # ==================================================
+        print("  [GEMINI REQUEST] Despachando nota mascarada para a nuvem...")
+        print("  --- INÍCIO DO TEXTO ENVIADO (ÚLTIMOS 1000 CARACTERES) ---")
+        print(texto_seguro[-1000:])
+        print("  --- FIM DO TEXTO ENVIADO ---\n")
+        
         response = model.generate_content([prompt, texto_seguro])
         
-        # Limpeza do retorno JSON (Remove markdowns se a IA adicionar)
+        print("  [GEMINI RESPONSE] Resposta bruta devolvida pela IA:")
+        print("  --- INÍCIO DO RETORNO ---")
+        print(response.text)
+        print("  --- FIM DO RETORNO ---\n")
+        
         texto_json = response.text.strip()
         if texto_json.startswith("```json"):
             texto_json = texto_json[7:]
@@ -87,17 +118,11 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
         v_bruto = float(dados_ia.get('bruto', 0.0))
         v_liquido_pregao = float(dados_ia.get('liquido_nota', 0.0))
         
-        print(f"    -> [GEMINI] Data Encontrada: {data_pregao}")
-        print(f"    -> [GEMINI] Bruto Extraído: {v_bruto}")
-        print(f"    -> [GEMINI] Líquido Extraído: {v_liquido_pregao}")
-
         # ==================================================
-        # 4. Vacina Matemática e Fechamento (Lógica Offline)
-        # Nenhuma matemática da DW Capital vai para a nuvem.
+        # CÁLCULOS OFF-LINE DA MESA PROPRIETÁRIA
         # ==================================================
-        print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS OFF-LINE DA MESA ---")
+        print("  [MATEMÁTICA] --- INICIANDO CÁLCULOS OFF-LINE DA MESA ---")
         
-        # A vacina infalível: Bruto - Líquido revela todas as taxas e impostos ocultos
         v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
         
         if v_custos_unificados < 0:
@@ -131,7 +156,7 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
             'data_pregao': data_pregao,
             'bruto': v_bruto,
             'taxas_b3': v_custos_unificados,
-            'irrf_1': 0.0, # Zerado no banco, pois os custos unificados já engolem B3 + IR1%
+            'irrf_1': 0.0,
             'liquido_pregao': v_liquido_pregao,
             'irrf_19': v_irrf_19,
             'liquido_dia': v_liquido_dia,
