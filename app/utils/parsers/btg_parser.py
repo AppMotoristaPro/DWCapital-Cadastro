@@ -41,29 +41,34 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
         genai.configure(api_key=api_key)
         
         # ==================================================
-        # DIAGNÓSTICO DE API E LISTAGEM DE MODELOS
+        # DIAGNÓSTICO DE API E SELEÇÃO DINÂMICA
         # ==================================================
         print("\n  [GEMINI DIAGNÓSTICO] Verificando ambiente de integração...")
         print(f"    -> Versão do SDK (google-generativeai): {getattr(genai, '__version__', 'Versão não identificada')}")
         
         modelos_suportados = []
         try:
-            print("    -> Modelos de geração de conteúdo permitidos pela sua API Key:")
             for m in genai.list_models():
                 if 'generateContent' in m.supported_generation_methods:
                     modelos_suportados.append(m.name)
-                    print(f"       - {m.name}")
         except Exception as e:
             print(f"    [!] Falha ao listar modelos do Google: {str(e)}")
 
-        # Seleção dinâmica inteligente para evitar o Erro 404
-        modelo_alvo = 'gemini-1.5-flash'
-        if 'models/gemini-1.5-flash' not in modelos_suportados and 'models/gemini-1.5-flash-latest' in modelos_suportados:
-            modelo_alvo = 'gemini-1.5-flash-latest'
-        elif 'models/gemini-1.0-pro' in modelos_suportados and 'models/gemini-1.5-flash' not in modelos_suportados:
-            modelo_alvo = 'gemini-1.0-pro'
+        # LISTA DE PRIORIDADE: Do mais moderno pro mais legado
+        modelos_preferencia = [
+            'gemini-2.5-flash',
+            'gemini-2.0-flash',
+            'gemini-2.0-flash-lite',
+            'gemini-1.5-flash'
+        ]
+        
+        modelo_alvo = 'gemini-1.5-flash' # Fallback absoluto
+        for pref in modelos_preferencia:
+            if f'models/{pref}' in modelos_suportados:
+                modelo_alvo = pref
+                break
             
-        print(f"    -> Modelo acionado para leitura: {modelo_alvo}\n")
+        print(f"    -> Modelo validado e acionado para leitura: {modelo_alvo}\n")
         
         model = genai.GenerativeModel(modelo_alvo)
         
@@ -93,9 +98,6 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
         # LOG COMPLETO DE INPUT E OUTPUT
         # ==================================================
         print("  [GEMINI REQUEST] Despachando nota mascarada para a nuvem...")
-        print("  --- INÍCIO DO TEXTO ENVIADO (ÚLTIMOS 1000 CARACTERES) ---")
-        print(texto_seguro[-1000:])
-        print("  --- FIM DO TEXTO ENVIADO ---\n")
         
         response = model.generate_content([prompt, texto_seguro])
         
@@ -135,20 +137,15 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
         
         if v_liquido_pregao > 0:
             v_irrf_19 = round(v_liquido_pregao * 0.19, 2)
-            print(f"    Fórmula: IRRF 19% = {v_liquido_pregao} * 0.19 = {v_irrf_19}")
         else:
             v_irrf_19 = 0.0
-            print(f"    Fórmula: IRRF 19% = 0.00 (Pregão foi LOSS ou Zero)")
             
         v_liquido_dia = round(v_liquido_pregao - v_irrf_19, 2)
-        print(f"    Fórmula: Líquido Real = {v_liquido_pregao} - {v_irrf_19} = {v_liquido_dia}")
         
         if v_liquido_dia > 0:
             v_repasse = round(v_liquido_dia * 0.30, 2)
-            print(f"    Fórmula: Repasse DW = {v_liquido_dia} * 0.30 = {v_repasse}")
         else:
             v_repasse = 0.0
-            print(f"    Fórmula: Repasse DW = 0.00 (Sem repasse no Loss)")
 
         print("  [MATEMÁTICA] --- FIM DOS CÁLCULOS ---\n")
 
