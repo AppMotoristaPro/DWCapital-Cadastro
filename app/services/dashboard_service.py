@@ -81,11 +81,10 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
             if d.status == 'relatorio_enviado':
                 faturamento_total += d.repasse
                 
-                # CORREÇÃO DO WIDGET BRUTO: Considera apenas dias de Gain (positivos)
+                # CORREÇÃO DO WIDGET BRUTO E ROI: Considera apenas dias de Gain (positivos)
                 if d.bruto > 0:
                     faturamento_bruto_total += d.bruto
-                
-                if d.bruto != 0:
+                    # O ROI agora também só soma os dias positivos
                     rois_clientes[f.user_id]['bruto_acumulado'] += d.bruto
                     rois_clientes[f.user_id]['dias_operados'].add(d.data_pregao)
                     
