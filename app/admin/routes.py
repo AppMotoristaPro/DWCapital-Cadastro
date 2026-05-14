@@ -141,6 +141,19 @@ def inativar_cliente(id):
     flash(f'Cliente {cliente.nome} inativado com sucesso.', 'success')
     return redirect(url_for('admin.clientes_list'))
 
+# ==========================================
+# NOVA ROTA: REATIVAR CLIENTE
+# ==========================================
+@admin_bp.route('/ativar_cliente/<int:id>', methods=['POST'])
+@admin_required
+def ativar_cliente(id):
+    cliente = User.query.get_or_404(id)
+    cliente.status_acesso = 'ativo'
+    registrar_log(f"Reativou o acesso do cliente {cliente.nome}.", "Clientes")
+    db.session.commit()
+    flash(f'Cliente {cliente.nome} reativado com sucesso.', 'success')
+    return redirect(url_for('admin.clientes_list'))
+
 @admin_bp.route('/excluir_cliente/<int:id>', methods=['POST'])
 @admin_required
 def excluir_cliente(id):
@@ -437,7 +450,6 @@ def disparar_documento():
 
 # ==========================================
 # NOVA ROTA: FASE 3 (PLANO A - API JS)
-# Rota oculta que o Modal de Progresso chama para não travar a tela
 # ==========================================
 @admin_bp.route('/documentos/disparar_unico', methods=['POST'])
 @admin_required
