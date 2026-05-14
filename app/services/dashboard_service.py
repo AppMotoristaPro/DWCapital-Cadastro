@@ -20,10 +20,15 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
         db.or_(User.is_isento == False, User.is_isento.is_(None))
     )
     
+    # CORREÇÃO: Variável de segurança inicializada no topo para evitar UnboundLocalError
+    ano_atual = datetime.now(tz_br).year
+    ano = ano_atual
+    
     if filtro_dia:
         dt_dia = datetime.strptime(filtro_dia, '%Y-%m-%d').date()
         faturas_filtradas = faturas_base.filter(Fatura.data_inicio <= dt_dia, Fatura.data_fim >= dt_dia).all()
         label_periodo = f"Dia {dt_dia.strftime('%d/%m/%Y')}"
+        ano = dt_dia.year # Sincroniza o ano
         
     elif filtro_semana_dia:
         dt_ref = datetime.strptime(filtro_semana_dia, '%Y-%m-%d').date()
@@ -33,6 +38,7 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
         
         faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_sem, Fatura.data_inicio <= dt_fim_sem).all()
         label_periodo = f"Ciclo {dt_inicio_sem.strftime('%d/%m/%Y')} a {dt_fim_sem.strftime('%d/%m/%Y')}"
+        ano = dt_inicio_sem.year # Sincroniza o ano
         
     elif filtro_ano:
         ano = int(filtro_ano)
@@ -43,11 +49,10 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
         
     else:
         # AJUSTE: Se não tiver nenhum filtro, carrega o ano atual por padrão
-        ano = datetime.now(tz_br).year
-        dt_inicio_ano = datetime(ano, 1, 1).date()
-        dt_fim_ano = datetime(ano, 12, 31).date()
+        dt_inicio_ano = datetime(ano_atual, 1, 1).date()
+        dt_fim_ano = datetime(ano_atual, 12, 31).date()
         faturas_filtradas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_ano, Fatura.data_inicio <= dt_fim_ano).all()
-        label_periodo = f"Ano {ano}"
+        label_periodo = f"Ano {ano_atual}"
         
     # Inicializa variáveis para os cálculos granulares
     faturamento_total = 0.0
@@ -75,7 +80,10 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
 
             if d.status == 'relatorio_enviado':
                 faturamento_total += d.repasse
-                faturamento_bruto_total += d.bruto
+                
+                # CORREÇÃO DO WIDGET BRUTO: Considera apenas dias de Gain (positivos)
+                if d.bruto > 0:
+                    faturamento_bruto_total += d.bruto
                 
                 if d.bruto != 0:
                     rois_clientes[f.user_id]['bruto_acumulado'] += d.bruto
