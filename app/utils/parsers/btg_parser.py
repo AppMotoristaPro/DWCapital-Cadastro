@@ -2,90 +2,108 @@ import re
 from pypdf import PdfReader
 
 def extrair_dados_btg(caminho_arquivo):
-    print(f"\n==================================================")
-    print(f"[BTG_PARSER] INICIANDO ROBÔ BTG (ENGENHARIA REVERSA UNIFICADA)")
-    print(f"==================================================")
+    print(f"\n" + "="*50)
+    print(f"[BTG_PARSER] INICIANDO ROBÔ BTG V2 (BLINDAGEM TOTAL E LOGS)")
+    print(f"="*50)
     print(f"[BTG_PARSER] Arquivo alvo: {caminho_arquivo}")
     try:
         leitor = PdfReader(caminho_arquivo)
         ultima_pagina = leitor.pages[-1]
-        texto_completo = ultima_pagina.extract_text()
-        print("[BTG_PARSER] Texto lido com sucesso.")
+        texto_original = ultima_pagina.extract_text()
+        print("[BTG_PARSER] Texto lido com sucesso. Iniciando sanitização...")
         
-        if "BTG PACTUAL" not in texto_completo.upper():
+        if "BTG PACTUAL" not in texto_original.upper():
             print("[BTG_PARSER] ERRO: O PDF não pertence ao BTG Pactual.")
             return None
         
-        match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo)
+        match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_original)
         data_pregao = match_data.group(1) if match_data else None
         print(f"[BTG_PARSER] Data encontrada: {data_pregao}\n")
 
-        def extrair_por_posicao(nome_campo, padrao, texto, posicao, aceita_cd=False, janela_tras=0, janela_frente=200):
-            print(f"\n  [BUSCA] Analisando Campo: '{nome_campo}'")
-            print(f"  [BUSCA] Padrão (Regex): '{padrao}' | Direção: Para trás")
+        # ==================================================
+        # SANITIZAÇÃO DO TEXTO (REMOVENDO FANTASMAS DA BTG)
+        # ==================================================
+        texto_limpo = texto_original
+        
+        # 1. Conserta formatação corrompida de milhares (ex: 1.035.451 C -> 1.035,451 C)
+        texto_limpo = re.sub(r'(\d)\.(\d{2})([1Iil\|]*\s*[CDcd])\b', r'\1,\2\3', texto_limpo)
+        
+        # 2. Remove o fantasma '1' ou 'I' se vier acompanhado de letra C/D (ex: 1.035,451 C -> 1.035,45 C)
+        texto_limpo = re.sub(r'(,\d{2})\s*[1Iil\|]+\s*([CDcd])\b', r'\1 \2', texto_limpo)
+        
+        # 3. Remove o fantasma '1' ou 'I' se for um número solto (ex: 0,001 -> 0,00)
+        texto_limpo = re.sub(r'(,\d{2})\s*[1Iil\|]+\b', r'\1', texto_limpo)
+
+        # Imprime o terço final do documento para você enxergar no Log do Render
+        print(f"  [DUMP DO RESUMO FINANCEIRO SANITIZADO]")
+        trecho_resumo = texto_limpo[-1200:]
+        for linha in trecho_resumo.split('\n'):
+            if linha.strip(): print(f"    | {linha.strip()}")
+        print(f"  [FIM DO DUMP]\n")
+
+        # ==================================================
+        # 1. EXTRAÇÃO DO LÍQUIDO DA NOTA
+        # Na BTG, o "Total líquido da nota" é SEMPRE o último valor com C ou D no rodapé
+        # ==================================================
+        print("  [BUSCA] Procurando Líquido da Nota (Último valor C/D)")
+        valores_finais = re.findall(r"(\d{1,3}(?:\.\d{3})*,\d{2})\s*([CDcd])\b", trecho_resumo)
+        if not valores_finais:
+            raise Exception("Nenhum valor financeiro encontrado no rodapé sanitizado.")
+        
+        ultimo_valor, ultima_letra = valores_finais[-1]
+        v_liquido_pregao = float(ultimo_valor.replace('.', '').replace(',', '.'))
+        if ultima_letra.upper() == 'D':
+            v_liquido_pregao = -v_liquido_pregao
             
-            match = re.search(padrao, texto, re.IGNORECASE)
-            if match:
-                inicio = max(0, match.start() - janela_tras)
-                fim = min(len(texto), match.end() + janela_frente)
-                bloco = texto[inicio:fim]
-                
-                bloco_limpo = bloco.replace('|', ' ')
-                bloco_limpo = re.sub(r'\b1\s+D\b', ' D', bloco_limpo, flags=re.IGNORECASE)
-                bloco_limpo = re.sub(r'\b1\s+C\b', ' C', bloco_limpo, flags=re.IGNORECASE)
-                bloco_limpo = re.sub(r'(,\d{2})1\s*([CDcd])\b', r'\1 \2', bloco_limpo)
-                bloco_limpo = re.sub(r'(,\d{2})\s*([CDcd])\b', r'\1 \2', bloco_limpo)
-                
-                regex_numeros = r"(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})\s*([CDcd])?"
-                matches = re.findall(regex_numeros, bloco_limpo)
-                
-                if matches:
-                    try:
-                        alvo = matches[posicao - 1] if posicao > 0 else matches[posicao] 
-                        valor_str, letra = alvo
-                        num = float(valor_str.replace('.', '').replace(',', '.'))
-                        
-                        if aceita_cd:
-                            if letra and letra.upper() == 'D':
-                                num = -num
-                                print(f"    -> [SUCESSO] Letra 'D' aplicada. Retornando LOSS (Negativo): {num}")
-                            elif letra and letra.upper() == 'C':
-                                print(f"    -> [SUCESSO] Letra 'C' aplicada. Retornando GAIN (Positivo): {num}")
-                            else:
-                                print(f"    -> [SUCESSO] Nenhuma letra C/D. Assumindo Positivo: {num}")
-                        else:
-                            num = abs(num) 
-                            print(f"    -> [SUCESSO] Campo de Despesa/Taxa. Forçado Absoluto: {num}")
-                            
-                        return num
-                    except IndexError:
-                        print(f"    -> [ERRO] A posição não existe.")
-                else:
-                    print(f"    -> [ERRO] Nenhum número encontrado na janela.")
+        print(f"    -> [SUCESSO] Líquido Extraído: {v_liquido_pregao}")
+
+        # ==================================================
+        # 2. EXTRAÇÃO DO BRUTO (Ajuste Day Trade)
+        # ==================================================
+        print("\n  [BUSCA] Procurando Bloco de Operações ('Total das despesas')")
+        
+        # A BTG sempre empilha: Ajuste de Posição (0,00) + Ajuste Day Trade (Bruto) + Total das Despesas (Custos)
+        regex_bloco = r"Total das despesas\s+([\d.,]+)\s*([CDcd])?\s+([\d.,]+)\s*([CDcd])\s+([\d.,]+)\s*([CDcd])"
+        match_bloco = re.search(regex_bloco, texto_limpo, re.IGNORECASE)
+        
+        if match_bloco:
+            _, _, val_dt, cd_dt, _, _ = match_bloco.groups()
+            
+            v_bruto = float(val_dt.replace('.', '').replace(',', '.'))
+            if cd_dt and cd_dt.upper() == 'D':
+                v_bruto = -v_bruto
+            print(f"    -> [SUCESSO] Bruto (Ajuste Day Trade): {v_bruto}")
+        else:
+            # Fallback se o cliente não tiver "Ajuste de posição" na nota (Apenas 2 números)
+            regex_bloco_2 = r"Total das despesas\s+([\d.,]+)\s*([CDcd])\s+([\d.,]+)\s*([CDcd])"
+            match_bloco_2 = re.search(regex_bloco_2, texto_limpo, re.IGNORECASE)
+            if match_bloco_2:
+                val_dt, cd_dt, _, _ = match_bloco_2.groups()
+                v_bruto = float(val_dt.replace('.', '').replace(',', '.'))
+                if cd_dt and cd_dt.upper() == 'D': v_bruto = -v_bruto
+                print(f"    -> [SUCESSO] Bruto: {v_bruto} (Fallback)")
             else:
-                print(f"    -> [ERRO] A âncora '{padrao}' sumiu do PDF.")
-            return 0.0
+                raise Exception("Falha grave: O bloco 'Total das despesas' e 'Ajuste day trade' sumiu ou mudou de lugar.")
 
-        # --- ENGENHARIA REVERSA ---
-        # 1. Pega o Líquido da Nota olhando estritamente para TRÁS da frase "Custos BM&F" (garante a captura do sinal C/D)
-        v_liquido_pregao = extrair_por_posicao("Líquido da Nota", r"Custos BM&F", texto_completo, -1, aceita_cd=True, janela_tras=100, janela_frente=0)
-        
-        # 2. Pega as Taxas olhando para TRÁS da frase "Total das despesas"
-        v_taxas_b3 = extrair_por_posicao("Taxas B3", r"Total das despesas", texto_completo, -1, aceita_cd=False, janela_tras=40, janela_frente=0)
-        
-        # 3. Pega o IR olhando para TRÁS da frase "IRRF Day Trade"
-        v_irrf_1 = extrair_por_posicao("IRRF Day Trade 1%", r"IRRF Day Trade", texto_completo, -1, aceita_cd=False, janela_tras=40, janela_frente=0)
-
+        # ==================================================
+        # 3. VACINA MATEMÁTICA E CÁLCULOS FINAIS
+        # ==================================================
         print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS DO PREGÃO ---")
         
-        v_custos_unificados = round(v_taxas_b3 + v_irrf_1, 2)
+        # Usa a mesma vacina da Genial: Bruto - Líquido engole B3 + IRRF perfeitamente
+        v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
         
-        # O Bruto é reconstruído matematicamente: Líquido + Custos
-        v_bruto = round(v_liquido_pregao + v_custos_unificados, 2)
+        # Tratamento para notas que dão loss e invertem a lógica matemática do PDF
+        if v_custos_unificados < 0:
+            print(f"    [!] Anomalia BTG: Custos negativos detectados ({v_custos_unificados}). O PDF ocultou o sinal de Loss!")
+            v_liquido_pregao = -abs(v_liquido_pregao)
+            v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+            print(f"    [!] Correção aplicada. Novo Líquido: {v_liquido_pregao} | Novos Custos: {v_custos_unificados}")
+            
+        print(f"    Bruto Extraído: {v_bruto}")
+        print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
+        print(f"    Líquido Extraído Direto: {v_liquido_pregao}")
         
-        print(f"    Custos Unificados Extraídos: {v_custos_unificados}")
-        print(f"    Bruto Reconstruído: Líquido ({v_liquido_pregao}) + Custos ({v_custos_unificados}) = {v_bruto}")
-
         if v_liquido_pregao > 0:
             v_irrf_19 = round(v_liquido_pregao * 0.19, 2)
             print(f"    Fórmula: IRRF 19% = {v_liquido_pregao} * 0.19 = {v_irrf_19}")
@@ -109,7 +127,7 @@ def extrair_dados_btg(caminho_arquivo):
             'data_pregao': data_pregao,
             'bruto': v_bruto,
             'taxas_b3': v_custos_unificados,
-            'irrf_1': 0.0,  # Fica zerado no BD pois já está dentro de taxas_b3 (Unificado)
+            'irrf_1': 0.0, # Zerado no banco, pois os custos unificados já engolem B3 + IR1%
             'liquido_pregao': v_liquido_pregao,
             'irrf_19': v_irrf_19,
             'liquido_dia': v_liquido_dia,
@@ -118,4 +136,3 @@ def extrair_dados_btg(caminho_arquivo):
     except Exception as e:
         print(f"[BTG_PARSER] Erro crítico: {str(e)}")
         return None
-
