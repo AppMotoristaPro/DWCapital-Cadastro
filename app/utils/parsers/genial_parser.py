@@ -42,9 +42,6 @@ def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
         
         genai.configure(api_key=api_key)
         
-        # ==================================================
-        # DIAGNÓSTICO DE API E SELEÇÃO DINÂMICA
-        # ==================================================
         print("\n  [GEMINI DIAGNÓSTICO] Verificando ambiente de integração...")
         print(f"    -> Versão do SDK (google-generativeai): {getattr(genai, '__version__', 'Versão não identificada')}")
         
@@ -63,7 +60,7 @@ def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
             'gemini-1.5-flash'
         ]
         
-        modelo_alvo = 'gemini-1.5-flash' # Fallback absoluto
+        modelo_alvo = 'gemini-1.5-flash'
         for pref in modelos_preferencia:
             if f'models/{pref}' in modelos_suportados:
                 modelo_alvo = pref
@@ -74,31 +71,28 @@ def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
         model = genai.GenerativeModel(modelo_alvo)
         
         prompt = """
-        Você é um analista financeiro extraindo dados de uma nota de corretagem da Genial Investimentos.
+        Você é um auditor financeiro especialista na extração de dados de notas de corretagem da Genial Investimentos.
+        O texto do PDF sofreu quebra de colunas. Palavras, números e as letras 'C' (Crédito) e 'D' (Débito) estão completamente misturados.
+        Muitas vezes a letra 'D' está colada no número (ex: 820,00D) ou espalhada no rodapé (ex: 847,00 C D 0,00 847,00 -> o D pertence ao 847,00).
         
-        Encontre exatamente 3 informações financeiras da nota:
-        1. Data do Pregão (no formato DD/MM/AAAA).
-        2. Valor Bruto das operações (Geralmente atrelado ao termo 'Valor dos negócios').
-        3. Total Líquido da Nota (Geralmente atrelado ao termo 'Total líquido da nota').
+        Encontre 3 informações exatas:
+        1. Data do Pregão (DD/MM/AAAA).
+        2. Valor Bruto: Procure por 'Ajuste day trade' ou 'Valor dos negócios'. Pegue o valor correspondente não zerado.
+        3. Total Líquido: Procure por 'Total líquido da nota' ou 'Total líquido (#)'.
         
-        Regra Estrita de Sinais Financeiros (MUITO IMPORTANTE): 
-        Seja matemático e estrito. Retorne o valor numérico com SINAL DE MENOS se na nota houver "D" (Débito) ao lado do número e POSITIVO se houver "C" (Crédito) ao lado do número.
-        EXEMPLOS DE RETORNO OBRIGATÓRIO NO JSON:
-        Texto original: "150,00 D" -> Retorno no JSON: -150.00
-        Texto original: "200,00 C" -> Retorno no JSON: 200.00
-        Texto original: "820,00 D" -> Retorno no JSON: -820.00
+        REGRA MATEMÁTICA CRÍTICA:
+        Sempre verifique se há um 'D' (Débito) ou 'C' (Crédito) atrelado ao valor (colado ou próximo na mesma linha). Se houver 'D', o valor DEVE TER SINAL NEGATIVO (-).
         
-        Retorne ÚNICA e EXCLUSIVAMENTE um objeto JSON válido, sem nenhuma formatação markdown ou texto extra, com esta exata estrutura:
+        Retorne EXCLUSIVAMENTE um JSON válido. É OBRIGATÓRIO usar o campo 'raciocinio' para explicar a captura antes dos valores finais.
+        Estrutura obrigatória de exemplo:
         {
-            "data_pregao": "DD/MM/AAAA",
-            "bruto": 1230.50,
-            "liquido_nota": -450.20
+            "raciocinio": "Achei Ajuste day trade 820,00D (Sinal negativo). O líquido é 847,00 com um D por perto (Sinal negativo).",
+            "data_pregao": "06/05/2026",
+            "bruto": -820.00,
+            "liquido_nota": -847.00
         }
         """
         
-        # ==================================================
-        # LOG COMPLETO DE INPUT E OUTPUT
-        # ==================================================
         print("  [GEMINI REQUEST] Despachando nota mascarada para a nuvem...")
         print("  --- INÍCIO DO TEXTO ENVIADO (TEXTO COMPLETO) ---")
         print(texto_seguro)
@@ -125,9 +119,6 @@ def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
         v_bruto = float(dados_ia.get('bruto', 0.0))
         v_liquido_pregao = float(dados_ia.get('liquido_nota', 0.0))
 
-        # ==================================================
-        # CÁLCULOS OFF-LINE DA MESA PROPRIETÁRIA
-        # ==================================================
         print("  [MATEMÁTICA] --- INICIANDO CÁLCULOS OFF-LINE DA MESA ---")
         
         v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)

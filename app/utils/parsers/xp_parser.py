@@ -26,9 +26,6 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
     print(f"[XP_PARSER] INICIANDO ROBÔ XP V3 (DECRYPT + POWERED BY GEMINI AI)")
     print(f"="*50)
     try:
-        # ==================================================
-        # DESCRIPTOGRAFIA DO PDF (Mecânica Intacta)
-        # ==================================================
         if senha_manual:
             senha_final = str(senha_manual).strip()
         else:
@@ -70,9 +67,6 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
         
         genai.configure(api_key=api_key)
         
-        # ==================================================
-        # DIAGNÓSTICO DE API E SELEÇÃO DINÂMICA
-        # ==================================================
         print("\n  [GEMINI DIAGNÓSTICO] Verificando ambiente de integração...")
         print(f"    -> Versão do SDK (google-generativeai): {getattr(genai, '__version__', 'Versão não identificada')}")
         
@@ -102,36 +96,29 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
         model = genai.GenerativeModel(modelo_alvo)
         
         prompt = """
-        Você é um analista financeiro extraindo dados de uma nota de corretagem da XP Investimentos.
+        Você é um auditor financeiro especialista na extração de dados de notas de corretagem da XP Investimentos.
+        O texto do PDF sofreu quebra de colunas. Palavras, números e as letras 'C' (Crédito) e 'D' (Débito) estão completamente misturados.
+        Muitas vezes a letra 'D' está colada no número (ex: 820,00D).
         
-        Encontre exatamente 3 informações financeiras da nota:
-        1. Data do Pregão (no formato DD/MM/AAAA).
-        2. Valor Bruto do Day Trade (Geralmente atrelado ao termo 'Ajuste day trade').
-        3. Total Líquido da Nota (Geralmente atrelado ao termo 'Total líquido da nota').
+        Encontre 3 informações exatas:
+        1. Data do Pregão (DD/MM/AAAA).
+        2. Valor Bruto: Procure por 'Ajuste day trade' ou 'Valor dos negócios'. Pegue o valor não zerado.
+        3. Total Líquido: Procure por 'Total líquido da nota'.
         
-        Regra Estrita de Sinais Financeiros (MUITO IMPORTANTE): 
-        Seja matemático e estrito. Retorne o valor numérico com SINAL DE MENOS se na nota houver "D" (Débito) ao lado do número e POSITIVO se houver "C" (Crédito) ao lado do número.
-        EXEMPLOS DE RETORNO OBRIGATÓRIO NO JSON:
-        Texto original: "150,00 D" -> Retorno no JSON: -150.00
-        Texto original: "200,00 C" -> Retorno no JSON: 200.00
-        Texto original: "820,00 D" -> Retorno no JSON: -820.00
+        REGRA MATEMÁTICA CRÍTICA:
+        Sempre verifique se há um 'D' (Débito) ou 'C' (Crédito) atrelado ao valor. Se houver 'D', o valor DEVE TER SINAL NEGATIVO (-).
         
-        Retorne ÚNICA e EXCLUSIVAMENTE um objeto JSON válido, sem nenhuma formatação markdown ou texto extra, com esta exata estrutura:
+        Retorne EXCLUSIVAMENTE um JSON válido. Use o campo 'raciocinio' para explicar a captura antes dos valores finais.
+        Estrutura obrigatória de exemplo:
         {
-            "data_pregao": "DD/MM/AAAA",
-            "bruto": 1230.50,
-            "liquido_nota": -450.20
+            "raciocinio": "Achei Ajuste day trade 820,00D (Sinal negativo). O líquido é 847,00 com D (Sinal negativo).",
+            "data_pregao": "06/05/2026",
+            "bruto": -820.00,
+            "liquido_nota": -847.00
         }
         """
         
-        # ==================================================
-        # LOG COMPLETO DE INPUT E OUTPUT
-        # ==================================================
         print("  [GEMINI REQUEST] Despachando nota mascarada para a nuvem...")
-        print("  --- INÍCIO DO TEXTO ENVIADO (TEXTO COMPLETO) ---")
-        print(texto_seguro)
-        print("  --- FIM DO TEXTO ENVIADO ---\n")
-        
         response = model.generate_content([prompt, texto_seguro])
         
         print("  [GEMINI RESPONSE] Resposta bruta devolvida pela IA:")
@@ -153,9 +140,6 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
         v_bruto = float(dados_ia.get('bruto', 0.0))
         v_liquido_pregao = float(dados_ia.get('liquido_nota', 0.0))
 
-        # ==================================================
-        # CÁLCULOS OFF-LINE DA MESA PROPRIETÁRIA
-        # ==================================================
         print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS OFF-LINE DA MESA ---")
         
         v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
