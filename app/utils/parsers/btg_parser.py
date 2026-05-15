@@ -1,107 +1,136 @@
+import os
 import re
+import json
+from groq import Groq
 from pypdf import PdfReader
 
-def extrair_dados_btg(caminho_arquivo):
-    print(f"\n==================================================")
-    print(f"[BTG_PARSER] INICIANDO ROBÔ BTG (ENGENHARIA REVERSA UNIFICADA)")
-    print(f"==================================================")
-    print(f"[BTG_PARSER] Arquivo alvo: {caminho_arquivo}")
+def sanitizar_texto(texto, cpf_cliente):
+    """Guilhotina de Privacidade (Data Masking) - Remove dados sensíveis antes de enviar à API"""
+    texto_limpo = texto
+    if cpf_cliente:
+        cpf_limpo = ''.join(filter(str.isdigit, str(cpf_cliente)))
+        if len(cpf_limpo) == 11:
+            cpf_formatado = f"{cpf_limpo[:3]}.{cpf_limpo[3:6]}.{cpf_limpo[6:9]}-{cpf_limpo[9:]}"
+            texto_limpo = texto_limpo.replace(cpf_formatado, "[CPF CENSURADO]")
+            texto_limpo = texto_limpo.replace(cpf_limpo, "[CPF CENSURADO]")
+    
+    texto_limpo = re.sub(r'\d{3}\.\d{3}\.\d{3}-\d{2}', '[CPF CENSURADO]', texto_limpo)
+    texto_limpo = re.sub(r'\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}', '[CNPJ CENSURADO]', texto_limpo)
+    
+    return texto_limpo
+
+def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
+    print(f"\n" + "="*50)
+    print(f"[BTG_PARSER] INICIANDO ROBÔ BTG V4 (POWERED BY GROQ & LLAMA 3)")
+    print(f"="*50)
     try:
         leitor = PdfReader(caminho_arquivo)
-        ultima_pagina = leitor.pages[-1]
-        texto_completo = ultima_pagina.extract_text()
-        print("[BTG_PARSER] Texto lido com sucesso.")
-        
-        if "BTG PACTUAL" not in texto_completo.upper():
+        texto_full = leitor.pages[-1].extract_text()
+        print("[BTG_PARSER] Texto extraído. Aplicando corte extremo para a IA...")
+
+        if "BTG PACTUAL" not in texto_full.upper():
             print("[BTG_PARSER] ERRO: O PDF não pertence ao BTG Pactual.")
             return None
-        
-        match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_completo)
-        data_pregao = match_data.group(1) if match_data else None
-        print(f"[BTG_PARSER] Data encontrada: {data_pregao}\n")
 
-        def extrair_por_posicao(nome_campo, padrao, texto, posicao, aceita_cd=False, janela_tras=0, janela_frente=200):
-            print(f"\n  [BUSCA] Analisando Campo: '{nome_campo}'")
-            print(f"  [BUSCA] Padrão (Regex): '{padrao}' | Direção: Para trás")
+        # CORTE EXTREMO: Pega apenas Cabeçalho (600 chars) e Rodapé (1000 chars)
+        if len(texto_full) > 1600:
+            texto_original = texto_full[:600] + "\n\n... [OPERAÇÕES DELETADAS] ...\n\n" + texto_full[-1000:]
+        else:
+            texto_original = texto_full
+
+        print("[BTG_PARSER] Sanitizando dados sensíveis (LGPD)...")
+        texto_seguro = sanitizar_texto(texto_original, cpf_cliente)
+
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            raise Exception("Chave GROQ_API_KEY não encontrada no ambiente (.env ou Render).")
+        
+        client = Groq(api_key=api_key)
+        modelo_alvo = "llama-3.3-70b-versatile"
+        
+        print("\n  [GROQ DIAGNÓSTICO] Verificando ambiente de integração...")
+        print(f"    -> Modelo validado e acionado para leitura: {modelo_alvo}\n")
+        
+        prompt = """
+        Você é um auditor financeiro especialista na extração de dados de notas de corretagem da BTG Pactual.
+        O texto recebido contém apenas o cabeçalho e o rodapé do PDF. A letra 'D' (Débito) pode estar colada no número.
+        
+        Encontre 3 informações exatas:
+        1. Data do Pregão (DD/MM/AAAA).
+        2. Valor Bruto: Procure por 'Ajuste day trade' ou 'Valor dos negócios'. Pegue o valor não zerado.
+        3. Total Líquido: Procure por 'Total líquido da nota' (Geralmente no final do documento).
+        
+        REGRA MATEMÁTICA CRÍTICA:
+        Sempre verifique se há um 'D' (Débito) ou 'C' (Crédito) atrelado ao valor. Se houver 'D', o valor DEVE TER SINAL NEGATIVO (-).
+        
+        Retorne EXCLUSIVAMENTE um JSON válido. Use o campo 'raciocinio' para explicar a captura antes dos valores finais.
+        Estrutura obrigatória de exemplo:
+        {
+            "raciocinio": "Achei Ajuste day trade 820,00D (Sinal negativo). O líquido é 847,00 com D no final (Sinal negativo).",
+            "data_pregao": "06/05/2026",
+            "bruto": -820.00,
+            "liquido_nota": -847.00
+        }
+        """
+        
+        print("  [GROQ REQUEST] Despachando nota mascarada para a nuvem Groq...")
+        print("  --- INÍCIO DO TEXTO ENVIADO (MÁXIMO ENXUTO) ---")
+        print(texto_seguro)
+        print("  --- FIM DO TEXTO ENVIADO ---\n")
+        
+        response = client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": texto_seguro}
+            ],
+            model=modelo_alvo,
+            temperature=0.0,
+            response_format={"type": "json_object"}
+        )
+        
+        texto_json = response.choices[0].message.content.strip()
+        
+        print("  [GROQ RESPONSE] Resposta bruta devolvida pela IA:")
+        print("  --- INÍCIO DO RETORNO ---")
+        print(texto_json)
+        print("  --- FIM DO RETORNO ---\n")
+        
+        if texto_json.startswith("```json"):
+            texto_json = texto_json[7:]
+        if texto_json.startswith("```"):
+            texto_json = texto_json[3:]
+        if texto_json.endswith("```"):
+            texto_json = texto_json[:-3]
             
-            match = re.search(padrao, texto, re.IGNORECASE)
-            if match:
-                inicio = max(0, match.start() - janela_tras)
-                fim = min(len(texto), match.end() + janela_frente)
-                bloco = texto[inicio:fim]
-                
-                bloco_limpo = bloco.replace('|', ' ')
-                bloco_limpo = re.sub(r'\b1\s+D\b', ' D', bloco_limpo, flags=re.IGNORECASE)
-                bloco_limpo = re.sub(r'\b1\s+C\b', ' C', bloco_limpo, flags=re.IGNORECASE)
-                bloco_limpo = re.sub(r'(,\d{2})1\s*([CDcd])\b', r'\1 \2', bloco_limpo)
-                bloco_limpo = re.sub(r'(,\d{2})\s*([CDcd])\b', r'\1 \2', bloco_limpo)
-                
-                regex_numeros = r"(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})\s*([CDcd])?"
-                matches = re.findall(regex_numeros, bloco_limpo)
-                
-                if matches:
-                    try:
-                        alvo = matches[posicao - 1] if posicao > 0 else matches[posicao] 
-                        valor_str, letra = alvo
-                        num = float(valor_str.replace('.', '').replace(',', '.'))
-                        
-                        if aceita_cd:
-                            if letra and letra.upper() == 'D':
-                                num = -num
-                                print(f"    -> [SUCESSO] Letra 'D' aplicada. Retornando LOSS (Negativo): {num}")
-                            elif letra and letra.upper() == 'C':
-                                print(f"    -> [SUCESSO] Letra 'C' aplicada. Retornando GAIN (Positivo): {num}")
-                            else:
-                                print(f"    -> [SUCESSO] Nenhuma letra C/D. Assumindo Positivo: {num}")
-                        else:
-                            num = abs(num) 
-                            print(f"    -> [SUCESSO] Campo de Despesa/Taxa. Forçado Absoluto: {num}")
-                            
-                        return num
-                    except IndexError:
-                        print(f"    -> [ERRO] A posição não existe.")
-                else:
-                    print(f"    -> [ERRO] Nenhum número encontrado na janela.")
-            else:
-                print(f"    -> [ERRO] A âncora '{padrao}' sumiu do PDF.")
-            return 0.0
-
-        # --- ENGENHARIA REVERSA ---
-        # 1. Pega o Líquido da Nota olhando estritamente para TRÁS da frase "Custos BM&F" (garante a captura do sinal C/D)
-        v_liquido_pregao = extrair_por_posicao("Líquido da Nota", r"Custos BM&F", texto_completo, -1, aceita_cd=True, janela_tras=100, janela_frente=0)
+        dados_ia = json.loads(texto_json.strip())
         
-        # 2. Pega as Taxas olhando para TRÁS da frase "Total das despesas"
-        v_taxas_b3 = extrair_por_posicao("Taxas B3", r"Total das despesas", texto_completo, -1, aceita_cd=False, janela_tras=40, janela_frente=0)
+        data_pregao = dados_ia.get('data_pregao')
+        v_bruto = float(dados_ia.get('bruto', 0.0))
+        v_liquido_pregao = float(dados_ia.get('liquido_nota', 0.0))
         
-        # 3. Pega o IR olhando para TRÁS da frase "IRRF Day Trade"
-        v_irrf_1 = extrair_por_posicao("IRRF Day Trade 1%", r"IRRF Day Trade", texto_completo, -1, aceita_cd=False, janela_tras=40, janela_frente=0)
-
-        print("\n  [MATEMÁTICA] --- INICIANDO CÁLCULOS DO PREGÃO ---")
+        print("  [MATEMÁTICA] --- INICIANDO CÁLCULOS OFF-LINE DA MESA ---")
         
-        v_custos_unificados = round(v_taxas_b3 + v_irrf_1, 2)
+        v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
         
-        # O Bruto é reconstruído matematicamente: Líquido + Custos
-        v_bruto = round(v_liquido_pregao + v_custos_unificados, 2)
+        if v_custos_unificados < 0:
+            print(f"    [!] Anomalia BTG: Custos negativos detectados ({v_custos_unificados}). O PDF inverteu o sinal de loss.")
+            v_liquido_pregao = -abs(v_liquido_pregao)
+            v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+            print(f"    [!] Correção aplicada. Novo Líquido: {v_liquido_pregao} | Novos Custos: {v_custos_unificados}")
+            
+        print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
         
-        print(f"    Custos Unificados Extraídos: {v_custos_unificados}")
-        print(f"    Bruto Reconstruído: Líquido ({v_liquido_pregao}) + Custos ({v_custos_unificados}) = {v_bruto}")
-
         if v_liquido_pregao > 0:
             v_irrf_19 = round(v_liquido_pregao * 0.19, 2)
-            print(f"    Fórmula: IRRF 19% = {v_liquido_pregao} * 0.19 = {v_irrf_19}")
         else:
             v_irrf_19 = 0.0
-            print(f"    Fórmula: IRRF 19% = 0.00 (Pregão foi LOSS ou Zero)")
             
         v_liquido_dia = round(v_liquido_pregao - v_irrf_19, 2)
-        print(f"    Fórmula: Líquido Real = {v_liquido_pregao} - {v_irrf_19} = {v_liquido_dia}")
         
         if v_liquido_dia > 0:
             v_repasse = round(v_liquido_dia * 0.30, 2)
-            print(f"    Fórmula: Repasse DW = {v_liquido_dia} * 0.30 = {v_repasse}")
         else:
             v_repasse = 0.0
-            print(f"    Fórmula: Repasse DW = 0.00 (Sem repasse no Loss)")
 
         print("  [MATEMÁTICA] --- FIM DOS CÁLCULOS ---\n")
 
@@ -109,13 +138,13 @@ def extrair_dados_btg(caminho_arquivo):
             'data_pregao': data_pregao,
             'bruto': v_bruto,
             'taxas_b3': v_custos_unificados,
-            'irrf_1': 0.0,  # Fica zerado no BD pois já está dentro de taxas_b3 (Unificado)
+            'irrf_1': 0.0,
             'liquido_pregao': v_liquido_pregao,
             'irrf_19': v_irrf_19,
             'liquido_dia': v_liquido_dia,
             'repasse_dw': v_repasse
         }
-    except Exception as e:
-        print(f"[BTG_PARSER] Erro crítico: {str(e)}")
-        return None
 
+    except Exception as e:
+        print(f"[BTG_PARSER] Erro crítico na extração inteligente: {str(e)}")
+        return None

@@ -35,24 +35,30 @@
         </div>
     </form>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-        <div class="bg-white/80 backdrop-blur-xl border border-white p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 transition-transform duration-300">
-            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Faturamento Bruto</p>
-            <p class="text-4xl font-black text-navy mt-1">R$ {{ bruto_total|format_brl }}</p>
-            <p class="text-xs text-gray-400 font-bold mt-2">{{ label_periodo }}</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+        <div class="bg-white/80 backdrop-blur-xl border border-white p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 transition-transform duration-300 flex flex-col justify-between">
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Performance Bruta</p>
+            <p class="text-3xl font-black text-navy mt-1 leading-tight">R$ {{ bruto_total|format_brl }}</p>
+            <p class="text-[9px] text-gray-400 font-bold mt-2 uppercase">Antes do IR 19% e 30% DWCapital</p>
         </div>
 
-        <div class="bg-gradient-to-br from-green-500 to-green-700 p-8 rounded-[2rem] shadow-[0_8px_30px_rgba(34,197,94,0.3)] hover:-translate-y-1 transition-transform duration-300 relative overflow-hidden">
-            <div class="absolute -right-6 -top-6 w-32 h-32 bg-white/20 rounded-full blur-2xl"></div>
-            <p class="text-[10px] font-black text-green-100 uppercase tracking-widest mb-2 relative z-10">Ganho Líquido (S/ Desconto DW)</p>
-            <p class="text-4xl font-black text-white relative z-10">R$ {{ liquido_total|format_brl }}</p>
-            <p class="text-xs text-green-100 font-bold mt-2 relative z-10">Seu lucro limpo nas operações</p>
+        <div class="bg-white/80 backdrop-blur-xl border border-white p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 transition-transform duration-300 flex flex-col justify-between">
+            <p class="text-[10px] font-black text-royal uppercase tracking-widest mb-2">Líquido Operacional</p>
+            <p class="text-3xl font-black text-navy mt-1 leading-tight">R$ {{ liquido_total|format_brl }}</p>
+            <p class="text-[9px] text-royal font-bold mt-2 uppercase">Resultado pós-taxa IR 19%</p>
         </div>
         
-        <div class="bg-white/80 backdrop-blur-xl p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 transition-transform duration-300 border border-white">
+        <div class="bg-gradient-to-br from-green-500 to-green-700 p-8 rounded-[2rem] shadow-[0_8px_30px_rgba(34,197,94,0.3)] hover:-translate-y-1 transition-transform duration-300 relative overflow-hidden flex flex-col justify-between">
+            <div class="absolute -right-6 -top-6 w-32 h-32 bg-white/20 rounded-full blur-2xl"></div>
+            <p class="text-[10px] font-black text-green-100 uppercase tracking-widest mb-2 relative z-10">Lucro Limpo (Crédito)</p>
+            <p class="text-3xl font-black text-white relative z-10 leading-tight">R$ {{ lucro_parceiro_total|format_brl }}</p>
+            <p class="text-[9px] text-green-100 font-bold mt-2 relative z-10 uppercase leading-relaxed">Resultado Pós-taxas e pós-repasse 30%</p>
+        </div>
+
+        <div class="bg-white/80 backdrop-blur-xl p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 transition-transform duration-300 border border-white flex flex-col justify-between">
             <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Média Líquida Diária</p>
-            <p class="text-4xl font-black text-green-600 mt-1">R$ {{ media_diaria|format_brl }}</p>
-            <p class="text-xs text-gray-400 font-bold mt-2">Média por dia com relatório</p>
+            <p class="text-3xl font-black text-green-600 mt-1 leading-tight">R$ {{ media_diaria|format_brl }}</p>
+            <p class="text-[9px] text-gray-400 font-bold mt-2 uppercase">Média por dia com relatório</p>
         </div>
     </div>
 
@@ -101,7 +107,7 @@
             data: {
                 labels: labels,
                 datasets: [{
-                    label: 'Líquido sem desconto DW (R$)',
+                    label: 'Líquido Operacional (R$)',
                     data: data,
                     borderColor: '#16a34a',
                     backgroundColor: gradient,
@@ -144,4 +150,3 @@
     });
 </script>
 {% endblock %}
-
