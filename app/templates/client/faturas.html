@@ -234,7 +234,20 @@
 </div>
 
 <script>
-function abrirCiclo(faturaId) {
+// ==========================================
+// RESTAURAÇÃO DE MEMÓRIA (CONTINUIDADE DE UX)
+// ==========================================
+document.addEventListener("DOMContentLoaded", () => {
+    const cicloSalvo = sessionStorage.getItem('cicloAtivo');
+    if (cicloSalvo) {
+        abrirCiclo(cicloSalvo, true); // true = é uma restauração de tela
+    }
+});
+
+function abrirCiclo(faturaId, isRestore = false) {
+    // 1. Salva a posição na memória
+    sessionStorage.setItem('cicloAtivo', faturaId);
+    
     document.getElementById('grid-ciclos').classList.add('hidden');
     document.getElementById('area-conteudo').classList.remove('hidden');
     
@@ -248,17 +261,46 @@ function abrirCiclo(faturaId) {
         setTimeout(() => el.classList.remove('opacity-0'), 50);
     });
 
-    const primeiraAba = document.querySelector('.aba-btn');
-    if (primeiraAba) {
-        primeiraAba.click();
+    // 2. Tenta restaurar a aba que estava aberta ou clica na primeira
+    const abaSalva = sessionStorage.getItem('abaAtiva');
+    if (isRestore && abaSalva) {
+        mudarAba(abaSalva);
+    } else {
+        const primeiraAba = document.querySelector('.aba-btn');
+        if (primeiraAba) {
+            primeiraAba.click();
+        }
     }
 }
 
 function voltarGrid() {
+    // 3. Limpa a memória quando o usuário decide voltar
+    sessionStorage.removeItem('cicloAtivo');
+    sessionStorage.removeItem('abaAtiva');
+    
     document.getElementById('area-conteudo').classList.add('hidden');
     document.getElementById('grid-ciclos').classList.remove('hidden');
 }
 
+function mudarAba(nome) {
+    // 4. Salva qual aba (Corretora) o cara clicou
+    sessionStorage.setItem('abaAtiva', nome);
+    
+    document.querySelectorAll('.aba-conteudo').forEach(el => el.classList.add('hidden', 'opacity-0'));
+    document.getElementById('tab-'+nome).classList.remove('hidden');
+    setTimeout(() => document.getElementById('tab-'+nome).classList.remove('opacity-0'), 50);
+    document.querySelectorAll('.aba-btn').forEach(b => {
+        b.classList.remove('bg-navy', 'text-white', 'shadow-md');
+        b.classList.add('bg-white', 'text-gray-500');
+    });
+    const activeBtn = document.getElementById('btn-tab-'+nome);
+    if(activeBtn) {
+        activeBtn.classList.remove('bg-white', 'text-gray-500');
+        activeBtn.classList.add('bg-navy', 'text-white', 'shadow-md');
+    }
+}
+
+// LÓGICA DE UPLOAD
 async function enviarRelatorio(diaId, senhaManual = null) {
     const fileInput = document.getElementById(`file-${diaId}`);
     const btn = document.getElementById(`btn-${diaId}`);
@@ -279,7 +321,7 @@ async function enviarRelatorio(diaId, senhaManual = null) {
         const data = await response.json();
         
         if (data.success) { 
-            window.location.reload(); 
+            window.location.reload(); // O reload vai acontecer, mas a memória restaurará o estado!
         } else if (data.error === 'REQUER_SENHA') { 
             abrirModalSenha(diaId); 
             resetarBotao(btn);
@@ -302,20 +344,5 @@ function resetarBotao(btn) {
 function abrirModalSenha(diaId) { document.getElementById('modal-dia-id').value = diaId; document.getElementById('modal-senha').classList.remove('hidden'); document.getElementById('input-senha-manual').focus(); }
 function fecharModalSenha() { document.getElementById('modal-senha').classList.add('hidden'); document.getElementById('input-senha-manual').value = ''; }
 function tentarComSenhaManual() { const diaId = document.getElementById('modal-dia-id').value; const senha = document.getElementById('input-senha-manual').value; if (!senha) return; fecharModalSenha(); enviarRelatorio(diaId, senha); }
-
-function mudarAba(nome) {
-    document.querySelectorAll('.aba-conteudo').forEach(el => el.classList.add('hidden', 'opacity-0'));
-    document.getElementById('tab-'+nome).classList.remove('hidden');
-    setTimeout(() => document.getElementById('tab-'+nome).classList.remove('opacity-0'), 50);
-    document.querySelectorAll('.aba-btn').forEach(b => {
-        b.classList.remove('bg-navy', 'text-white', 'shadow-md');
-        b.classList.add('bg-white', 'text-gray-500');
-    });
-    const activeBtn = document.getElementById('btn-tab-'+nome);
-    if(activeBtn) {
-        activeBtn.classList.remove('bg-white', 'text-gray-500');
-        activeBtn.classList.add('bg-navy', 'text-white', 'shadow-md');
-    }
-}
 </script>
 {% endblock %}
