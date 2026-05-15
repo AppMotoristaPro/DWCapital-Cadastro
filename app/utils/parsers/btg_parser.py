@@ -58,11 +58,12 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
         except Exception as e:
             print(f"    [!] Falha ao listar modelos do Google: {str(e)}")
 
+        # INVERSÃO DE PRIORIDADE: 1.5 no topo para garantir 1500 requisições gratuitas/dia
         modelos_preferencia = [
-            'gemini-2.5-flash',
-            'gemini-2.0-flash',
+            'gemini-1.5-flash',
             'gemini-2.0-flash-lite',
-            'gemini-1.5-flash'
+            'gemini-2.0-flash',
+            'gemini-2.5-flash'
         ]
         
         modelo_alvo = 'gemini-1.5-flash'
