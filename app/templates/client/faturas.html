@@ -1,25 +1,39 @@
 {% extends "client/layout.html" %}
 {% block client_content %}
 <div class="max-w-7xl mx-auto pb-20">
-    <div class="flex justify-between items-end mb-8">
+    <div class="flex justify-between items-end mb-10">
         <div>
             <h1 class="text-4xl font-black text-navy tracking-tight">Extrato de Faturamento</h1>
-            <p class="text-gray-500 mt-2 font-medium">Selecione o ciclo desejado para anexar notas e consultar repasses.</p>
+            <p class="text-gray-500 mt-2 font-medium">Selecione um dos ciclos abaixo para gerenciar as notas e repasses.</p>
         </div>
     </div>
 
-    <div class="mb-10 p-6 bg-white/80 backdrop-blur-xl rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white">
-        <label for="seletor-ciclo" class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Ciclo de Faturamento</label>
-        <select id="seletor-ciclo" onchange="selecionarCiclo(this.value)" class="w-full md:w-1/2 p-4 rounded-xl bg-gray-50 border border-gray-200 text-navy font-black text-sm uppercase tracking-widest outline-none focus:bg-white focus:border-royal transition-all cursor-pointer">
-            <option value="" selected disabled>ESCOLHA UM PERÍODO...</option>
-            {% for fatura in faturas %}
-                <option value="{{ fatura.id }}">SEMANA: {{ fatura.data_inicio.strftime('%d/%m/%Y') }} A {{ fatura.data_fim.strftime('%d/%m/%Y') }}</option>
-            {% endfor %}
-        </select>
+    <div id="grid-ciclos" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12 transition-all duration-500">
+        {% for fatura in faturas %}
+        <div onclick="abrirCiclo('{{ fatura.id }}')" class="cursor-pointer bg-white/70 hover:bg-white/90 backdrop-blur-xl rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-lg border border-white/50 transition-all transform hover:-translate-y-1">
+            <div class="flex justify-between items-center mb-6">
+                <div class="w-12 h-12 rounded-2xl bg-royal/10 flex items-center justify-center text-royal">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                </div>
+                <span class="px-3 py-1 bg-gray-100 text-gray-500 rounded-lg text-[10px] font-black uppercase tracking-widest">Fechamento</span>
+            </div>
+            
+            <h3 class="text-lg font-black text-navy mb-1">{{ fatura.data_inicio.strftime('%d/%m/%Y') }}</h3>
+            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 border-b border-gray-100 pb-4">Até {{ fatura.data_fim.strftime('%d/%m/%Y') }}</p>
+            
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Repasse Total</p>
+            <p class="text-3xl font-black text-green-600">R$ {{ fatura.repasse|format_brl }}</p>
+        </div>
+        {% endfor %}
     </div>
 
     <div id="area-conteudo" class="hidden transition-all duration-500">
         
+        <button onclick="voltarGrid()" class="mb-8 flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest hover:text-navy transition-colors bg-white/50 px-4 py-2 rounded-xl border border-gray-200">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            Voltar aos Ciclos
+        </button>
+
         <div class="flex flex-wrap gap-2 mb-8 border-b border-gray-200 pb-4">
             {% for alocacao in current_user.alocacoes %}
             <button onclick="mudarAba('{{ alocacao.nome_corretora }}')" id="btn-tab-{{ alocacao.nome_corretora }}" class="aba-btn px-8 py-3.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all {% if loop.first %}bg-navy text-white shadow-md{% else %}bg-white text-gray-500 hover:bg-gray-50 border border-gray-200{% endif %}">
@@ -215,34 +229,35 @@
 </div>
 
 <script>
-// NOVO: Função para filtrar as faturas baseado no select
-function selecionarCiclo(faturaId) {
-    if (!faturaId) return;
+function abrirCiclo(faturaId) {
+    // Esconde os widgets e mostra a área de conteúdo
+    document.getElementById('grid-ciclos').classList.add('hidden');
+    document.getElementById('area-conteudo').classList.remove('hidden');
     
-    const areaConteudo = document.getElementById('area-conteudo');
-    areaConteudo.classList.remove('hidden');
-    
-    // Esconder todos os blocos de faturas (tabelas e cards consolidados)
+    // Esconde todos os blocos de faturas e cards
     document.querySelectorAll('.bloco-fatura').forEach(el => {
         el.classList.add('hidden');
         el.classList.add('opacity-0');
     });
     
-    // Mostrar apenas os blocos que pertencem ao ciclo selecionado
+    // Mostra apenas os blocos que pertencem ao ciclo selecionado
     document.querySelectorAll('.ciclo-' + faturaId).forEach(el => {
         el.classList.remove('hidden');
-        // Timeout rápido para a animação de fade-in funcionar
         setTimeout(() => el.classList.remove('opacity-0'), 50);
     });
-}
 
-// Verifica se já há uma aba salva ou ativa a primeira por padrão
-document.addEventListener("DOMContentLoaded", () => {
+    // Ativa a primeira aba de corretora automaticamente
     const primeiraAba = document.querySelector('.aba-btn');
     if (primeiraAba) {
         primeiraAba.click();
     }
-});
+}
+
+function voltarGrid() {
+    // Retorna para a tela de widgets
+    document.getElementById('area-conteudo').classList.add('hidden');
+    document.getElementById('grid-ciclos').classList.remove('hidden');
+}
 
 async function enviarRelatorio(diaId, senhaManual = null) {
     const fileInput = document.getElementById(`file-${diaId}`);
