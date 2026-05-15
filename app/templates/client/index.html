@@ -35,7 +35,7 @@
         </div>
     </form>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
         <div class="bg-white/80 backdrop-blur-xl border border-white p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 transition-transform duration-300 flex flex-col justify-between">
             <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Performance Bruta</p>
             <p class="text-3xl font-black text-navy mt-1 leading-tight">R$ {{ bruto_total|format_brl }}</p>
@@ -53,12 +53,6 @@
             <p class="text-[10px] font-black text-green-100 uppercase tracking-widest mb-2 relative z-10">Lucro Limpo (Crédito)</p>
             <p class="text-3xl font-black text-white relative z-10 leading-tight">R$ {{ lucro_parceiro_total|format_brl }}</p>
             <p class="text-[9px] text-green-100 font-bold mt-2 relative z-10 uppercase leading-relaxed">Resultado Pós-taxas e pós-repasse 30%</p>
-        </div>
-
-        <div class="bg-white/80 backdrop-blur-xl p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 transition-transform duration-300 border border-white flex flex-col justify-between">
-            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Média Líquida Diária</p>
-            <p class="text-3xl font-black text-green-600 mt-1 leading-tight">R$ {{ media_diaria|format_brl }}</p>
-            <p class="text-[9px] text-gray-400 font-bold mt-2 uppercase">Média por dia com relatório</p>
         </div>
     </div>
 

@@ -59,6 +59,7 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
     faturamento_bruto_total = 0.0
     dados_grafico_raw = {}
     rois_clientes = {}
+    ranking_clientes = {} # NOVO: Dicionário para mapear a performance de cada parceiro
 
     for f in faturas_filtradas:
         capital_cliente = f.cliente.capital_alocado or 0.0
@@ -68,6 +69,14 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
                 'bruto_acumulado': 0.0, 
                 'capital': capital_cliente,
                 'dias_operados': set()
+            }
+            
+        # NOVO: Inicia o cadastro do cliente no ranking
+        if f.user_id not in ranking_clientes:
+            ranking_clientes[f.user_id] = {
+                'nome': f.cliente.nome,
+                'bruto': 0.0,
+                'repasse': 0.0
             }
             
         for d in f.dias:
@@ -80,10 +89,12 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
 
             if d.status == 'relatorio_enviado':
                 faturamento_total += d.repasse
+                ranking_clientes[f.user_id]['repasse'] += d.repasse # NOVO: Soma o repasse
                 
                 # CORREÇÃO DO WIDGET BRUTO E ROI: Considera apenas dias de Gain (positivos)
                 if d.bruto > 0:
                     faturamento_bruto_total += d.bruto
+                    ranking_clientes[f.user_id]['bruto'] += d.bruto # NOVO: Soma o bruto
                     # O ROI agora também só soma os dias positivos
                     rois_clientes[f.user_id]['bruto_acumulado'] += d.bruto
                     rois_clientes[f.user_id]['dias_operados'].add(d.data_pregao)
@@ -125,6 +136,10 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
     
     capital_total = alocado_row[0] or 0.0
     
+    # NOVO: Processa a lista do ranking e ordena pelo Faturamento Bruto (do maior para o menor)
+    lista_ranking = [c for c in ranking_clientes.values() if c['bruto'] > 0 or c['repasse'] > 0]
+    lista_ranking.sort(key=lambda x: x['bruto'], reverse=True)
+    
     return {
         'clientes_ativos': clientes_ativos,
         'clientes_inativos': clientes_inativos,
@@ -136,7 +151,8 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
         'chart_data': chart_data,
         'roi_min': roi_min,
         'roi_med': roi_med,
-        'roi_max': roi_max
+        'roi_max': roi_max,
+        'ranking_faturamento': lista_ranking
     }
 
 def obter_dados_dashboard_cliente(user_id, filtro_dia, filtro_semana_dia, filtro_ano):
@@ -188,7 +204,8 @@ def obter_dados_dashboard_cliente(user_id, filtro_dia, filtro_semana_dia, filtro
                 continue
                 
             if d.status == 'relatorio_enviado':
-                bruto_total += d.bruto
+                # AJUSTE MATEMÁTICO: Agora usando o Liquido do Pregão (já com taxas B3 descontadas)
+                bruto_total += d.liquido_pregao
                 liquido_total += d.liquido
                 dados_grafico_raw[d.data_pregao] = dados_grafico_raw.get(d.data_pregao, 0.0) + d.liquido
 

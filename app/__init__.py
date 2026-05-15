@@ -10,6 +10,7 @@ import os
 from dotenv import load_dotenv
 import cloudinary
 import cloudinary.uploader
+from datetime import timedelta
 from app.utils.filters import format_brl, to_tz_br
 
 db = SQLAlchemy()
@@ -36,6 +37,12 @@ def create_app():
     if not secret_key:
         raise ValueError("VAZAMENTO EVITADO: A SECRET_KEY não está configurada no ambiente. O sistema foi bloqueado por segurança.")
     app.config['SECRET_KEY'] = secret_key
+    
+    # ==========================================
+    # TRAVA DE SEGURANÇA: TIMEOUT DA SESSÃO (30 MINUTOS)
+    # ==========================================
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
+    # ==========================================
     
     database_url = os.getenv('DATABASE_URL')
     if database_url and database_url.startswith("postgres://"):
@@ -109,4 +116,3 @@ def create_app():
         return render_template('errors/429.html'), 429
 
     return app
-

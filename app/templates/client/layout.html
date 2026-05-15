@@ -1,70 +1,77 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="flex h-screen bg-ice relative overflow-hidden">
+<div class="min-h-screen bg-ice relative flex flex-col">
     <div class="absolute top-[-10%] left-[-5%] w-[40rem] h-[40rem] bg-royal/10 rounded-full mix-blend-multiply filter blur-[128px] pointer-events-none z-0"></div>
     <div class="absolute bottom-[-10%] right-[-5%] w-[40rem] h-[40rem] bg-royal-dark/5 rounded-full mix-blend-multiply filter blur-[128px] pointer-events-none z-0"></div>
 
-    <aside id="sidebar" class="w-72 shrink-0 bg-navy/95 backdrop-blur-2xl text-slate-300 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.05)] z-20 border-r border-white/5 relative transition-all duration-300 ease-in-out">
-        <div class="p-8 flex flex-col items-center border-b border-white/5">
-            <div class="w-full h-16 flex items-center justify-center mb-4">
-                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="DW Capital" class="max-w-full max-h-full object-contain drop-shadow-lg opacity-90 transition hover:scale-105">
+    <header class="sticky top-0 z-50 bg-navy/95 backdrop-blur-2xl border-b border-white/10 shadow-md transition-all">
+        <div class="max-w-7xl mx-auto px-6 lg:px-8">
+            <div class="flex items-center justify-between h-20">
+                
+                <div class="flex items-center gap-5">
+                    <img src="{{ url_for('static', filename='img/logo.png') }}" alt="DW Capital" class="h-10 object-contain drop-shadow-lg opacity-90 transition hover:scale-105">
+                    <div class="hidden md:block border-l border-white/10 pl-5">
+                        <h2 class="text-sm font-bold text-white tracking-wide">Portal do Investidor</h2>
+                        <span class="text-[9px] text-royal bg-royal/10 px-2.5 py-0.5 rounded-full font-black uppercase tracking-widest mt-1 inline-block border border-royal/20">{{ current_user.nome.split()[0] }}</span>
+                    </div>
+                </div>
+
+                <nav class="hidden lg:flex items-center space-x-2">
+                    <a href="{{ url_for('client.dashboard') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint == 'client.dashboard' %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-slate-300 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
+                        Dashboard
+                    </a>
+                    <a href="{{ url_for('client.faturas') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint == 'client.faturas' %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-slate-300 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
+                        Extrato
+                    </a>
+                    <a href="{{ url_for('client.dados_pessoais') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint == 'client.dados_pessoais' %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-slate-300 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
+                        Meus Dados
+                    </a>
+                    <a href="{{ url_for('client.documentos') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint == 'client.documentos' %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-slate-300 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
+                        Documentos
+                    </a>
+                    <a href="{{ url_for('client.ajuda') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint == 'client.ajuda' %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-blue-200 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
+                        Ajuda
+                    </a>
+                    
+                    <div class="h-6 w-px bg-white/10 mx-2"></div>
+                    
+                    <a href="{{ url_for('auth.logout') }}" class="px-4 py-2.5 bg-red-400/10 text-red-400 hover:bg-red-500 hover:text-white border border-red-400/20 hover:border-transparent rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300">
+                        Sair
+                    </a>
+                </nav>
+
+                <div class="lg:hidden flex items-center">
+                    <button onclick="toggleMobileMenu()" class="text-slate-300 hover:text-white p-2 outline-none">
+                        <svg id="menu-icon" class="w-6 h-6 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                    </button>
+                </div>
+
             </div>
-            <h2 class="text-lg font-bold text-white tracking-wide whitespace-nowrap">Portal do Investidor</h2>
-            <span class="text-[10px] text-royal bg-royal/10 px-3 py-1 rounded-full font-black uppercase tracking-widest mt-2 border border-royal/20 whitespace-nowrap">{{ current_user.nome.split()[0] }}</span>
-        </div>
-        
-        <nav class="flex-1 px-5 py-8 space-y-2 overflow-y-auto overflow-x-hidden">
-            <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4 px-2 whitespace-nowrap">Menu Principal</p>
-            <a href="{{ url_for('client.dashboard') }}" class="flex items-center px-4 py-3.5 rounded-xl transition duration-300 whitespace-nowrap {% if request.endpoint == 'client.dashboard' %}bg-royal/20 text-royal font-bold border border-royal/30 shadow-inner{% else %}hover:bg-white/5 hover:text-white font-medium{% endif %}">Dashboard</a>
-            <a href="{{ url_for('client.faturas') }}" class="flex items-center px-4 py-3.5 rounded-xl transition duration-300 whitespace-nowrap {% if request.endpoint == 'client.faturas' %}bg-royal/20 text-royal font-bold border border-royal/30 shadow-inner{% else %}hover:bg-white/5 hover:text-white font-medium{% endif %}">Extrato de Faturamento</a>
-            <a href="{{ url_for('client.dados_pessoais') }}" class="flex items-center px-4 py-3.5 rounded-xl transition duration-300 whitespace-nowrap {% if request.endpoint == 'client.dados_pessoais' %}bg-royal/20 text-royal font-bold border border-royal/30 shadow-inner{% else %}hover:bg-white/5 hover:text-white font-medium{% endif %}">Meus Dados</a>
-            <a href="{{ url_for('client.documentos') }}" class="flex items-center px-4 py-3.5 rounded-xl transition duration-300 whitespace-nowrap {% if request.endpoint == 'client.documentos' %}bg-royal/20 text-royal font-bold border border-royal/30 shadow-inner{% else %}hover:bg-white/5 hover:text-white font-medium{% endif %}">Meus Documentos</a>
-        </nav>
-        
-        <div class="px-5 pb-8 space-y-3">
-            <a href="{{ url_for('client.ajuda') }}" class="flex items-center justify-center px-4 py-3 rounded-xl bg-white/5 text-blue-200 hover:bg-white/10 hover:text-white font-bold transition border border-white/5 text-sm whitespace-nowrap">Preciso de Ajuda</a>
-            <a href="{{ url_for('auth.logout') }}" class="flex items-center justify-center w-full px-4 py-3 text-red-400 bg-red-400/10 hover:bg-red-500 hover:text-white rounded-xl transition duration-300 font-bold text-sm whitespace-nowrap border border-red-400/20 hover:border-transparent">Encerrar Sessão</a>
-        </div>
-    </aside>
-
-    <script>
-        if (localStorage.getItem('sidebarStateClient') === 'closed') {
-            document.getElementById('sidebar').classList.add('-ml-72');
-        }
-    </script>
-    
-    <main class="flex-1 overflow-y-auto relative z-10 custom-scrollbar flex flex-col">
-        
-        <div class="pt-8 px-8 lg:pt-12 lg:px-12 pb-2 flex justify-start w-full">
-            <button onclick="toggleSidebar()" class="bg-white/50 backdrop-blur-md border border-gray-200 p-3 rounded-xl shadow-sm text-gray-500 hover:text-royal hover:bg-white transition flex items-center gap-2" title="Alternar Menu">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-                <span class="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Menu</span>
-            </button>
         </div>
 
-        <div class="px-8 pb-8 lg:px-12 lg:pb-12 pt-4 flex-1">
-            {% block client_content %}{% endblock %}
+        <div id="mobile-menu" class="hidden lg:hidden bg-navy border-t border-white/5 absolute w-full shadow-2xl">
+            <div class="px-6 py-4 space-y-2 flex flex-col">
+                <a href="{{ url_for('client.dashboard') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'client.dashboard' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Dashboard</a>
+                <a href="{{ url_for('client.faturas') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'client.faturas' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Extrato de Faturamento</a>
+                <a href="{{ url_for('client.dados_pessoais') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'client.dados_pessoais' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Meus Dados</a>
+                <a href="{{ url_for('client.documentos') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'client.documentos' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Meus Documentos</a>
+                <a href="{{ url_for('client.ajuda') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'client.ajuda' %}bg-royal/20 text-royal border border-royal/30{% else %}text-blue-200 hover:bg-white/5 hover:text-white{% endif %}">Preciso de Ajuda</a>
+                <div class="h-px w-full bg-white/5 my-2"></div>
+                <a href="{{ url_for('auth.logout') }}" class="px-4 py-3 text-center bg-red-400/10 text-red-400 hover:bg-red-500 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition">Encerrar Sessão</a>
+            </div>
         </div>
-        
+    </header>
+
+    <main class="flex-1 w-full max-w-7xl mx-auto px-6 lg:px-8 py-10 relative z-10">
+        {% block client_content %}{% endblock %}
     </main>
 </div>
 
 <script>
-    function toggleSidebar() {
-        const sidebar = document.getElementById('sidebar');
-        sidebar.classList.toggle('-ml-72');
-        if (sidebar.classList.contains('-ml-72')) {
-            localStorage.setItem('sidebarStateClient', 'closed');
-        } else {
-            localStorage.setItem('sidebarStateClient', 'open');
-        }
+    function toggleMobileMenu() {
+        const menu = document.getElementById('mobile-menu');
+        menu.classList.toggle('hidden');
     }
 </script>
-
-<style>
-.custom-scrollbar::-webkit-scrollbar { width: 8px; }
-.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; border: 2px solid transparent; background-clip: content-box; }
-</style>
 {% endblock %}
