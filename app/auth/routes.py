@@ -1,6 +1,6 @@
 import random
 import string
-from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
+from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify, session
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from app.models import User, AlocacaoCorretora
@@ -31,6 +31,13 @@ def login():
         if user and check_password_hash(user.password_hash, senha):
             if user.status_acesso == 'ativo':
                 login_user(user)
+                
+                # ==========================================
+                # ATIVANDO A TRAVA DE VALIDADE DO LOGIN
+                # ==========================================
+                session.permanent = True
+                # ==========================================
+                
                 if getattr(user, 'precisa_trocar_senha', False):
                     return redirect(url_for('auth.forcar_troca_senha'))
                     
@@ -137,4 +144,3 @@ def primeiro_acesso():
 def logout():
     logout_user()
     return redirect(url_for('auth.login'))
-
