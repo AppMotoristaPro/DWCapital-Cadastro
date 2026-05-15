@@ -128,6 +128,10 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
         # LOG COMPLETO DE INPUT E OUTPUT
         # ==================================================
         print("  [GEMINI REQUEST] Despachando nota mascarada para a nuvem...")
+        print("  --- INÍCIO DO TEXTO ENVIADO (TEXTO COMPLETO) ---")
+        print(texto_seguro)
+        print("  --- FIM DO TEXTO ENVIADO ---\n")
+        
         response = model.generate_content([prompt, texto_seguro])
         
         print("  [GEMINI RESPONSE] Resposta bruta devolvida pela IA:")
@@ -188,7 +192,6 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
             'liquido_dia': v_liquido_dia,
             'repasse_dw': v_repasse
         }
-
     except Exception as e:
         print(f"[XP_PARSER] ERRO: {str(e)}")
         if "SENHA_INCORRETA" in str(e): raise Exception("SENHA_INCORRETA")

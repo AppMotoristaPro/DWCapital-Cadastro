@@ -99,6 +99,9 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
         # LOG COMPLETO DE INPUT E OUTPUT
         # ==================================================
         print("  [GEMINI REQUEST] Despachando nota mascarada para a nuvem...")
+        print("  --- INÍCIO DO TEXTO ENVIADO (TEXTO COMPLETO) ---")
+        print(texto_seguro)
+        print("  --- FIM DO TEXTO ENVIADO ---\n")
         
         response = model.generate_content([prompt, texto_seguro])
         
