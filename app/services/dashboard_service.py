@@ -188,7 +188,8 @@ def obter_dados_dashboard_cliente(user_id, filtro_dia, filtro_semana_dia, filtro
                 continue
                 
             if d.status == 'relatorio_enviado':
-                bruto_total += d.bruto
+                # AJUSTE MATEMÁTICO: Agora usando o Liquido do Pregão (já com taxas B3 descontadas)
+                bruto_total += d.liquido_pregao
                 liquido_total += d.liquido
                 dados_grafico_raw[d.data_pregao] = dados_grafico_raw.get(d.data_pregao, 0.0) + d.liquido
 
