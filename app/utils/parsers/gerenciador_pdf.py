@@ -7,7 +7,7 @@ def processar_pdf(caminho_arquivo, corretora, cpf_cliente, senha_manual=None):
     print(f"\n[GERENCIADOR] Iniciando processamento. Corretora alvo: {corretora}")
     
     if corretora == 'GENIAL':
-        return extrair_dados_genial(caminho_arquivo)
+        return extrair_dados_genial(caminho_arquivo, cpf_cliente)
         
     elif corretora == 'XP':
         return extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual)

@@ -3,7 +3,7 @@ import re
 import json
 import io
 import pikepdf
-import google.generativeai as genai
+from groq import Groq
 from pypdf import PdfReader
 
 def sanitizar_texto(texto, cpf_cliente):
@@ -23,7 +23,7 @@ def sanitizar_texto(texto, cpf_cliente):
 
 def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
     print(f"\n" + "="*50)
-    print(f"[XP_PARSER] INICIANDO ROBÔ XP V3 (DECRYPT + POWERED BY GEMINI AI)")
+    print(f"[XP_PARSER] INICIANDO ROBÔ XP V4 (DECRYPT + POWERED BY GROQ & LLAMA 3)")
     print(f"="*50)
     try:
         if senha_manual:
@@ -68,39 +68,15 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
         print("[XP_PARSER] Senha validada. Texto reduzido ao máximo. Sanitizando (LGPD)...")
         texto_seguro = sanitizar_texto(texto_original, cpf_cliente)
 
-        api_key = os.getenv("GEMINI_API_KEY")
+        api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
-            raise Exception("Chave GEMINI_API_KEY não encontrada.")
+            raise Exception("Chave GROQ_API_KEY não encontrada.")
         
-        genai.configure(api_key=api_key)
+        client = Groq(api_key=api_key)
+        modelo_alvo = "llama-3.3-70b-versatile"
         
-        print("\n  [GEMINI DIAGNÓSTICO] Verificando ambiente de integração...")
-        print(f"    -> Versão do SDK (google-generativeai): {getattr(genai, '__version__', 'Versão não identificada')}")
-        
-        modelos_suportados = []
-        try:
-            for m in genai.list_models():
-                if 'generateContent' in m.supported_generation_methods:
-                    modelos_suportados.append(m.name)
-        except Exception as e:
-            print(f"    [!] Falha ao listar modelos do Google: {str(e)}")
-
-        modelos_preferencia = [
-            'gemini-1.5-flash',
-            'gemini-2.0-flash-lite',
-            'gemini-2.0-flash',
-            'gemini-2.5-flash'
-        ]
-        
-        modelo_alvo = 'gemini-1.5-flash'
-        for pref in modelos_preferencia:
-            if f'models/{pref}' in modelos_suportados:
-                modelo_alvo = pref
-                break
-            
+        print("\n  [GROQ DIAGNÓSTICO] Verificando ambiente de integração...")
         print(f"    -> Modelo validado e acionado para leitura: {modelo_alvo}\n")
-        
-        model = genai.GenerativeModel(modelo_alvo)
         
         prompt = """
         Você é um auditor financeiro especialista na extração de dados de notas de corretagem da XP Investimentos.
@@ -124,19 +100,28 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
         }
         """
         
-        print("  [GEMINI REQUEST] Despachando nota mascarada para a nuvem...")
+        print("  [GROQ REQUEST] Despachando nota mascarada para a nuvem Groq...")
         print("  --- INÍCIO DO TEXTO ENVIADO (MÁXIMO ENXUTO) ---")
         print(texto_seguro)
         print("  --- FIM DO TEXTO ENVIADO ---\n")
 
-        response = model.generate_content([prompt, texto_seguro])
+        response = client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": texto_seguro}
+            ],
+            model=modelo_alvo,
+            temperature=0.0,
+            response_format={"type": "json_object"}
+        )
         
-        print("  [GEMINI RESPONSE] Resposta bruta devolvida pela IA:")
+        texto_json = response.choices[0].message.content.strip()
+        
+        print("  [GROQ RESPONSE] Resposta bruta devolvida pela IA:")
         print("  --- INÍCIO DO RETORNO ---")
-        print(response.text)
+        print(texto_json)
         print("  --- FIM DO RETORNO ---\n")
         
-        texto_json = response.text.strip()
         if texto_json.startswith("```json"):
             texto_json = texto_json[7:]
         if texto_json.startswith("```"):
