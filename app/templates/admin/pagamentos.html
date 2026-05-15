@@ -10,10 +10,23 @@
         </div>
     </div>
 
-    <form method="GET" action="{{ url_for('admin.pagamentos') }}" class="mb-10 flex gap-4 bg-white/60 backdrop-blur-xl p-3 rounded-[2rem] shadow-sm border border-white w-max max-w-full">
-        <input type="date" name="ciclo" required class="flex-1 px-5 py-3 outline-none text-sm font-bold text-navy bg-white rounded-xl border border-gray-100 cursor-pointer shadow-inner">
-        <button type="submit" class="px-8 py-3 bg-navy text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition shadow-md">Carregar Gaveta</button>
-    </form>
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
+        <form method="GET" action="{{ url_for('admin.pagamentos') }}" class="flex gap-4 bg-white/60 backdrop-blur-xl p-3 rounded-[2rem] shadow-sm border border-white w-full md:w-max">
+            <input type="date" name="ciclo" required class="flex-1 px-5 py-3 outline-none text-sm font-bold text-navy bg-white rounded-xl border border-gray-100 cursor-pointer shadow-inner">
+            <button type="submit" class="px-8 py-3 bg-navy text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition shadow-md">Carregar Gaveta</button>
+        </form>
+        
+        <a href="{{ url_for('admin.exportar_pendencias') }}" class="flex items-center gap-2 px-6 py-4 bg-green-50 hover:bg-green-600 text-green-700 hover:text-white rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition border border-green-200 shadow-sm shrink-0 group w-full md:w-auto justify-center">
+            <svg class="w-5 h-5 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            Exportar Pendências Gerais
+        </a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}{% for category, message in messages %}
+        <div class="p-4 mb-8 rounded-2xl font-bold shadow-sm {% if category == 'error' %}bg-red-50 text-red-700 border-red-100{% else %}bg-green-50 text-green-700 border-green-100{% endif %} border">{{ message }}</div>
+      {% endfor %}{% endif %}
+    {% endwith %}
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {% for gaveta in gavetas %}
@@ -66,11 +79,6 @@
 
         {% if not busca %}
         <div class="flex flex-wrap items-center gap-4 shrink-0">
-            <a href="{{ url_for('admin.exportar_pendencias', ciclo=ciclo_data.strftime('%Y-%m-%d')) }}" class="flex items-center gap-2 px-6 py-3.5 bg-green-50 hover:bg-green-600 text-green-700 hover:text-white rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition border border-green-200 shadow-sm shrink-0 group">
-                <svg class="w-5 h-5 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                Exportar Excel
-            </a>
-
             <div class="flex items-center gap-5 bg-white/80 backdrop-blur-xl rounded-[1.5rem] border border-white p-3 shadow-sm shrink-0">
                 <div class="pl-4 hidden sm:block">
                     <p class="text-[10px] font-black text-purple-600 uppercase tracking-widest">Ação Global em Lote</p>

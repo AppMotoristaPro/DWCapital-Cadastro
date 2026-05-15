@@ -251,22 +251,12 @@ def pagamentos():
 
 
 # ==========================================
-# NOVA ROTA: EXPORTAR PENDÊNCIAS EM EXCEL
+# EXPORTAR PENDÊNCIAS EM EXCEL (AGORA GLOBAL)
 # ==========================================
 @admin_bp.route('/pagamentos/exportar_pendencias')
 @admin_required
 def exportar_pendencias():
-    ciclo = request.args.get('ciclo')
-    if not ciclo:
-        flash('Ciclo não informado.', 'error')
-        return redirect(url_for('admin.pagamentos'))
-    
-    try:
-        dt_inicio = datetime.strptime(ciclo, '%Y-%m-%d').date()
-    except ValueError:
-        flash('Data de ciclo inválida.', 'error')
-        return redirect(url_for('admin.pagamentos'))
-        
+    # Busca todos os parceiros ativos e não isentos
     ativos = User.query.filter(
         User.role == 'cliente', 
         User.status_acesso == 'ativo',
@@ -276,37 +266,40 @@ def exportar_pendencias():
     dados_planilha = []
     
     for c in ativos:
-        fatura_atual = Fatura.query.options(joinedload(Fatura.dias)).filter_by(user_id=c.id, data_inicio=dt_inicio).first()
-        if fatura_atual:
-            dias_set = set()
+        # Puxa TODAS as faturas deste usuário (não mais filtrado por ciclo)
+        faturas = Fatura.query.options(joinedload(Fatura.dias)).filter_by(user_id=c.id).all()
+        dias_set = set()
+        
+        for fatura_atual in faturas:
             for d in fatura_atual.dias:
-                # OTIMIZAÇÃO: Ignora notas isentas e foca só nas pendentes
+                # OTIMIZAÇÃO: Foca só nas notas pendentes e que não são feriado/isentas
                 if d.status == 'pendente' and not d.is_isento:
                     dias_set.add(d.data_pregao)
                     
-            if dias_set:
-                datas_ordenadas = sorted(list(dias_set))
-                datas_pendentes = [dt.strftime('%d/%m/%Y') for dt in datas_ordenadas]
-                
-                dados_planilha.append({
-                    'nome': c.nome.upper(),
-                    'datas': datas_pendentes
-                })
+        if dias_set:
+            # Ordena cronologicamente para a tabela ficar bonita
+            datas_ordenadas = sorted(list(dias_set))
+            datas_pendentes = [dt.strftime('%d/%m/%Y') for dt in datas_ordenadas]
+            
+            dados_planilha.append({
+                'nome': c.nome.upper(),
+                'datas': datas_pendentes
+            })
                 
     if not dados_planilha:
-        flash('Excelente! Nenhuma pendência encontrada para cobrar neste ciclo.', 'success')
-        return redirect(url_for('admin.pagamentos', ciclo=ciclo))
+        flash('Excelente! Nenhuma pendência encontrada no sistema de forma global.', 'success')
+        return redirect(url_for('admin.pagamentos'))
         
     from app.utils.processador_xlsx import gerar_relatorio_pendencias
     
     caminho_tmp = os.path.join(current_app.root_path, 'static', 'uploads')
     os.makedirs(caminho_tmp, exist_ok=True)
-    arquivo_saida = os.path.join(caminho_tmp, f'Pendencias_DW_{ciclo}.xlsx')
+    arquivo_saida = os.path.join(caminho_tmp, f'Pendencias_Global_DW.xlsx')
     
     gerar_relatorio_pendencias(dados_planilha, arquivo_saida)
-    registrar_log(f"Exportou relatório Excel de pendências para o ciclo de {ciclo}.", "Pagamentos")
+    registrar_log("Exportou relatório Excel GLOBAL de pendências.", "Pagamentos")
     
-    return send_file(arquivo_saida, as_attachment=True, download_name=f'Pendencias_{ciclo}.xlsx')
+    return send_file(arquivo_saida, as_attachment=True, download_name='Pendencias_Gerais.xlsx')
 # ==========================================
 
 
