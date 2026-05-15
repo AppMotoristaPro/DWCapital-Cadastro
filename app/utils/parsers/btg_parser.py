@@ -26,15 +26,15 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
     try:
         leitor = PdfReader(caminho_arquivo)
         texto_full = leitor.pages[-1].extract_text()
-        print("[BTG_PARSER] Texto extraído. Otimizando para a IA...")
+        print("[BTG_PARSER] Texto extraído. Aplicando corte extremo para a IA...")
 
         if "BTG PACTUAL" not in texto_full.upper():
             print("[BTG_PARSER] ERRO: O PDF não pertence ao BTG Pactual.")
             return None
 
-        # OTIMIZAÇÃO DE CONTEXTO: Corta o miolo (operações) e junta Cabeçalho com Rodapé
-        if len(texto_full) > 2500:
-            texto_original = texto_full[:1000] + "\n\n... [OPERAÇÕES OCULTAS PARA POUPAR A IA] ...\n\n" + texto_full[-1500:]
+        # CORTE EXTREMO: Pega apenas Cabeçalho (600 chars) e Rodapé (1000 chars)
+        if len(texto_full) > 1600:
+            texto_original = texto_full[:600] + "\n\n... [OPERAÇÕES DELETADAS] ...\n\n" + texto_full[-1000:]
         else:
             texto_original = texto_full
 
@@ -58,7 +58,6 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
         except Exception as e:
             print(f"    [!] Falha ao listar modelos do Google: {str(e)}")
 
-        # INVERSÃO DE PRIORIDADE: 1.5 no topo para garantir 1500 requisições gratuitas/dia
         modelos_preferencia = [
             'gemini-1.5-flash',
             'gemini-2.0-flash-lite',
@@ -78,16 +77,15 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
         
         prompt = """
         Você é um auditor financeiro especialista na extração de dados de notas de corretagem da BTG Pactual.
-        O texto do PDF sofreu quebra de colunas. Palavras, números e as letras 'C' (Crédito) e 'D' (Débito) estão completamente misturados ou fora de ordem.
-        Muitas vezes a letra 'D' está colada no número (ex: 820,00D).
+        O texto recebido contém apenas o cabeçalho e o rodapé do PDF. A letra 'D' (Débito) pode estar colada no número.
         
-        Encontre 3 informações exatas no cabeçalho/rodapé:
+        Encontre 3 informações exatas:
         1. Data do Pregão (DD/MM/AAAA).
         2. Valor Bruto: Procure por 'Ajuste day trade' ou 'Valor dos negócios'. Pegue o valor não zerado.
-        3. Total Líquido: Procure por 'Total líquido da nota'. Na BTG, geralmente é o último valor financeiro no final do documento.
+        3. Total Líquido: Procure por 'Total líquido da nota' (Geralmente no final do documento).
         
         REGRA MATEMÁTICA CRÍTICA:
-        Sempre verifique se há um 'D' (Débito) ou 'C' (Crédito) atrelado ao valor (colado ou em rodapé). Se houver 'D', o valor DEVE TER SINAL NEGATIVO (-).
+        Sempre verifique se há um 'D' (Débito) ou 'C' (Crédito) atrelado ao valor. Se houver 'D', o valor DEVE TER SINAL NEGATIVO (-).
         
         Retorne EXCLUSIVAMENTE um JSON válido. Use o campo 'raciocinio' para explicar a captura antes dos valores finais.
         Estrutura obrigatória de exemplo:
@@ -100,7 +98,7 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
         """
         
         print("  [GEMINI REQUEST] Despachando nota mascarada para a nuvem...")
-        print("  --- INÍCIO DO TEXTO ENVIADO (REDUZIDO) ---")
+        print("  --- INÍCIO DO TEXTO ENVIADO (MÁXIMO ENXUTO) ---")
         print(texto_seguro)
         print("  --- FIM DO TEXTO ENVIADO ---\n")
         

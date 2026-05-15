@@ -27,15 +27,15 @@ def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
     try:
         leitor = PdfReader(caminho_arquivo)
         texto_full = leitor.pages[-1].extract_text()
-        print("[GENIAL_PARSER] Texto extraído. Otimizando para a IA...")
+        print("[GENIAL_PARSER] Texto extraído. Aplicando corte extremo para a IA...")
 
         if "GENIAL" not in texto_full.upper():
             print("[GENIAL_PARSER] ERRO: O PDF não pertence à Genial Investimentos.")
             return None
 
-        # OTIMIZAÇÃO DE CONTEXTO: Corta o miolo (operações) e junta Cabeçalho com Rodapé
-        if len(texto_full) > 2500:
-            texto_original = texto_full[:1000] + "\n\n... [OPERAÇÕES OCULTAS PARA POUPAR A IA] ...\n\n" + texto_full[-1500:]
+        # CORTE EXTREMO: Pega apenas Cabeçalho (600 chars) e Rodapé (1000 chars)
+        if len(texto_full) > 1600:
+            texto_original = texto_full[:600] + "\n\n... [OPERAÇÕES DELETADAS] ...\n\n" + texto_full[-1000:]
         else:
             texto_original = texto_full
 
@@ -59,7 +59,6 @@ def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
         except Exception as e:
             print(f"    [!] Falha ao listar modelos do Google: {str(e)}")
 
-        # INVERSÃO DE PRIORIDADE: 1.5 no topo para garantir 1500 requisições gratuitas/dia
         modelos_preferencia = [
             'gemini-1.5-flash',
             'gemini-2.0-flash-lite',
@@ -79,18 +78,18 @@ def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
         
         prompt = """
         Você é um auditor financeiro especialista na extração de dados de notas de corretagem da Genial Investimentos.
-        O texto do PDF sofreu quebra de colunas. Palavras, números e as letras 'C' (Crédito) e 'D' (Débito) estão completamente misturados.
-        Muitas vezes a letra 'D' está colada no número (ex: 820,00D) ou espalhada no rodapé (ex: 847,00 C D 0,00 847,00 -> o D pertence ao 847,00).
+        O texto recebido contém apenas o cabeçalho e o rodapé do PDF. Palavras, números e as letras 'C' (Crédito) e 'D' (Débito) estão misturados.
+        A letra 'D' pode estar colada no número (ex: 820,00D) ou solta.
         
-        Encontre 3 informações exatas no rodapé/cabeçalho:
+        Encontre 3 informações exatas:
         1. Data do Pregão (DD/MM/AAAA).
         2. Valor Bruto: Procure por 'Ajuste day trade' ou 'Valor dos negócios'. Pegue o valor correspondente não zerado.
         3. Total Líquido: Procure por 'Total líquido da nota' ou 'Total líquido (#)'.
         
         REGRA MATEMÁTICA CRÍTICA:
-        Sempre verifique se há um 'D' (Débito) ou 'C' (Crédito) atrelado ao valor (colado ou próximo na mesma linha). Se houver 'D', o valor DEVE TER SINAL NEGATIVO (-).
+        Sempre verifique se há um 'D' (Débito) ou 'C' (Crédito) atrelado ao valor. Se houver 'D', o valor DEVE TER SINAL NEGATIVO (-).
         
-        Retorne EXCLUSIVAMENTE um JSON válido. É OBRIGATÓRIO usar o campo 'raciocinio' para explicar a captura antes dos valores finais.
+        Retorne EXCLUSIVAMENTE um JSON válido. Use o campo 'raciocinio' para explicar a captura antes dos valores finais.
         Estrutura obrigatória de exemplo:
         {
             "raciocinio": "Achei Ajuste day trade 820,00D (Sinal negativo). O líquido é 847,00 com um D por perto (Sinal negativo).",
@@ -101,7 +100,7 @@ def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
         """
         
         print("  [GEMINI REQUEST] Despachando nota mascarada para a nuvem...")
-        print("  --- INÍCIO DO TEXTO ENVIADO (REDUZIDO) ---")
+        print("  --- INÍCIO DO TEXTO ENVIADO (MÁXIMO ENXUTO) ---")
         print(texto_seguro)
         print("  --- FIM DO TEXTO ENVIADO ---\n")
         
