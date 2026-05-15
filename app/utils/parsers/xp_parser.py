@@ -32,6 +32,7 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
             cpf_limpo = ''.join(filter(str.isdigit, str(cpf_cliente)))
             senha_final = cpf_limpo[-3:] if len(cpf_limpo) >= 3 else ""
         
+        texto_full = ""
         try:
             with pikepdf.open(caminho_arquivo, password=senha_final) as pdf_trancado:
                 buffer_limpo = io.BytesIO()
@@ -42,7 +43,7 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
                 f_out.write(buffer_limpo.getvalue())
 
             leitor = PdfReader(buffer_limpo)
-            texto_original = leitor.pages[-1].extract_text()
+            texto_full = leitor.pages[-1].extract_text()
                 
         except pikepdf.PasswordError:
             raise Exception("SENHA_INCORRETA")
@@ -51,14 +52,20 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
                 leitor = PdfReader(caminho_arquivo)
                 if leitor.is_encrypted:
                     leitor.decrypt(senha_final)
-                texto_original = leitor.pages[-1].extract_text()
+                texto_full = leitor.pages[-1].extract_text()
             except Exception:
                 raise Exception("SENHA_INCORRETA")
 
-        if "XP INVESTIMENTOS" not in texto_original.upper():
+        if "XP INVESTIMENTOS" not in texto_full.upper():
             return None
+
+        # OTIMIZAÇÃO DE CONTEXTO: Corta o miolo (operações) e junta Cabeçalho com Rodapé
+        if len(texto_full) > 2500:
+            texto_original = texto_full[:1000] + "\n\n... [OPERAÇÕES OCULTAS PARA POUPAR A IA] ...\n\n" + texto_full[-1500:]
+        else:
+            texto_original = texto_full
         
-        print("[XP_PARSER] Senha validada. Sanitizando dados sensíveis (LGPD)...")
+        print("[XP_PARSER] Senha validada. Texto reduzido. Sanitizando dados sensíveis (LGPD)...")
         texto_seguro = sanitizar_texto(texto_original, cpf_cliente)
 
         api_key = os.getenv("GEMINI_API_KEY")
@@ -100,7 +107,7 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
         O texto do PDF sofreu quebra de colunas. Palavras, números e as letras 'C' (Crédito) e 'D' (Débito) estão completamente misturados.
         Muitas vezes a letra 'D' está colada no número (ex: 820,00D).
         
-        Encontre 3 informações exatas:
+        Encontre 3 informações exatas no cabeçalho/rodapé:
         1. Data do Pregão (DD/MM/AAAA).
         2. Valor Bruto: Procure por 'Ajuste day trade' ou 'Valor dos negócios'. Pegue o valor não zerado.
         3. Total Líquido: Procure por 'Total líquido da nota'.
@@ -119,6 +126,10 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
         """
         
         print("  [GEMINI REQUEST] Despachando nota mascarada para a nuvem...")
+        print("  --- INÍCIO DO TEXTO ENVIADO (REDUZIDO) ---")
+        print(texto_seguro)
+        print("  --- FIM DO TEXTO ENVIADO ---\n")
+
         response = model.generate_content([prompt, texto_seguro])
         
         print("  [GEMINI RESPONSE] Resposta bruta devolvida pela IA:")

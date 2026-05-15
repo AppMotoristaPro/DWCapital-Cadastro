@@ -26,12 +26,18 @@ def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
     print(f"[GENIAL_PARSER] Arquivo alvo: {caminho_arquivo}")
     try:
         leitor = PdfReader(caminho_arquivo)
-        texto_original = leitor.pages[-1].extract_text()
-        print("[GENIAL_PARSER] Texto lido com sucesso.")
+        texto_full = leitor.pages[-1].extract_text()
+        print("[GENIAL_PARSER] Texto extraído. Otimizando para a IA...")
 
-        if "GENIAL" not in texto_original.upper():
+        if "GENIAL" not in texto_full.upper():
             print("[GENIAL_PARSER] ERRO: O PDF não pertence à Genial Investimentos.")
             return None
+
+        # OTIMIZAÇÃO DE CONTEXTO: Corta o miolo (operações) e junta Cabeçalho com Rodapé
+        if len(texto_full) > 2500:
+            texto_original = texto_full[:1000] + "\n\n... [OPERAÇÕES OCULTAS PARA POUPAR A IA] ...\n\n" + texto_full[-1500:]
+        else:
+            texto_original = texto_full
 
         print("[GENIAL_PARSER] Sanitizando dados sensíveis (LGPD)...")
         texto_seguro = sanitizar_texto(texto_original, cpf_cliente)
@@ -75,7 +81,7 @@ def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
         O texto do PDF sofreu quebra de colunas. Palavras, números e as letras 'C' (Crédito) e 'D' (Débito) estão completamente misturados.
         Muitas vezes a letra 'D' está colada no número (ex: 820,00D) ou espalhada no rodapé (ex: 847,00 C D 0,00 847,00 -> o D pertence ao 847,00).
         
-        Encontre 3 informações exatas:
+        Encontre 3 informações exatas no rodapé/cabeçalho:
         1. Data do Pregão (DD/MM/AAAA).
         2. Valor Bruto: Procure por 'Ajuste day trade' ou 'Valor dos negócios'. Pegue o valor correspondente não zerado.
         3. Total Líquido: Procure por 'Total líquido da nota' ou 'Total líquido (#)'.
@@ -94,7 +100,7 @@ def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
         """
         
         print("  [GEMINI REQUEST] Despachando nota mascarada para a nuvem...")
-        print("  --- INÍCIO DO TEXTO ENVIADO (TEXTO COMPLETO) ---")
+        print("  --- INÍCIO DO TEXTO ENVIADO (REDUZIDO) ---")
         print(texto_seguro)
         print("  --- FIM DO TEXTO ENVIADO ---\n")
         
