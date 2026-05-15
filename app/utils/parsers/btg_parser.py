@@ -54,7 +54,6 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
         except Exception as e:
             print(f"    [!] Falha ao listar modelos do Google: {str(e)}")
 
-        # LISTA DE PRIORIDADE: Do mais moderno pro mais legado
         modelos_preferencia = [
             'gemini-2.5-flash',
             'gemini-2.0-flash',
@@ -81,10 +80,12 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
         2. Valor Bruto do Day Trade (Geralmente atrelado ao termo 'Ajuste day trade').
         3. Total Líquido da Nota (Geralmente o último valor financeiro que aparece no final do documento).
         
-        Regra Estrita de Sinais Financeiros: 
-        Se o valor estiver acompanhado da letra 'D' (Débito) na nota, ele DEVE ser negativo no JSON.
-        Se o valor estiver acompanhado da letra 'C' (Crédito) na nota, ele DEVE ser positivo no JSON.
-        Converta os valores para o formato de programação (ponto como separador decimal, sem separador de milhar).
+        Regra Estrita de Sinais Financeiros (MUITO IMPORTANTE): 
+        Seja matemático e estrito. Retorne o valor numérico com SINAL DE MENOS se na nota houver "D" (Débito) ao lado do número e POSITIVO se houver "C" (Crédito) ao lado do número.
+        EXEMPLOS DE RETORNO OBRIGATÓRIO NO JSON:
+        Texto original: "150,00 D" -> Retorno no JSON: -150.00
+        Texto original: "200,00 C" -> Retorno no JSON: 200.00
+        Texto original: "820,00 D" -> Retorno no JSON: -820.00
         
         Retorne ÚNICA e EXCLUSIVAMENTE um objeto JSON válido, sem nenhuma formatação markdown ou texto extra, com esta exata estrutura:
         {

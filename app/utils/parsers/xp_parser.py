@@ -91,7 +91,7 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
             'gemini-1.5-flash'
         ]
         
-        modelo_alvo = 'gemini-1.5-flash' # Fallback absoluto
+        modelo_alvo = 'gemini-1.5-flash'
         for pref in modelos_preferencia:
             if f'models/{pref}' in modelos_suportados:
                 modelo_alvo = pref
@@ -109,10 +109,12 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
         2. Valor Bruto do Day Trade (Geralmente atrelado ao termo 'Ajuste day trade').
         3. Total Líquido da Nota (Geralmente atrelado ao termo 'Total líquido da nota').
         
-        Regra Estrita de Sinais Financeiros: 
-        Se o valor estiver acompanhado da letra 'D' (Débito) na nota, ele DEVE ser negativo no JSON.
-        Se o valor estiver acompanhado da letra 'C' (Crédito) na nota, ele DEVE ser positivo no JSON.
-        Converta os valores para o formato de programação (ponto como separador decimal, sem separador de milhar).
+        Regra Estrita de Sinais Financeiros (MUITO IMPORTANTE): 
+        Seja matemático e estrito. Retorne o valor numérico com SINAL DE MENOS se na nota houver "D" (Débito) ao lado do número e POSITIVO se houver "C" (Crédito) ao lado do número.
+        EXEMPLOS DE RETORNO OBRIGATÓRIO NO JSON:
+        Texto original: "150,00 D" -> Retorno no JSON: -150.00
+        Texto original: "200,00 C" -> Retorno no JSON: 200.00
+        Texto original: "820,00 D" -> Retorno no JSON: -820.00
         
         Retorne ÚNICA e EXCLUSIVAMENTE um objeto JSON válido, sem nenhuma formatação markdown ou texto extra, com esta exata estrutura:
         {
@@ -126,7 +128,6 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
         # LOG COMPLETO DE INPUT E OUTPUT
         # ==================================================
         print("  [GEMINI REQUEST] Despachando nota mascarada para a nuvem...")
-        
         response = model.generate_content([prompt, texto_seguro])
         
         print("  [GEMINI RESPONSE] Resposta bruta devolvida pela IA:")
@@ -187,6 +188,7 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
             'liquido_dia': v_liquido_dia,
             'repasse_dw': v_repasse
         }
+
     except Exception as e:
         print(f"[XP_PARSER] ERRO: {str(e)}")
         if "SENHA_INCORRETA" in str(e): raise Exception("SENHA_INCORRETA")

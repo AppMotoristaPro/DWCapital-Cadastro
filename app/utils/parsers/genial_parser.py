@@ -81,10 +81,12 @@ def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
         2. Valor Bruto das operações (Geralmente atrelado ao termo 'Valor dos negócios').
         3. Total Líquido da Nota (Geralmente atrelado ao termo 'Total líquido da nota').
         
-        Regra Estrita de Sinais Financeiros: 
-        Se o valor estiver acompanhado da letra 'D' (Débito) na nota, ele DEVE ser negativo no JSON.
-        Se o valor estiver acompanhado da letra 'C' (Crédito) na nota, ele DEVE ser positivo no JSON.
-        Converta os valores para o formato de programação (ponto como separador decimal, sem separador de milhar).
+        Regra Estrita de Sinais Financeiros (MUITO IMPORTANTE): 
+        Seja matemático e estrito. Retorne o valor numérico com SINAL DE MENOS se na nota houver "D" (Débito) ao lado do número e POSITIVO se houver "C" (Crédito) ao lado do número.
+        EXEMPLOS DE RETORNO OBRIGATÓRIO NO JSON:
+        Texto original: "150,00 D" -> Retorno no JSON: -150.00
+        Texto original: "200,00 C" -> Retorno no JSON: 200.00
+        Texto original: "820,00 D" -> Retorno no JSON: -820.00
         
         Retorne ÚNICA e EXCLUSIVAMENTE um objeto JSON válido, sem nenhuma formatação markdown ou texto extra, com esta exata estrutura:
         {
