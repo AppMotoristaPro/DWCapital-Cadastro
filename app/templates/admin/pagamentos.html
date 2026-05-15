@@ -65,22 +65,29 @@
         </form>
 
         {% if not busca %}
-        <div class="flex items-center gap-5 bg-white/80 backdrop-blur-xl rounded-[2rem] border border-white p-3 shadow-sm shrink-0">
-            <div class="pl-4 hidden sm:block">
-                <p class="text-[10px] font-black text-purple-600 uppercase tracking-widest">Ação Global em Lote</p>
-                <p class="text-[9px] text-gray-500 font-bold mt-0.5">Isentar dia (Feriado)</p>
+        <div class="flex flex-wrap items-center gap-4 shrink-0">
+            <a href="{{ url_for('admin.exportar_pendencias', ciclo=ciclo_data.strftime('%Y-%m-%d')) }}" class="flex items-center gap-2 px-6 py-3.5 bg-green-50 hover:bg-green-600 text-green-700 hover:text-white rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition border border-green-200 shadow-sm shrink-0 group">
+                <svg class="w-5 h-5 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Exportar Excel
+            </a>
+
+            <div class="flex items-center gap-5 bg-white/80 backdrop-blur-xl rounded-[1.5rem] border border-white p-3 shadow-sm shrink-0">
+                <div class="pl-4 hidden sm:block">
+                    <p class="text-[10px] font-black text-purple-600 uppercase tracking-widest">Ação Global em Lote</p>
+                    <p class="text-[9px] text-gray-500 font-bold mt-0.5">Isentar dia (Feriado)</p>
+                </div>
+                
+                <form action="{{ url_for('admin.isentar_dia_global') }}" method="POST" id="form-isentar-global" class="flex items-center m-0 gap-2">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <input type="hidden" name="ciclo_atual" value="{{ ciclo_data.strftime('%Y-%m-%d') }}">
+                    <select name="data_isencao" id="select-dia-isencao" class="bg-white border border-gray-200 text-navy text-xs font-bold rounded-xl focus:border-purple-400 px-4 py-3 cursor-pointer outline-none shadow-inner transition w-48">
+                        <option value="" selected disabled>Escolha o dia...</option>
+                        {% for dia_util in dias_uteis %}
+                        <option value="{{ dia_util.strftime('%Y-%m-%d') }}">{{ ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'][dia_util.weekday()] }} ({{ dia_util.strftime('%d/%m') }})</option>
+                        {% endfor %}
+                    </select>
+                </form>
             </div>
-            
-            <form action="{{ url_for('admin.isentar_dia_global') }}" method="POST" id="form-isentar-global" class="flex items-center m-0 gap-2">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                <input type="hidden" name="ciclo_atual" value="{{ ciclo_data.strftime('%Y-%m-%d') }}">
-                <select name="data_isencao" id="select-dia-isencao" class="bg-white border border-gray-200 text-navy text-xs font-bold rounded-xl focus:border-purple-400 px-4 py-3 cursor-pointer outline-none shadow-inner transition w-48">
-                    <option value="" selected disabled>Escolha o dia...</option>
-                    {% for dia_util in dias_uteis %}
-                    <option value="{{ dia_util.strftime('%Y-%m-%d') }}">{{ ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'][dia_util.weekday()] }} ({{ dia_util.strftime('%d/%m') }})</option>
-                    {% endfor %}
-                </select>
-            </form>
         </div>
         {% endif %}
     </div>
@@ -161,4 +168,3 @@
     {% endif %}
 </div>
 {% endblock %}
-

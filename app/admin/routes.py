@@ -3,7 +3,7 @@ import random
 import string
 import requests
 from tempfile import NamedTemporaryFile
-from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app, jsonify
+from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app, jsonify, send_file
 from flask_login import current_user
 from werkzeug.security import generate_password_hash
 from sqlalchemy.orm import joinedload
@@ -141,9 +141,6 @@ def inativar_cliente(id):
     flash(f'Cliente {cliente.nome} inativado com sucesso.', 'success')
     return redirect(url_for('admin.clientes_list'))
 
-# ==========================================
-# NOVA ROTA: REATIVAR CLIENTE
-# ==========================================
 @admin_bp.route('/ativar_cliente/<int:id>', methods=['POST'])
 @admin_required
 def ativar_cliente(id):
@@ -172,7 +169,6 @@ def pagamentos():
     ciclo = request.args.get('ciclo')
     
     if ciclo or busca:
-        # OTIMIZAÇÃO: Trazendo as alocações na mesma query
         query = User.query.filter_by(role='cliente', status_acesso='ativo').options(joinedload(User.alocacoes))
         
         if busca:
@@ -203,7 +199,6 @@ def pagamentos():
         clientes_dados = []
         for c in ativos:
             auto_gerar_ciclo(c, data_base=inicio_ciclo)
-            # OTIMIZAÇÃO: Trazendo os dias da fatura na mesma viagem
             fatura_atual = Fatura.query.options(joinedload(Fatura.dias)).filter_by(user_id=c.id, data_inicio=inicio_ciclo).first()
             detalhes_corretoras = {}
             
@@ -254,13 +249,73 @@ def pagamentos():
                 
         return render_template('admin/pagamentos.html', gavetas=gavetas, exibe_clientes=False)
 
+
+# ==========================================
+# NOVA ROTA: EXPORTAR PENDÊNCIAS EM EXCEL
+# ==========================================
+@admin_bp.route('/pagamentos/exportar_pendencias')
+@admin_required
+def exportar_pendencias():
+    ciclo = request.args.get('ciclo')
+    if not ciclo:
+        flash('Ciclo não informado.', 'error')
+        return redirect(url_for('admin.pagamentos'))
+    
+    try:
+        dt_inicio = datetime.strptime(ciclo, '%Y-%m-%d').date()
+    except ValueError:
+        flash('Data de ciclo inválida.', 'error')
+        return redirect(url_for('admin.pagamentos'))
+        
+    ativos = User.query.filter(
+        User.role == 'cliente', 
+        User.status_acesso == 'ativo',
+        db.or_(User.is_isento == False, User.is_isento.is_(None))
+    ).order_by(User.nome.asc()).all()
+    
+    dados_planilha = []
+    
+    for c in ativos:
+        fatura_atual = Fatura.query.options(joinedload(Fatura.dias)).filter_by(user_id=c.id, data_inicio=dt_inicio).first()
+        if fatura_atual:
+            dias_set = set()
+            for d in fatura_atual.dias:
+                # OTIMIZAÇÃO: Ignora notas isentas e foca só nas pendentes
+                if d.status == 'pendente' and not d.is_isento:
+                    dias_set.add(d.data_pregao)
+                    
+            if dias_set:
+                datas_ordenadas = sorted(list(dias_set))
+                datas_pendentes = [dt.strftime('%d/%m/%Y') for dt in datas_ordenadas]
+                
+                dados_planilha.append({
+                    'nome': c.nome.upper(),
+                    'datas': datas_pendentes
+                })
+                
+    if not dados_planilha:
+        flash('Excelente! Nenhuma pendência encontrada para cobrar neste ciclo.', 'success')
+        return redirect(url_for('admin.pagamentos', ciclo=ciclo))
+        
+    from app.utils.processador_xlsx import gerar_relatorio_pendencias
+    
+    caminho_tmp = os.path.join(current_app.root_path, 'static', 'uploads')
+    os.makedirs(caminho_tmp, exist_ok=True)
+    arquivo_saida = os.path.join(caminho_tmp, f'Pendencias_DW_{ciclo}.xlsx')
+    
+    gerar_relatorio_pendencias(dados_planilha, arquivo_saida)
+    registrar_log(f"Exportou relatório Excel de pendências para o ciclo de {ciclo}.", "Pagamentos")
+    
+    return send_file(arquivo_saida, as_attachment=True, download_name=f'Pendencias_{ciclo}.xlsx')
+# ==========================================
+
+
 @admin_bp.route('/pagamentos/<int:id>')
 @admin_required
 def pagamentos_cliente(id):
     cliente = User.query.get_or_404(id)
     ciclo = request.args.get('ciclo')
     
-    # OTIMIZAÇÃO: Trazendo os dias em uma única query
     query = Fatura.query.filter_by(user_id=cliente.id).options(joinedload(Fatura.dias))
     
     if ciclo:
@@ -399,7 +454,6 @@ def documentos():
     templates = DocumentoTemplate.query.all()
     clientes = User.query.filter_by(role='cliente', status_acesso='ativo').order_by(User.nome.asc()).all()
     
-    # OTIMIZAÇÃO: Traz as ligações com cliente e modelo numa viagem só (Evita dezenas de consultas N+1 na tabela)
     historico = DocumentoCliente.query.options(
         joinedload(DocumentoCliente.cliente), 
         joinedload(DocumentoCliente.template)
@@ -421,7 +475,6 @@ def cadastrar_template():
     flash(f'Modelo "{nome}" registrado! Certifique-se de que o arquivo "{arquivo_local}" esteja na pasta static/documentos/.', 'success')
     return redirect(url_for('admin.documentos'))
 
-# ROTA ANTIGA (Mantida como fallback se precisar usar sem JS)
 @admin_bp.route('/documentos/disparar', methods=['POST'])
 @admin_required
 def disparar_documento():
@@ -448,9 +501,6 @@ def disparar_documento():
         
     return redirect(url_for('admin.documentos'))
 
-# ==========================================
-# NOVA ROTA: FASE 3 (PLANO A - API JS)
-# ==========================================
 @admin_bp.route('/documentos/disparar_unico', methods=['POST'])
 @admin_required
 def api_disparar_unico():
@@ -468,11 +518,9 @@ def api_disparar_unico():
         
     return jsonify(resultado)
 
-# --- ROTA DE REPROCESSAMENTO EM LOTE (BATCH JOB) ---
 @admin_bp.route('/reprocessar_notas_antigas', methods=['GET'])
 @admin_required
 def reprocessar_notas_antigas():
-    # OTIMIZAÇÃO MAX: Puxa todos os dias enviados, a fatura semanal e os dados do cliente de uma vez só!
     dias_enviados = FaturaDiaria.query.options(
         joinedload(FaturaDiaria.fatura_semanal).joinedload(Fatura.cliente)
     ).filter(
