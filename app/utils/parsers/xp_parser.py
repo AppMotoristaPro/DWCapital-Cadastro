@@ -57,7 +57,8 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
                 raise Exception("SENHA_INCORRETA")
 
         if "XP INVESTIMENTOS" not in texto_full.upper():
-            return None
+            print("[XP_PARSER] ERRO: O PDF não pertence à XP Investimentos.")
+            raise Exception("PDF_INCOMPATIVEL: O arquivo enviado não pertence à XP Investimentos.")
 
         # CORTE EXTREMO: Pega apenas Cabeçalho (600 chars) e Rodapé (1000 chars)
         if len(texto_full) > 1600:
@@ -174,4 +175,5 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
     except Exception as e:
         print(f"[XP_PARSER] ERRO: {str(e)}")
         if "SENHA_INCORRETA" in str(e): raise Exception("SENHA_INCORRETA")
+        if "PDF_INCOMPATIVEL" in str(e): raise e
         return None

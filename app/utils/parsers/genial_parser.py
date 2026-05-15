@@ -31,7 +31,7 @@ def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
 
         if "GENIAL" not in texto_full.upper():
             print("[GENIAL_PARSER] ERRO: O PDF não pertence à Genial Investimentos.")
-            return None
+            raise Exception("PDF_INCOMPATIVEL: O arquivo enviado não pertence à Genial Investimentos.")
 
         # CORTE EXTREMO: Pega apenas Cabeçalho (600 chars) e Rodapé (1000 chars)
         if len(texto_full) > 1600:
@@ -150,4 +150,7 @@ def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
 
     except Exception as e:
         print(f"[GENIAL_PARSER] Erro crítico na extração inteligente: {str(e)}")
+        # Repassa o erro de incompatibilidade, caso exista
+        if "PDF_INCOMPATIVEL" in str(e):
+            raise e
         return None

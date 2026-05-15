@@ -30,7 +30,7 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
 
         if "BTG PACTUAL" not in texto_full.upper():
             print("[BTG_PARSER] ERRO: O PDF não pertence ao BTG Pactual.")
-            return None
+            raise Exception("PDF_INCOMPATIVEL: O arquivo enviado não pertence ao BTG Pactual.")
 
         # CORTE EXTREMO: Pega apenas Cabeçalho (600 chars) e Rodapé (1000 chars)
         if len(texto_full) > 1600:
@@ -147,4 +147,6 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
 
     except Exception as e:
         print(f"[BTG_PARSER] Erro crítico na extração inteligente: {str(e)}")
+        if "PDF_INCOMPATIVEL" in str(e):
+            raise e
         return None

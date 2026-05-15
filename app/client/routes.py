@@ -166,6 +166,10 @@ def faturas():
                 if "SENHA_INCORRETA" in str(e):
                     return jsonify({'success': False, 'error': 'REQUER_SENHA'})
                 
+                if "PDF_INCOMPATIVEL" in str(e):
+                    msg_erro = str(e).split("PDF_INCOMPATIVEL: ")[-1]
+                    return jsonify({'success': False, 'error': 'RELATORIO_INVALIDO', 'message': msg_erro})
+                
                 return jsonify({'success': False, 'error': 'ERRO_TECNICO', 'message': str(e)})
 
     return render_template('client/faturas.html', faturas=current_user.faturas)
@@ -230,6 +234,5 @@ def ajuda():
     msg_comercial_encoded = urllib.parse.quote(msg_comercial)
     
     return render_template('client/ajuda.html', 
-                           link_suporte=f"https://wa.me/5511991167709?text={msg_suporte_encoded}",
-                           link_comercial=f"https://wa.me/5511920504850?text={msg_comercial_encoded}")
-
+                           link_suporte=f"[https://wa.me/5511991167709?text=](https://wa.me/5511991167709?text=){msg_suporte_encoded}",
+                           link_comercial=f"[https://wa.me/5511920504850?text=](https://wa.me/5511920504850?text=){msg_comercial_encoded}")
