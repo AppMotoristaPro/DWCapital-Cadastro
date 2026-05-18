@@ -18,7 +18,7 @@ class PixService:
         client_id = os.getenv('INTER_CLIENT_ID')
         client_secret = os.getenv('INTER_CLIENT_SECRET')
         
-        # Busca os arquivos diretamente na raiz do projeto, como o Render exige
+        # Busca os arquivos diretamente na raiz do projeto, conforme configurado no Render Environment
         base_dir = PixService._obter_caminho_raiz()
         cert_path = os.path.join(base_dir, 'inter.crt')
         key_path = os.path.join(base_dir, 'inter.key')
@@ -26,8 +26,8 @@ class PixService:
         if not os.path.exists(cert_path) or not os.path.exists(key_path):
             raise FileNotFoundError("Chaves de certificado inter.crt ou inter.key não localizadas na raiz do projeto.")
             
-        # ATUALIZAÇÃO REBRAND: Nova URL oficial do gateway Sandbox unificado no domínio inter.co
-        url = "https://cdpj-sandbox.inter.co/oauth/v2/token"
+        # CORREÇÃO DEFINITIVA: URL oficial homologada do gateway Sandbox do Banco Inter
+        url = "https://cdpj-sandbox.partners.uatinter.co/oauth/v2/token"
         payload = {
             'grant_type': 'client_credentials',
             'scope': 'cob.write cob.read webhook.write webhook.read'
@@ -58,8 +58,8 @@ class PixService:
         cert_path = os.path.join(base_dir, 'inter.crt')
         key_path = os.path.join(base_dir, 'inter.key')
         
-        # ATUALIZAÇÃO REBRAND: Nova URL oficial para emissão de cobranças Pix no ambiente Sandbox
-        url = "https://cdpj-sandbox.inter.co/pix/v2/cob"
+        # CORREÇÃO DEFINITIVA: Rota oficial de emissão de cobranças Pix do ecossistema Sandbox
+        url = "https://cdpj-sandbox.partners.uatinter.co/pix/v2/cob"
         chave_pix = os.getenv('INTER_CHAVE_PIX', 'suachave@dwcapital.com.br')
         
         payload = {
