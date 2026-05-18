@@ -18,7 +18,7 @@ class PixService:
         client_id = os.getenv('INTER_CLIENT_ID')
         client_secret = os.getenv('INTER_CLIENT_SECRET')
         
-        # AJUSTE: Agora busca os arquivos diretamente na raiz do projeto, como o Render exige
+        # Busca os arquivos diretamente na raiz do projeto, conforme configurado no Render Environment
         base_dir = PixService._obter_caminho_raiz()
         cert_path = os.path.join(base_dir, 'inter.crt')
         key_path = os.path.join(base_dir, 'inter.key')
@@ -26,7 +26,8 @@ class PixService:
         if not os.path.exists(cert_path) or not os.path.exists(key_path):
             raise FileNotFoundError("Chaves de certificado inter.crt ou inter.key não localizadas na raiz do projeto.")
             
-        url = "https://cdpj.sandbox.bancointer.com.br/oauth/v2/token"
+        # CORREÇÃO: Utilizando o hífen correto do DNS Sandbox do Banco Inter
+        url = "https://cdpj-sandbox.bancointer.com.br/oauth/v2/token"
         payload = {
             'grant_type': 'client_credentials',
             'scope': 'cob.write cob.read webhook.write webhook.read'
@@ -53,12 +54,12 @@ class PixService:
         """Dispara uma ordem de cobrança para o banco gerar o txid e a string copia e cola"""
         token = PixService._obter_token()
         
-        # AJUSTE: Rota de leitura direto da raiz sincronizada para a cobranca
         base_dir = PixService._obter_caminho_raiz()
         cert_path = os.path.join(base_dir, 'inter.crt')
         key_path = os.path.join(base_dir, 'inter.key')
         
-        url = "https://cdpj.sandbox.bancointer.com.br/pix/v2/cob"
+        # CORREÇÃO: Utilizando o hífen correto do DNS Sandbox do Banco Inter
+        url = "https://cdpj-sandbox.bancointer.com.br/pix/v2/cob"
         chave_pix = os.getenv('INTER_CHAVE_PIX', 'suachave@dwcapital.com.br')
         
         payload = {
