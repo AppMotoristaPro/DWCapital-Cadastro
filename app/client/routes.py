@@ -7,7 +7,7 @@ from flask_login import login_required, current_user
 import cloudinary.uploader
 from werkzeug.utils import secure_filename
 from app import db
-from app.models import FaturaDiaria, Fatura, DocumentoCliente
+from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra
 from app.utils.parsers.gerenciador_pdf import processar_pdf
 from sqlalchemy.exc import IntegrityError
 from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo
@@ -16,6 +16,58 @@ from app.services.dashboard_service import obter_dados_dashboard_cliente
 
 tz_br = pytz.timezone('America/Sao_Paulo')
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
+
+# ==========================================
+# O GUARDIÃO DE ACESSO (PAYWALL DE LICENÇAS)
+# ==========================================
+@client_bp.before_request
+def check_paywall():
+    if not current_user.is_authenticated:
+        return
+        
+    # Prioridade 1: Senha e Assinatura do Contrato de Adesão vêm antes de cobrar
+    if getattr(current_user, 'precisa_trocar_senha', False):
+        return
+        
+    if not current_user.termo_assinado:
+        if request.endpoint in ['client.assinar_termo', 'client.api_status_assinatura']:
+            return
+            
+    # Ignora a própria rota de bloqueio para não gerar um loop infinito
+    if request.endpoint == 'client.bloqueio_pagamento':
+        return
+        
+    # Verifica se o cliente é do modelo 'compra' e se possui parcela vencida
+    if getattr(current_user, 'modelo_negocio', 'comissao') == 'compra':
+        hoje = datetime.now(tz_br).date()
+        parcela_pendente = ParcelaCompra.query.filter(
+            ParcelaCompra.user_id == current_user.id,
+            ParcelaCompra.status == 'pendente',
+            ParcelaCompra.data_vencimento <= hoje
+        ).order_by(ParcelaCompra.ordem.asc()).first()
+        
+        if parcela_pendente:
+            return redirect(url_for('client.bloqueio_pagamento'))
+# ==========================================
+
+@client_bp.route('/bloqueio_pagamento')
+@login_required
+def bloqueio_pagamento():
+    if getattr(current_user, 'modelo_negocio', 'comissao') != 'compra':
+        return redirect(url_for('client.dashboard'))
+    
+    hoje = datetime.now(tz_br).date()
+    parcela_pendente = ParcelaCompra.query.filter(
+        ParcelaCompra.user_id == current_user.id,
+        ParcelaCompra.status == 'pendente',
+        ParcelaCompra.data_vencimento <= hoje
+    ).order_by(ParcelaCompra.ordem.asc()).first()
+    
+    if not parcela_pendente:
+        return redirect(url_for('client.dashboard'))
+        
+    return render_template('client/bloqueio_pix.html', parcela=parcela_pendente)
+
 
 @client_bp.route('/dashboard')
 @login_required
