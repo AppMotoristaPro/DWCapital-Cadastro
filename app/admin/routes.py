@@ -115,11 +115,13 @@ def editar_cliente(id):
         cliente.celular = request.form.get('celular')
         cliente.is_isento = True if request.form.get('is_isento') else False
         
-        # A REGRA DE OURO (Gatilho de Upgrade)
+        # A REGRA DE OURO CORRIGIDA (Gatilho de Upgrade Inteligente)
         novo_modelo = request.form.get('modelo_negocio', 'comissao')
-        if getattr(cliente, 'modelo_negocio', 'comissao') == 'comissao' and novo_modelo == 'compra':
+        
+        if novo_modelo == 'compra':
             hoje = datetime.now(tz_br).date()
             has_parcelas = ParcelaCompra.query.filter_by(user_id=cliente.id).first()
+            # Só cria as parcelas se o cliente ainda não tiver NENHUMA
             if not has_parcelas:
                 p1 = ParcelaCompra(user_id=cliente.id, ordem=1, valor=5000.0, data_vencimento=hoje)
                 p2 = ParcelaCompra(user_id=cliente.id, ordem=2, valor=2500.0, data_vencimento=hoje + timedelta(days=30))
@@ -190,7 +192,6 @@ def pagamentos():
     ciclo = request.args.get('ciclo')
     
     if ciclo or busca:
-        # Traz apenas parceiros do modelo de comissão
         query = User.query.filter_by(role='cliente', status_acesso='ativo', modelo_negocio='comissao').options(joinedload(User.alocacoes))
         
         if busca:
@@ -253,7 +254,6 @@ def pagamentos():
         
         gavetas = []
         for dt_ini, dt_fim in ciclos_db:
-            # Conta apenas os de comissão
             todas_faturas = Fatura.query.join(User).filter(
                 Fatura.data_inicio == dt_ini,
                 User.status_acesso == 'ativo',
@@ -273,18 +273,11 @@ def pagamentos():
                 
         return render_template('admin/pagamentos.html', gavetas=gavetas, exibe_clientes=False)
 
-
-# ==========================================
-# GESTÃO DE LICENÇAS (NOVO MODELO)
-# ==========================================
 @admin_bp.route('/licencas')
 @admin_required
 def licencas():
-    # Puxa os clientes que estão no modelo de Compra de Robô
     clientes_compra = User.query.filter_by(role='cliente', modelo_negocio='compra').options(joinedload(User.parcelas_licenca)).order_by(User.nome.asc()).all()
     return render_template('admin/licencas.html', clientes=clientes_compra)
-# ==========================================
-
 
 @admin_bp.route('/pagamentos/exportar_pendencias')
 @admin_required
