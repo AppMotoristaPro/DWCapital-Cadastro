@@ -12,6 +12,9 @@
                 {% if cliente.is_isento %}
                 <span class="px-2.5 py-1 bg-purple-50 text-purple-600 border border-purple-100 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">Conta Isenta</span>
                 {% endif %}
+                {% if cliente.modelo_negocio == 'compra' %}
+                <span class="px-2.5 py-1 bg-blue-50 text-royal border border-blue-100 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">Licença</span>
+                {% endif %}
             </p>
         </div>
     </div>
@@ -31,30 +34,38 @@
                     <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Período Consolidado</p>
                     <p class="text-2xl font-black text-navy">{{ fatura.data_inicio.strftime('%d/%m/%Y') }} a {{ fatura.data_fim.strftime('%d/%m/%Y') }}</p>
                     <div class="mt-4 flex items-center gap-4">
+                        {% if cliente.modelo_negocio != 'compra' %}
                         <span class="px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border shadow-sm {{ 'bg-yellow-50 text-yellow-600 border-yellow-200' if fatura.status in ['pendente', 'parcial'] else 'bg-green-50 text-green-600 border-green-200' }}">
                             {{ fatura.status.replace('_', ' ') }}
                         </span>
+                        {% endif %}
                         <button type="button" onclick="document.getElementById('modal-semana-admin-{{ fatura.id }}').classList.remove('hidden');" class="text-[10px] font-black text-royal uppercase tracking-widest hover:text-navy transition flex items-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg> Demonstrativo</button>
                     </div>
                 </div>
 
                 <div class="text-center lg:text-right border-t lg:border-t-0 lg:border-l border-gray-200 pt-6 lg:pt-0 lg:pl-10">
-                    <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1.5">Repasse Exigido</p>
-                    <p class="text-4xl font-black text-green-600 mb-5">R$ {{ fatura.repasse|format_brl }}</p>
-                    
-                    {% if fatura.comprovante_pix %}
-                    <div class="mb-4">
-                        <a href="{{ fatura.comprovante_pix }}" target="_blank" class="inline-block text-[10px] font-black text-white bg-green-600 px-6 py-2.5 rounded-xl uppercase tracking-widest hover:bg-green-700 transition shadow-md">
-                            Visualizar Recibo PIX
-                        </a>
-                    </div>
-                    {% endif %}
+                    {% if cliente.modelo_negocio == 'compra' %}
+                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1.5">Líquido Operacional</p>
+                        <p class="text-4xl font-black text-navy mb-5">R$ {{ fatura.liquido|format_brl }}</p>
+                        <div class="inline-block px-4 py-2.5 bg-blue-50 border border-blue-100 rounded-xl text-[10px] font-black uppercase tracking-widest text-royal shadow-sm">Auditoria de Eficiência (Licença)</div>
+                    {% else %}
+                        <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1.5">Repasse Exigido</p>
+                        <p class="text-4xl font-black text-green-600 mb-5">R$ {{ fatura.repasse|format_brl }}</p>
+                        
+                        {% if fatura.comprovante_pix %}
+                        <div class="mb-4">
+                            <a href="{{ fatura.comprovante_pix }}" target="_blank" class="inline-block text-[10px] font-black text-white bg-green-600 px-6 py-2.5 rounded-xl uppercase tracking-widest hover:bg-green-700 transition shadow-md">
+                                Visualizar Recibo PIX
+                            </a>
+                        </div>
+                        {% endif %}
 
-                    <form action="{{ url_for('admin.status_pagamento', fatura_id=fatura.id) }}" method="POST" class="flex flex-wrap gap-2 justify-center lg:justify-end">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                        <button type="submit" name="status" value="pago" class="px-6 py-3 bg-navy hover:bg-gray-900 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition shadow-md">Marcar Pago</button>
-                        <button type="submit" name="status" value="inadimplente" class="px-6 py-3 bg-white hover:bg-red-50 text-red-500 font-black text-[10px] uppercase tracking-widest rounded-xl transition border border-gray-200 shadow-sm">Pendente</button>
-                    </form>
+                        <form action="{{ url_for('admin.status_pagamento', fatura_id=fatura.id) }}" method="POST" class="flex flex-wrap gap-2 justify-center lg:justify-end">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" name="status" value="pago" class="px-6 py-3 bg-navy hover:bg-gray-900 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition shadow-md">Marcar Pago</button>
+                            <button type="submit" name="status" value="inadimplente" class="px-6 py-3 bg-white hover:bg-red-50 text-red-500 font-black text-[10px] uppercase tracking-widest rounded-xl transition border border-gray-200 shadow-sm">Pendente</button>
+                        </form>
+                    {% endif %}
                 </div>
             </div>
 
@@ -85,16 +96,18 @@
                                             Líquido Real
                                             <span class="block text-[8px] font-bold text-gray-400 lowercase tracking-normal mt-0.5">(Pregão - 19% IR)</span>
                                         </th>
+                                        {% if cliente.modelo_negocio != 'compra' %}
                                         <th class="px-5 py-4 bg-green-50/50 text-green-600">
                                             Repasse DW
                                             <span class="block text-[8px] font-bold text-green-600/70 lowercase tracking-normal mt-0.5">(Líq. Real x 30%)</span>
                                         </th>
+                                        {% endif %}
                                         <th class="px-6 py-4 text-right">Auditoria</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-50">
                                     {% for dia in dias_corretora %}
-                                    {% set repasse_parcial.total = repasse_parcial.total + dia.repasse %}
+                                    {% set repasse_parcial.total = repasse_parcial.total + (dia.liquido if cliente.modelo_negocio == 'compra' else dia.repasse) %}
                                     <tr class="hover:bg-gray-50/50 transition-colors">
                                         <td class="px-6 py-5">
                                             <p class="text-xs font-black text-navy uppercase">{{ ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'][dia.data_pregao.weekday()] }}</p>
@@ -106,7 +119,11 @@
                                             <td class="px-5 py-5 text-sm font-bold text-red-500">R$ {{ (dia.taxas_b3 + dia.irrf_1)|format_brl }}</td>
                                             <td class="px-5 py-5 text-sm font-bold text-navy">R$ {{ dia.liquido_pregao|format_brl }}</td>
                                             <td class="px-5 py-5 text-sm font-black text-navy">R$ {{ dia.liquido|format_brl }}</td>
+                                            
+                                            {% if cliente.modelo_negocio != 'compra' %}
                                             <td class="px-5 py-5 bg-green-50/30 font-black text-green-600">R$ {{ dia.repasse|format_brl }}</td>
+                                            {% endif %}
+                                            
                                             <td class="px-6 py-5 text-right space-x-2 flex justify-end items-center h-full">
                                                 <button type="button" onclick="document.getElementById('modal-dia-admin-{{ dia.id }}').classList.remove('hidden')" class="bg-white border border-gray-200 text-gray-600 px-3 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition shadow-sm">Detalhes</button>
                                                 
@@ -121,7 +138,7 @@
                                             </td>
 
                                         {% elif dia.status == 'isento' %}
-                                            <td colspan="5" class="px-5 py-5">
+                                            <td colspan="{% if cliente.modelo_negocio == 'compra' %}4{% else %}5{% endif %}" class="px-5 py-5">
                                                 <span class="inline-flex px-3 py-1 bg-purple-50 text-purple-600 border border-purple-100 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm gap-1 items-center"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Feriado / Isento</span>
                                             </td>
                                             <td class="px-6 py-5 text-right">
@@ -132,7 +149,7 @@
                                             </td>
 
                                         {% else %}
-                                            <td colspan="5" class="px-5 py-5">
+                                            <td colspan="{% if cliente.modelo_negocio == 'compra' %}4{% else %}5{% endif %}" class="px-5 py-5">
                                                 <span class="inline-flex px-3 py-1 bg-white text-gray-400 border border-gray-200 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm">Aguardando Envio</span>
                                             </td>
                                             <td class="px-6 py-5 text-right">
@@ -158,7 +175,9 @@
 
                         <div class="mt-6 flex justify-end">
                             <div class="bg-blue-50/50 border border-blue-100 px-8 py-4 rounded-[1rem] flex items-center gap-6 shadow-sm">
-                                <span class="text-[10px] font-black text-royal uppercase tracking-widest">Subtotal da {{ alocacao.nome_corretora }}</span>
+                                <span class="text-[10px] font-black text-royal uppercase tracking-widest">
+                                    {% if cliente.modelo_negocio == 'compra' %}Subtotal Líquido{% else %}Subtotal da {{ alocacao.nome_corretora }}{% endif %}
+                                </span>
                                 <span class="text-2xl font-black text-navy">R$ {{ repasse_parcial.total|format_brl }}</span>
                             </div>
                         </div>
@@ -180,7 +199,10 @@
                     <div class="flex justify-between items-center pt-2 border-t border-gray-50"><span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Líq. do Pregão</span> <span class="font-black text-navy">R$ {{ fatura.liquido_pregao|format_brl }}</span></div>
                     <div class="flex justify-between items-center"><span class="text-[10px] font-black uppercase tracking-widest text-red-400">IRRF (19%)</span> <span class="font-bold text-red-500">R$ {{ fatura.irrf_19|format_brl }}</span></div>
                     <div class="flex justify-between items-center pt-2 border-t border-gray-50"><span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Líquido Real</span> <span class="font-black text-navy">R$ {{ fatura.liquido|format_brl }}</span></div>
+                    
+                    {% if cliente.modelo_negocio != 'compra' %}
                     <div class="flex justify-between items-center mt-4 pt-4 bg-green-50 px-4 py-3 rounded-xl border border-green-100"><span class="font-black uppercase tracking-widest text-[10px] text-green-700">Repasse DW (30%)</span> <span class="font-black text-lg text-green-600">R$ {{ fatura.repasse|format_brl }}</span></div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -201,7 +223,10 @@
                         <div class="flex justify-between items-center pt-2 border-t border-gray-50"><span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Líq. do Pregão</span> <span class="font-black text-navy">R$ {{ dia.liquido_pregao|format_brl }}</span></div>
                         <div class="flex justify-between items-center"><span class="text-[10px] font-black uppercase tracking-widest text-red-400">IRRF (19%)</span> <span class="font-bold text-red-500">R$ {{ dia.irrf_19|format_brl }}</span></div>
                         <div class="flex justify-between items-center pt-2 border-t border-gray-50"><span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Líquido Real</span> <span class="font-black text-navy">R$ {{ dia.liquido|format_brl }}</span></div>
+                        
+                        {% if cliente.modelo_negocio != 'compra' %}
                         <div class="flex justify-between items-center mt-4 pt-4 bg-green-50 px-4 py-3 rounded-xl border border-green-100"><span class="font-black uppercase tracking-widest text-[10px] text-green-700">Repasse DW (30%)</span> <span class="font-black text-lg text-green-600">R$ {{ dia.repasse|format_brl }}</span></div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -237,4 +262,3 @@ function mudarAbaAdmin(faturaId, corretoraNome) {
 }
 </script>
 {% endblock %}
-

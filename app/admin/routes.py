@@ -46,7 +46,6 @@ def clientes_list():
     busca = request.args.get('q', '')
     status_filtro = request.args.get('status', '')
     
-    # OTIMIZAÇÃO: Trazendo as alocações na mesma query (Resolve N+1)
     query = User.query.filter_by(role='cliente').options(joinedload(User.alocacoes))
     
     if busca:
@@ -75,7 +74,6 @@ def liberar_cliente():
     
     hoje = datetime.now(tz_br).date()
     
-    # INTELIGÊNCIA DOS MODELOS DE NEGÓCIO
     if modelo_negocio == 'compra':
         p1 = ParcelaCompra(user_id=novo.id, ordem=1, valor=5000.0, data_vencimento=hoje)
         p2 = ParcelaCompra(user_id=novo.id, ordem=2, valor=2500.0, data_vencimento=hoje + timedelta(days=30))
@@ -115,13 +113,11 @@ def editar_cliente(id):
         cliente.celular = request.form.get('celular')
         cliente.is_isento = True if request.form.get('is_isento') else False
         
-        # A REGRA DE OURO CORRIGIDA (Gatilho de Upgrade Inteligente)
         novo_modelo = request.form.get('modelo_negocio', 'comissao')
         
         if novo_modelo == 'compra':
             hoje = datetime.now(tz_br).date()
             has_parcelas = ParcelaCompra.query.filter_by(user_id=cliente.id).first()
-            # Só cria as parcelas se o cliente ainda não tiver NENHUMA
             if not has_parcelas:
                 p1 = ParcelaCompra(user_id=cliente.id, ordem=1, valor=5000.0, data_vencimento=hoje)
                 p2 = ParcelaCompra(user_id=cliente.id, ordem=2, valor=2500.0, data_vencimento=hoje + timedelta(days=30))
@@ -192,7 +188,7 @@ def pagamentos():
     ciclo = request.args.get('ciclo')
     
     if ciclo or busca:
-        query = User.query.filter_by(role='cliente', status_acesso='ativo', modelo_negocio='comissao').options(joinedload(User.alocacoes))
+        query = User.query.filter_by(role='cliente', status_acesso='ativo').options(joinedload(User.alocacoes))
         
         if busca:
             query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
@@ -254,11 +250,10 @@ def pagamentos():
         
         gavetas = []
         for dt_ini, dt_fim in ciclos_db:
+            # Removido filtro de isenção e modelo para que todos os ativos gerem a gaveta
             todas_faturas = Fatura.query.join(User).filter(
                 Fatura.data_inicio == dt_ini,
-                User.status_acesso == 'ativo',
-                User.modelo_negocio == 'comissao',
-                db.or_(User.is_isento == False, User.is_isento.is_(None))
+                User.status_acesso == 'ativo'
             ).all()
             
             total = len(todas_faturas)
@@ -284,9 +279,7 @@ def licencas():
 def exportar_pendencias():
     ativos = User.query.filter(
         User.role == 'cliente', 
-        User.status_acesso == 'ativo',
-        User.modelo_negocio == 'comissao',
-        db.or_(User.is_isento == False, User.is_isento.is_(None))
+        User.status_acesso == 'ativo'
     ).order_by(User.nome.asc()).all()
     
     dados_planilha = []
@@ -308,7 +301,7 @@ def exportar_pendencias():
                 'nome': c.nome.upper(),
                 'datas': datas_pendentes
             })
-                
+               
     if not dados_planilha:
         flash('Excelente! Nenhuma pendência encontrada no sistema de forma global.', 'success')
         return redirect(url_for('admin.pagamentos'))
@@ -455,8 +448,7 @@ def atividades():
     query = LogAuditoria.query
     if busca:
         query = query.filter(
-            (LogAuditoria.admin_nome.ilike(f'%{busca}%')) | 
-            (LogAuditoria.acao_detalhada.ilike(f'%{busca}%')) | 
+            (LogAuditoria.admin_nome.ilike(f'%{busca}%')) | (LogAuditoria.acao_detalhada.ilike(f'%{busca}%')) | 
             (LogAuditoria.categoria.ilike(f'%{busca}%'))
         )
     logs = query.order_by(LogAuditoria.timestamp.desc()).limit(200).all()
@@ -560,7 +552,7 @@ def reprocessar_notas_antigas():
                 if dados:
                     dia.bruto = dados.get('bruto')
                     dia.taxas_b3 = dados.get('taxas_b3') 
-                    dia.irrf_1 = 0.0                     
+                    dia.irrf_1 = 0.0              
                     dia.liquido_pregao = dados.get('liquido_pregao')
                     dia.irrf_19 = dados.get('irrf_19')
                     dia.liquido = dados.get('liquido_dia')
@@ -569,12 +561,12 @@ def reprocessar_notas_antigas():
                         dia.repasse = 0.0
                     else:
                         dia.repasse = dados.get('repasse_dw')
-                    
+            
                     faturas_afetadas.add(dia.fatura_semanal)
                     sucesso += 1
                 else:
                     erros += 1
-                    
+            
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
             else:
