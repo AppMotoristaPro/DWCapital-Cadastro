@@ -217,7 +217,7 @@
     <div id="modal-senha" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
         <div class="bg-white w-full max-w-sm rounded-[2rem] shadow-2xl p-10 relative text-center border border-gray-100">
             <div class="w-16 h-16 bg-royal/10 rounded-2xl flex items-center justify-center mx-auto mb-6 text-royal">
-                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 00-2-2H6a2 2 0 00-2-2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
             </div>
             <h3 class="text-xl font-black text-navy mb-2">Nota Protegida (XP)</h3>
             <p class="text-xs text-gray-500 font-medium mb-8">Por padrão da XP, a nota vem com senha. Digite os 3 últimos dígitos do seu CPF.</p>
@@ -293,15 +293,17 @@ function abrirModalAuditoriaPagamento() {
     document.getElementById("box-acao-gerar-inicial").classList.remove("hidden");
     
     // Puxa dinamicamente a performance das abas do ciclo ativo para popular os cards do modal
-    let totalAcumulado = 0.0;
     {% for alocacao in current_user.alocacoes %}
+    (function(){
         let subtotalStr = "R$ 0,00";
-        // Captura o elemento de subtotal impresso na tela pelo bloco correspondente
-        let blocoTxt = document.querySelector('.ciclo-' + globalFaturaAtivaId + ' #tab-{{ alocacao.nome_corretora }} .bg-blue-50\\/50 span.text-2xl');
+        // O seletor correto é a aba da corretora primeiro e o ciclo ativo internamente
+        let blocoTxt = document.querySelector('#tab-{{ alocacao.nome_corretora }} .ciclo-' + globalFaturaAtivaId + ' .bg-blue-50\\/50 span.text-2xl');
         if(blocoTxt) {
             subtotalStr = blocoTxt.innerText;
         }
-        document.getElementById("auditoria-subtotal-{{ alocacao.nome_corretora }}").innerText = subtotalStr;
+        let targetEl = document.getElementById("auditoria-subtotal-{{ alocacao.nome_corretora }}");
+        if(targetEl) targetEl.innerText = subtotalStr;
+    })();
     {% endfor %}
     
     // Atualiza o widget master de repasse do modal pegando o valor bruto total do ciclo

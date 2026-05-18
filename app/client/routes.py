@@ -24,11 +24,16 @@ def check_paywall():
         return
     if getattr(current_user, 'precisa_trocar_senha', False):
         return
+        
+    # 1º FUNIL DA CATRACA: Assinatura de Contrato (Prioridade Máxima)
     if not current_user.termo_assinado:
         if request.endpoint in ['client.assinar_termo', 'client.api_status_assinatura']:
             return
+        # Força o redirecionamento para o termo antes de qualquer outra tela
+        return redirect(url_for('client.assinar_termo'))
             
-    # CORREÇÃO CIRÚRGICA: Permite que a tela de bloqueio e seus endpoints assíncronos funcionem sem sofrer interceptação
+    # 2º FUNIL DA CATRACA: Bloqueio Financeiro (PIX)
+    # Permite que a tela de bloqueio e seus endpoints assíncronos funcionem sem sofrer interceptação
     if request.endpoint in ['client.bloqueio_pagamento', 'client.gerar_pix_licenca', 'client.status_licenca_api']:
         return
         
