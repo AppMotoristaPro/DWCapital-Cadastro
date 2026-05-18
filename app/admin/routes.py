@@ -7,7 +7,7 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash,
 from flask_login import current_user
 from werkzeug.security import generate_password_hash
 from sqlalchemy.orm import joinedload
-from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria, DocumentoTemplate, DocumentoCliente
+from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria, DocumentoTemplate, DocumentoCliente, ParcelaCompra
 from app import db
 from datetime import datetime, timedelta
 from app.utils.decorators import admin_required
@@ -63,28 +63,36 @@ def liberar_cliente():
     cpf = ''.join(filter(str.isdigit, request.form.get('cpf')))
     nome_temp = request.form.get('nome_temp')
     is_isento = True if request.form.get('is_isento') else False
+    modelo_negocio = request.form.get('modelo_negocio', 'comissao')
     
     if User.query.filter_by(cpf=cpf).first():
         flash('CPF já cadastrado.', 'error')
         return redirect(url_for('admin.clientes_list'))
 
-    novo = User(cpf=cpf, nome=nome_temp, role='cliente', status_acesso='pendente_cadastro', is_isento=is_isento)
+    novo = User(cpf=cpf, nome=nome_temp, role='cliente', status_acesso='pendente_cadastro', is_isento=is_isento, modelo_negocio=modelo_negocio)
     db.session.add(novo)
     db.session.flush()
     
     hoje = datetime.now(tz_br).date()
-    dias_para_sexta = (hoje.weekday() - 4) % 7
-    inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
-    fim_ciclo = inicio_ciclo + timedelta(days=6)
     
-    fatura = Fatura(user_id=novo.id, data_inicio=inicio_ciclo, data_fim=fim_ciclo)
-    db.session.add(fatura)
+    # INTELIGÊNCIA DOS MODELOS DE NEGÓCIO
+    if modelo_negocio == 'compra':
+        p1 = ParcelaCompra(user_id=novo.id, ordem=1, valor=5000.0, data_vencimento=hoje)
+        p2 = ParcelaCompra(user_id=novo.id, ordem=2, valor=2500.0, data_vencimento=hoje + timedelta(days=30))
+        p3 = ParcelaCompra(user_id=novo.id, ordem=3, valor=2500.0, data_vencimento=hoje + timedelta(days=60))
+        db.session.add_all([p1, p2, p3])
+    else:
+        dias_para_sexta = (hoje.weekday() - 4) % 7
+        inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
+        fim_ciclo = inicio_ciclo + timedelta(days=6)
+        fatura = Fatura(user_id=novo.id, data_inicio=inicio_ciclo, data_fim=fim_ciclo)
+        db.session.add(fatura)
     
     status_isento_str = "Sim" if is_isento else "Não"
-    registrar_log(f"Liberou novo acesso pré-cadastro para o CPF {cpf} (Nome: {nome_temp}, Isento: {status_isento_str}).", "Clientes")
+    registrar_log(f"Liberou novo acesso pré-cadastro para o CPF {cpf} (Nome: {nome_temp}, Isento: {status_isento_str}, Modelo: {modelo_negocio.upper()}).", "Clientes")
     
     db.session.commit()
-    flash('Acesso liberado e ciclo inicial preparado!', 'success')
+    flash('Acesso liberado e conta inicial preparada!', 'success')
     return redirect(url_for('admin.clientes_list'))
 
 @admin_bp.route('/editar/<int:id>', methods=['GET', 'POST'])
@@ -107,6 +115,19 @@ def editar_cliente(id):
         cliente.celular = request.form.get('celular')
         cliente.is_isento = True if request.form.get('is_isento') else False
         
+        # A REGRA DE OURO (Gatilho de Upgrade)
+        novo_modelo = request.form.get('modelo_negocio', 'comissao')
+        if getattr(cliente, 'modelo_negocio', 'comissao') == 'comissao' and novo_modelo == 'compra':
+            hoje = datetime.now(tz_br).date()
+            has_parcelas = ParcelaCompra.query.filter_by(user_id=cliente.id).first()
+            if not has_parcelas:
+                p1 = ParcelaCompra(user_id=cliente.id, ordem=1, valor=5000.0, data_vencimento=hoje)
+                p2 = ParcelaCompra(user_id=cliente.id, ordem=2, valor=2500.0, data_vencimento=hoje + timedelta(days=30))
+                p3 = ParcelaCompra(user_id=cliente.id, ordem=3, valor=2500.0, data_vencimento=hoje + timedelta(days=60))
+                db.session.add_all([p1, p2, p3])
+        
+        cliente.modelo_negocio = novo_modelo
+        
         AlocacaoCorretora.query.filter_by(user_id=cliente.id).delete()
         
         capital_soma = 0.0
@@ -123,7 +144,7 @@ def editar_cliente(id):
         cliente.capital_alocado = capital_soma
         
         status_isento = "Sim" if cliente.is_isento else "Não"
-        registrar_log(f"Editou o cadastro (Isento: {status_isento}) e alocações do cliente {cliente.nome} (Novo Capital: R$ {capital_soma:,.2f}).", "Clientes")
+        registrar_log(f"Editou o cadastro (Isento: {status_isento}, Modelo: {novo_modelo.upper()}) e alocações do cliente {cliente.nome} (Novo Capital: R$ {capital_soma:,.2f}).", "Clientes")
         
         db.session.commit()
         flash('Dados e alocações atualizados com sucesso!', 'success')
@@ -169,7 +190,8 @@ def pagamentos():
     ciclo = request.args.get('ciclo')
     
     if ciclo or busca:
-        query = User.query.filter_by(role='cliente', status_acesso='ativo').options(joinedload(User.alocacoes))
+        # Traz apenas parceiros do modelo de comissão
+        query = User.query.filter_by(role='cliente', status_acesso='ativo', modelo_negocio='comissao').options(joinedload(User.alocacoes))
         
         if busca:
             query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
@@ -231,9 +253,11 @@ def pagamentos():
         
         gavetas = []
         for dt_ini, dt_fim in ciclos_db:
+            # Conta apenas os de comissão
             todas_faturas = Fatura.query.join(User).filter(
                 Fatura.data_inicio == dt_ini,
                 User.status_acesso == 'ativo',
+                User.modelo_negocio == 'comissao',
                 db.or_(User.is_isento == False, User.is_isento.is_(None))
             ).all()
             
@@ -251,33 +275,39 @@ def pagamentos():
 
 
 # ==========================================
-# EXPORTAR PENDÊNCIAS EM EXCEL (AGORA GLOBAL)
+# GESTÃO DE LICENÇAS (NOVO MODELO)
 # ==========================================
+@admin_bp.route('/licencas')
+@admin_required
+def licencas():
+    # Puxa os clientes que estão no modelo de Compra de Robô
+    clientes_compra = User.query.filter_by(role='cliente', modelo_negocio='compra').options(joinedload(User.parcelas_licenca)).order_by(User.nome.asc()).all()
+    return render_template('admin/licencas.html', clientes=clientes_compra)
+# ==========================================
+
+
 @admin_bp.route('/pagamentos/exportar_pendencias')
 @admin_required
 def exportar_pendencias():
-    # Busca todos os parceiros ativos e não isentos
     ativos = User.query.filter(
         User.role == 'cliente', 
         User.status_acesso == 'ativo',
+        User.modelo_negocio == 'comissao',
         db.or_(User.is_isento == False, User.is_isento.is_(None))
     ).order_by(User.nome.asc()).all()
     
     dados_planilha = []
     
     for c in ativos:
-        # Puxa TODAS as faturas deste usuário (não mais filtrado por ciclo)
         faturas = Fatura.query.options(joinedload(Fatura.dias)).filter_by(user_id=c.id).all()
         dias_set = set()
         
         for fatura_atual in faturas:
             for d in fatura_atual.dias:
-                # OTIMIZAÇÃO: Foca só nas notas pendentes e que não são feriado/isentas
                 if d.status == 'pendente' and not d.is_isento:
                     dias_set.add(d.data_pregao)
                     
         if dias_set:
-            # Ordena cronologicamente para a tabela ficar bonita
             datas_ordenadas = sorted(list(dias_set))
             datas_pendentes = [dt.strftime('%d/%m/%Y') for dt in datas_ordenadas]
             
@@ -300,8 +330,6 @@ def exportar_pendencias():
     registrar_log("Exportou relatório Excel GLOBAL de pendências.", "Pagamentos")
     
     return send_file(arquivo_saida, as_attachment=True, download_name='Pendencias_Gerais.xlsx')
-# ==========================================
-
 
 @admin_bp.route('/pagamentos/<int:id>')
 @admin_required
