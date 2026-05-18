@@ -5,7 +5,7 @@
     <div class="absolute top-[-10%] left-[-10%] w-[40rem] h-[40rem] bg-royal rounded-full mix-blend-multiply filter blur-[128px] opacity-30 pointer-events-none"></div>
     <div class="absolute bottom-[-10%] right-[-10%] w-[40rem] h-[40rem] bg-royal-dark rounded-full mix-blend-multiply filter blur-[128px] opacity-40 pointer-events-none"></div>
 
-    <div class="w-full max-w-lg bg-white/5 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl p-8 lg:p-12 relative z-10 border border-white/10 text-center">
+    <div class="w-full max-w-lg bg-white/5 backdrop-blur-2xl rounded-[2rem] shadow-2xl p-8 lg:p-12 relative z-10 border border-white/10 text-center">
         
         <div class="w-20 h-20 bg-royal/20 border border-royal/30 text-royal rounded-[1.5rem] flex items-center justify-center mx-auto mb-6 shadow-inner">
             <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
@@ -20,30 +20,98 @@
                 <span class="px-3 py-1 bg-white/10 text-white rounded-lg text-[10px] font-black uppercase tracking-widest">{{ parcela.ordem }} de 3</span>
             </div>
             <div class="flex justify-between items-center">
-                <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Valor do PIX</span>
+                <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Valor da Parcela</span>
                 <span class="text-2xl font-black text-green-400">R$ {{ parcela.valor|format_brl }}</span>
             </div>
         </div>
 
         <div class="space-y-4 mb-8">
-            <div class="p-6 bg-white rounded-2xl flex items-center justify-center shadow-inner border border-gray-100">
-                <div class="w-48 h-48 bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center">
-                    <span class="text-xs font-black text-gray-400 uppercase tracking-widest text-center px-4">QR Code<br>Dinâmico</span>
+            <div class="p-6 bg-white rounded-2xl flex flex-col items-center justify-center shadow-inner border border-gray-100">
+                <div id="wrapper-qrcode" class="w-48 h-48 flex items-center justify-center bg-gray-50 rounded-xl border border-gray-100 shadow-inner">
+                    <svg class="animate-spin h-6 w-6 text-royal" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
                 </div>
             </div>
             
             <div class="relative">
-                <input type="text" readonly value="00020101021126580014br.gov.bcb.pix0136..." class="w-full px-5 py-4 bg-navy/40 border border-white/5 rounded-xl text-gray-400 text-xs font-mono outline-none pr-24 overflow-hidden text-ellipsis whitespace-nowrap cursor-not-allowed">
-                <button class="absolute right-2 top-2 bottom-2 bg-royal hover:bg-royal-dark text-white px-4 rounded-lg text-[10px] font-black uppercase tracking-widest transition shadow-md">Copiar</button>
+                <input type="text" id="payload-string-pix" readonly value="Carregando código copia e cola..." class="w-full px-5 py-4 bg-navy/40 border border-white/5 rounded-xl text-gray-400 text-xs font-mono outline-none pr-24 overflow-hidden text-ellipsis whitespace-nowrap shadow-inner">
+                <button onclick="copiarCopiaECola()" id="btn-copiar-payload" disabled class="absolute right-2 top-2 bottom-2 bg-royal hover:bg-royal-dark text-white px-4 rounded-lg text-[10px] font-black uppercase tracking-widest transition shadow-md opacity-50 cursor-not-allowed">Copiar</button>
             </div>
         </div>
 
-        <div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-8 flex items-center justify-center gap-2">
-            <svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-            Aguardando Confirmação do Banco...
+        <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-8 flex items-center justify-center gap-2 bg-white/5 py-3 rounded-xl border border-white/5">
+            <svg class="w-3.5 h-3.5 animate-spin text-green-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            Aguardando Confirmação do Banco Inter...
         </div>
 
         <a href="{{ url_for('auth.logout') }}" class="text-xs font-bold text-gray-500 hover:text-white transition uppercase tracking-widest underline">Sair da Conta</a>
     </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+    const inputPayload = document.getElementById("payload-string-pix");
+    const btnCopiar = document.getElementById("btn-copiar-payload");
+    const wrapperQr = document.getElementById("wrapper-qrcode");
+
+    try {
+        // Dispara o motor do banco assincronamente no carregamento
+        const res = await fetch("/portal/licencas/gerar_pix/{{ parcela.id }}", {
+            method: "POST",
+            headers: { "X-CSRFToken": "{{ csrf_token() }}" }
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            inputPayload.value = data.pix_copia_e_cola;
+            inputPayload.classList.remove("text-gray-400");
+            inputPayload.classList.add("text-white");
+            btnCopiar.disabled = false;
+            btnCopiar.classList.remove("opacity-50", "cursor-not-allowed");
+            
+            // Desenha o QR Code real com a API pública
+            wrapperQr.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=185x185&data=${encodeURIComponent(data.pix_copia_e_cola)}" alt="PIX QR CODE" class="rounded-lg shadow-sm">`;
+            
+            // Inicia o rastreamento em lote do Webhook (Varredura automatica)
+            iniciarMonitoramentoDeBaixa();
+        } else {
+            inputPayload.value = "Erro: " + data.message;
+            wrapperQr.innerHTML = `<span class="text-xs text-red-400 font-bold p-4">Erro na API Inter</span>`;
+        }
+    } catch (e) {
+        inputPayload.value = "Erro crítico de conexão.";
+        wrapperQr.innerHTML = `<span class="text-xs text-red-400 font-bold p-4">Falha de Servidor</span>`;
+    }
+});
+
+function copiarCopiaECola() {
+    const text = document.getElementById("payload-string-pix");
+    text.select();
+    text.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(text.value);
+    
+    const btn = document.getElementById("btn-copiar-payload");
+    const originalText = btn.innerText;
+    btn.innerText = "COPIADO!";
+    btn.classList.replace("bg-royal", "bg-green-600");
+    setTimeout(() => {
+        btn.innerText = originalText;
+        btn.classList.replace("bg-green-600", "bg-royal");
+    }, 2000);
+}
+
+function iniciarMonitoramentoDeBaixa() {
+    setInterval(async () => {
+        try {
+            const res = await fetch("/portal/api/status_licenca/{{ parcela.id }}");
+            const data = await res.json();
+            if (data.pago) {
+                window.location.href = "/portal/dashboard";
+            }
+        } catch (e) {}
+    }, 4000);
+}
+</script>
 {% endblock %}
