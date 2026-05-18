@@ -1,0 +1,96 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_content %}
+<div class="max-w-7xl mx-auto relative z-10 pb-20">
+    <div class="flex justify-between items-end mb-10">
+        <div>
+            <h1 class="text-4xl font-black text-navy tracking-tight">Gestão de Licenças</h1>
+            <p class="text-gray-500 mt-2 font-medium">Controle financeiro exclusivo dos parceiros no modelo de Compra de Robô.</p>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-8 space-y-3">
+            {% for category, message in messages %}
+                <div class="p-4 rounded-xl font-bold text-sm shadow-sm {% if category == 'error' %}bg-red-50 text-red-700 border-red-100{% else %}bg-green-50 text-green-700 border-green-100{% endif %} border">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="space-y-8">
+        {% for cliente in clientes %}
+        <div class="bg-white/80 backdrop-blur-xl rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white p-8 md:p-10 relative overflow-hidden group">
+            <div class="absolute -right-20 -top-20 w-64 h-64 bg-royal/5 rounded-full blur-3xl pointer-events-none group-hover:bg-royal/10 transition-colors duration-500"></div>
+            
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-gray-100 pb-6 relative z-10">
+                <div>
+                    <h2 class="text-3xl font-black text-navy">{{ cliente.nome }}</h2>
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-widest mt-2 flex items-center gap-3">
+                        <span>CPF: {{ cliente.cpf }}</span> 
+                        <span class="text-gray-300">|</span> 
+                        <span>Adesão: {{ cliente.data_cadastro.strftime('%d/%m/%Y') }}</span>
+                    </p>
+                </div>
+                <div class="mt-4 md:mt-0">
+                    <span class="px-5 py-2.5 bg-blue-50 text-royal border border-blue-100 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                        Licença Vitalícia
+                    </span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
+                {% for parcela in cliente.parcelas_licenca %}
+                <div class="bg-gray-50/80 border border-gray-200 rounded-3xl p-6 relative hover:shadow-md transition-shadow duration-300 {% if parcela.status == 'pago' %}bg-green-50/30 border-green-100{% endif %}">
+                    <div class="flex justify-between items-center mb-5">
+                        <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest">Parcela {{ parcela.ordem }}/3</span>
+                        
+                        {% if parcela.status == 'pago' %}
+                        <span class="px-3 py-1.5 bg-green-50 text-green-600 border border-green-200 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                            Pago
+                        </span>
+                        {% else %}
+                        <span class="px-3 py-1.5 bg-yellow-50 text-yellow-600 border border-yellow-200 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            Pendente
+                        </span>
+                        {% endif %}
+                    </div>
+                    
+                    <p class="text-3xl font-black text-navy mb-2 {% if parcela.status == 'pago' %}text-green-700{% endif %}">R$ {{ parcela.valor|format_brl }}</p>
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6">Vencimento: {{ parcela.data_vencimento.strftime('%d/%m/%Y') }}</p>
+                    
+                    {% if parcela.status == 'pago' %}
+                        <div class="bg-green-500/10 border border-green-500/20 px-4 py-3 rounded-xl text-center">
+                            <p class="text-[9px] font-black text-green-700 uppercase tracking-widest">Liquidado via PIX</p>
+                        </div>
+                    {% else %}
+                        <div class="flex items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-xl bg-white text-gray-400 text-[9px] font-black uppercase tracking-widest">
+                            Aguardando Pagamento
+                        </div>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="col-span-3 text-center py-10 bg-white rounded-3xl border border-gray-100 shadow-sm">
+                    <p class="text-xs text-gray-400 font-bold uppercase tracking-widest">Estrutura de parcelas ainda não gerada para este cliente.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <div class="bg-white/60 backdrop-blur-xl rounded-[2.5rem] shadow-sm border border-white p-20 text-center">
+            <div class="w-20 h-20 bg-gray-50 border border-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-6 text-gray-300 shadow-inner">
+                <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+            </div>
+            <h2 class="text-2xl font-black text-navy mb-3">Nenhuma Licença Ativa</h2>
+            <p class="text-gray-500 font-medium text-sm max-w-md mx-auto">Não há parceiros cadastrados ou migrados para o modelo institucional de compra de robô no momento.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
