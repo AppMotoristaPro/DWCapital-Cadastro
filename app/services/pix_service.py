@@ -26,7 +26,7 @@ class PixService:
         if not os.path.exists(cert_path) or not os.path.exists(key_path):
             raise FileNotFoundError("Chaves de certificado inter.crt ou inter.key não localizadas na raiz do projeto.")
             
-        # CORREÇÃO DEFINITIVA: URL oficial homologada do gateway Sandbox do Banco Inter
+        # URL oficial homologada do gateway Sandbox do Banco Inter
         url = "https://cdpj-sandbox.partners.uatinter.co/oauth/v2/token"
         payload = {
             'grant_type': 'client_credentials',
@@ -58,7 +58,7 @@ class PixService:
         cert_path = os.path.join(base_dir, 'inter.crt')
         key_path = os.path.join(base_dir, 'inter.key')
         
-        # CORREÇÃO DEFINITIVA: Rota oficial de emissão de cobranças Pix do ecossistema Sandbox
+        # Rota oficial de emissão de cobranças Pix do ecossistema Sandbox
         url = "https://cdpj-sandbox.partners.uatinter.co/pix/v2/cob"
         chave_pix = os.getenv('INTER_CHAVE_PIX', 'suachave@dwcapital.com.br')
         
@@ -91,3 +91,34 @@ class PixService:
             }
         else:
             raise Exception(f"Erro ao criar cobrança no Banco Inter: {response.text}")
+
+    @staticmethod
+    def configurar_webhook(webhook_url):
+        """Atrela a URL da DW Capital à Chave Pix no Banco Inter para receber os pagamentos no automático"""
+        token = PixService._obter_token()
+        
+        base_dir = PixService._obter_caminho_raiz()
+        cert_path = os.path.join(base_dir, 'inter.crt')
+        key_path = os.path.join(base_dir, 'inter.key')
+        
+        chave_pix = os.getenv('INTER_CHAVE_PIX')
+        if not chave_pix:
+            raise Exception("A variável INTER_CHAVE_PIX não está configurada no ambiente.")
+            
+        url = f"https://cdpj-sandbox.partners.uatinter.co/pix/v2/webhook/{chave_pix}"
+        
+        payload = {
+            "webhookUrl": webhook_url
+        }
+        
+        headers = {
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/json'
+        }
+        
+        response = requests.put(url, json=payload, headers=headers, cert=(cert_path, key_path))
+        
+        if response.status_code == 200:
+            return True
+        else:
+            raise Exception(f"Erro ao registrar Webhook no Banco Inter: {response.text}")
