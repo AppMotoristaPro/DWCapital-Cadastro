@@ -4,18 +4,27 @@ import json
 
 class PixService:
     @staticmethod
+    def _obter_caminho_raiz():
+        """Retorna o caminho absoluto da raiz do projeto de forma blindada"""
+        # __file__ mapeia: app/services/pix_service.py
+        # 1º dirname vai para: app/services
+        # 2º dirname vai para: app
+        # 3º dirname vai para a raiz: /opt/render/project/src
+        return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+    @staticmethod
     def _obter_token():
         """Efetua a autenticação OAuth2 de duas vias (MTLS) com o Banco Inter"""
         client_id = os.getenv('INTER_CLIENT_ID')
         client_secret = os.getenv('INTER_CLIENT_SECRET')
         
-        # Localiza os certificados salvos na pasta certs da raiz do projeto
-        base_dir = os.getcwd()
-        cert_path = os.path.join(base_dir, 'certs', 'inter.crt')
-        key_path = os.path.join(base_dir, 'certs', 'inter.key')
+        # AJUSTE: Agora busca os arquivos diretamente na raiz do projeto, como o Render exige
+        base_dir = PixService._obter_caminho_raiz()
+        cert_path = os.path.join(base_dir, 'inter.crt')
+        key_path = os.path.join(base_dir, 'inter.key')
         
         if not os.path.exists(cert_path) or not os.path.exists(key_path):
-            raise FileNotFoundError("Chaves de certificado inter.crt ou inter.key não localizadas na pasta /certs.")
+            raise FileNotFoundError("Chaves de certificado inter.crt ou inter.key não localizadas na raiz do projeto.")
             
         url = "https://cdpj.sandbox.bancointer.com.br/oauth/v2/token"
         payload = {
@@ -43,9 +52,11 @@ class PixService:
     def criar_cobranca_imediata(valor, nome_devedor, cpf_devedor):
         """Dispara uma ordem de cobrança para o banco gerar o txid e a string copia e cola"""
         token = PixService._obter_token()
-        base_dir = os.getcwd()
-        cert_path = os.path.join(base_dir, 'certs', 'inter.crt')
-        key_path = os.path.join(base_dir, 'certs', 'inter.key')
+        
+        # AJUSTE: Rota de leitura direto da raiz sincronizada para a cobranca
+        base_dir = PixService._obter_caminho_raiz()
+        cert_path = os.path.join(base_dir, 'inter.crt')
+        key_path = os.path.join(base_dir, 'inter.key')
         
         url = "https://cdpj.sandbox.bancointer.com.br/pix/v2/cob"
         chave_pix = os.getenv('INTER_CHAVE_PIX', 'suachave@dwcapital.com.br')
