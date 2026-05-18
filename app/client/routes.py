@@ -27,7 +27,9 @@ def check_paywall():
     if not current_user.termo_assinado:
         if request.endpoint in ['client.assinar_termo', 'client.api_status_assinatura']:
             return
-    if request.endpoint == 'client.bloqueio_pagamento':
+            
+    # CORREÇÃO CIRÚRGICA: Permite que a tela de bloqueio e seus endpoints assíncronos funcionem sem sofrer interceptação
+    if request.endpoint in ['client.bloqueio_pagamento', 'client.gerar_pix_licenca', 'client.status_licenca_api']:
         return
         
     if getattr(current_user, 'modelo_negocio', 'comissao') == 'compra':
