@@ -16,6 +16,9 @@ class User(db.Model, UserMixin):
     
     is_isento = db.Column(db.Boolean, default=False)
     
+    # NOVO: Define se o cliente divide lucros ou comprou o robô
+    modelo_negocio = db.Column(db.String(20), default='comissao') # 'comissao' ou 'compra'
+    
     endereco = db.Column(db.Text)
     email = db.Column(db.String(120))
     celular = db.Column(db.String(20))
@@ -33,8 +36,31 @@ class User(db.Model, UserMixin):
     faturas = db.relationship('Fatura', backref='cliente', lazy=True, cascade="all, delete-orphan")
     alocacoes = db.relationship('AlocacaoCorretora', backref='cliente', lazy=True, cascade="all, delete-orphan")
     logs = db.relationship('LogAuditoria', backref='admin', lazy=True)
-    
     documentos_extras = db.relationship('DocumentoCliente', backref='cliente', lazy=True, cascade="all, delete-orphan")
+    
+    # NOVO: Relação com as parcelas de compra do robô
+    parcelas_licenca = db.relationship('ParcelaCompra', backref='cliente', lazy=True, cascade="all, delete-orphan", order_by="ParcelaCompra.ordem")
+
+class ParcelaCompra(db.Model):
+    """
+    NOVO: Tabela dedicada para gerenciar as 3 parcelas de quem comprou a licença do robô.
+    Ordem 1: R$ 5.000 (Imediato)
+    Ordem 2: R$ 2.500 (+30 dias)
+    Ordem 3: R$ 2.500 (+60 dias)
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    ordem = db.Column(db.Integer, nullable=False)
+    valor = db.Column(db.Float, nullable=False)
+    data_vencimento = db.Column(db.Date, nullable=False)
+    
+    # Dados para o Gateway de Pagamento PIX
+    txid_pix = db.Column(db.String(100), nullable=True)
+    payload_pix = db.Column(db.Text, nullable=True)
+    
+    status = db.Column(db.String(20), default='pendente') # 'pendente' ou 'pago'
+    data_pagamento = db.Column(db.DateTime, nullable=True)
+    data_criacao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
 
 class AlocacaoCorretora(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -55,7 +81,14 @@ class Fatura(db.Model):
     irrf_19 = db.Column(db.Float, default=0.0)
     liquido = db.Column(db.Float, default=0.0)
     repasse = db.Column(db.Float, default=0.0)
+    
+    # Upload manual (será substituído gradativamente pela automação PIX)
     comprovante_pix = db.Column(db.String(255), nullable=True)
+    
+    # NOVO: Dados para o Gateway de Pagamento PIX (Automação de Repasse 30%)
+    txid_pix = db.Column(db.String(100), nullable=True)
+    payload_pix = db.Column(db.Text, nullable=True)
+    
     status = db.Column(db.String(20), default='pendente')
     data_criacao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     dias = db.relationship('FaturaDiaria', backref='fatura_semanal', lazy=True, cascade="all, delete-orphan", order_by="FaturaDiaria.data_pregao")
@@ -150,4 +183,3 @@ class DocumentoCliente(db.Model):
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
-

@@ -25,8 +25,13 @@
             </div>
             
             <div>
-                <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Repasse Total</p>
-                <p class="text-2xl font-black text-green-600">R$ {{ fatura.repasse|format_brl }}</p>
+                {% if current_user.modelo_negocio == 'compra' %}
+                    <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Líquido Operacional</p>
+                    <p class="text-2xl font-black text-navy">R$ {{ fatura.liquido|format_brl }}</p>
+                {% else %}
+                    <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Repasse Total</p>
+                    <p class="text-2xl font-black text-green-600">R$ {{ fatura.repasse|format_brl }}</p>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
@@ -34,10 +39,18 @@
 
     <div id="area-conteudo" class="hidden transition-all duration-500">
         
-        <button onclick="voltarGrid()" class="mb-8 flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest hover:text-navy transition-colors bg-white/50 px-4 py-2 rounded-xl border border-gray-200 shadow-sm">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-            Voltar aos Ciclos
-        </button>
+        <div class="flex justify-between items-center mb-8 bg-white/40 p-3 rounded-2xl border border-gray-200/50 backdrop-blur-sm">
+            <button onclick="voltarGrid()" class="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest hover:text-navy transition-colors bg-white px-4 py-2.5 rounded-xl border border-gray-200 shadow-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                Voltar aos Ciclos
+            </button>
+            
+            {% if current_user.modelo_negocio != 'compra' %}
+            <button onclick="abrirModalAuditoriaPagamento()" class="px-6 py-3 bg-gradient-to-r from-royal to-royal-dark text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all">
+                Realizar pagamento
+            </button>
+            {% endif %}
+        </div>
 
         <div class="flex flex-wrap gap-2 mb-8 border-b border-gray-200 pb-4">
             {% for alocacao in current_user.alocacoes %}
@@ -71,20 +84,18 @@
                                         <th class="px-6 py-4">Valor Bruto</th>
                                         <th class="px-6 py-4">Custos (B3+IR)</th>
                                         <th class="px-6 py-4">Líq. do Pregão</th>
-                                        <th class="px-6 py-4">
-                                            Líquido Real 
-                                            <span class="block text-[8px] font-bold text-gray-400 lowercase tracking-normal mt-0.5">(Pregão - 19% IR)</span>
-                                        </th>
-                                        <th class="px-6 py-4 bg-green-50/30 text-green-600">
-                                            Repasse DW 
-                                            <span class="block text-[8px] font-bold text-green-600/70 lowercase tracking-normal mt-0.5">(Líq. Real x 30%)</span>
-                                        </th>
+                                        <th class="px-6 py-4">Líquido Real <span class="block text-[8px] font-bold text-gray-400 lowercase tracking-normal mt-0.5">(Pregão - 19% IR)</span></th>
+                                        {% if current_user.modelo_negocio != 'compra' %}
+                                        <th class="px-6 py-4 bg-green-50/30 text-green-600">Repasse DW <span class="block text-[8px] font-bold text-green-600/70 lowercase tracking-normal mt-0.5">(Líq. Real x 30%)</span></th>
+                                        {% endif %}
                                         <th class="px-8 py-4 text-right">Ação / Documento</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-50">
+                                    {% set subtotal_parcial = namespace(total=0) %}
                                     {% for dia in dias_corretora %}
                                         {% if dia.data_pregao.weekday() < 5 %}
+                                        {% set subtotal_parcial.total = subtotal_parcial.total + (dia.liquido if current_user.modelo_negocio == 'compra' else dia.repasse) %}
                                         <tr class="hover:bg-gray-50/50 transition-colors">
                                             <td class="px-8 py-5">
                                                 <p class="text-sm font-black text-navy uppercase">{{ ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'][dia.data_pregao.weekday()] }}</p>
@@ -92,7 +103,7 @@
                                             </td>
                                             
                                             {% if dia.status == 'pendente' %}
-                                                <td colspan="5" class="px-6 py-5">
+                                                <td colspan="{% if current_user.modelo_negocio == 'compra' %}4{% else %}5{% endif %}" class="px-6 py-5">
                                                     <span class="inline-block px-3 py-1 bg-yellow-50 border border-yellow-100 text-yellow-600 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm">Aguardando Nota</span>
                                                 </td>
                                                 <td class="px-8 py-5 text-right">
@@ -104,7 +115,7 @@
                                                     </div>
                                                 </td>
                                             {% elif dia.status == 'isento' %}
-                                                <td colspan="5" class="px-6 py-5">
+                                                <td colspan="{% if current_user.modelo_negocio == 'compra' %}4{% else %}5{% endif %}" class="px-6 py-5">
                                                     <span class="inline-flex items-center gap-2 px-3 py-1 bg-purple-50 border border-purple-100 text-purple-600 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm">
                                                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Feriado / Isento
                                                     </span>
@@ -115,9 +126,11 @@
                                                 <td class="px-6 py-5 text-sm font-bold text-red-500">R$ {{ (dia.taxas_b3 + dia.irrf_1)|format_brl }}</td>
                                                 <td class="px-6 py-5 text-sm font-bold text-navy">R$ {{ dia.liquido_pregao|format_brl }}</td>
                                                 <td class="px-6 py-5 text-sm font-black text-navy">R$ {{ dia.liquido|format_brl }}</td>
-                                                <td class="px-6 py-5 bg-green-50/30">
-                                                    <span class="text-sm font-black text-green-600">R$ {{ dia.repasse|format_brl }}</span>
-                                                </td>
+                                                
+                                                {% if current_user.modelo_negocio != 'compra' %}
+                                                <td class="px-6 py-5 bg-green-50/30"><span class="text-sm font-black text-green-600">R$ {{ dia.repasse|format_brl }}</span></td>
+                                                {% endif %}
+                                                
                                                 <td class="px-8 py-5 text-right">
                                                     <div class="flex items-center justify-end gap-3">
                                                         <a href="{{ dia.arquivo_pdf }}" target="_blank" class="text-[10px] font-black text-royal uppercase tracking-widest hover:underline border-r border-gray-200 pr-3">Ver PDF</a>
@@ -134,99 +147,111 @@
                                 </tbody>
                             </table>
                         </div>
+
+                        <div class="mt-6 mb-6 flex justify-end px-8">
+                            <div class="bg-blue-50/50 border border-blue-100 px-8 py-4 rounded-[1rem] flex items-center gap-6 shadow-sm">
+                                <span class="text-[10px] font-black text-royal uppercase tracking-widest">
+                                    {% if current_user.modelo_negocio == 'compra' %}Subtotal Líquido{% else %}Subtotal da {{ alocacao.nome_corretora }}{% endif %}
+                                </span>
+                                <span class="text-2xl font-black text-navy">R$ {{ subtotal_parcial.total|format_brl }}</span>
+                            </div>
+                        </div>
                     </div>
                     {% endfor %}
                 </div>
             </div>
             {% endfor %}
         </div>
-
-        <h2 class="text-3xl font-black text-navy mb-8 mt-16 pt-8 border-t border-gray-200">Fechamentos Consolidados</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {% for fatura in faturas %}
-            <div class="bloco-fatura ciclo-{{ fatura.id }} hidden bg-gradient-to-r from-royal to-royal-dark p-8 rounded-[2rem] text-white shadow-2xl relative overflow-hidden flex flex-col justify-between h-full transition-opacity duration-500 opacity-0">
-                <div class="absolute -right-10 -top-10 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
-                
-                <div class="mb-8 relative z-10">
-                    <p class="text-[10px] font-black uppercase tracking-widest text-blue-200 mb-1">Total a Repassar (Ciclo de {{ fatura.data_inicio.strftime('%d/%m') }})</p>
-                    <p class="text-4xl font-black mb-1">R$ {{ fatura.repasse|format_brl }}</p>
-                    <p class="text-xs text-blue-100 font-medium opacity-80">Soma matemática de todas as corretoras do período</p>
-                </div>
-                
-                <div class="flex flex-col sm:flex-row gap-3 relative z-10">
-                    <button type="button" onclick="document.getElementById('modal-semana-{{ fatura.id }}').classList.remove('hidden')" class="flex-1 bg-white/10 hover:bg-white/20 text-white border border-white/20 px-6 py-4 rounded-xl font-black text-xs uppercase tracking-widest transition shadow-sm backdrop-blur-sm text-center">Auditoria</button>
-                    <button type="button" onclick="document.getElementById('modal-pix-{{ fatura.id }}').classList.remove('hidden')" class="flex-1 bg-white text-royal px-6 py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-xl hover:scale-105 transition text-center">Aba PIX</button>
-                </div>
-            </div>
-
-            <div id="modal-semana-{{ fatura.id }}" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
-                <div class="bg-white border border-gray-100 w-full max-w-md rounded-[2rem] shadow-2xl p-8 relative">
-                    <button onclick="document.getElementById('modal-semana-{{ fatura.id }}').classList.add('hidden')" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black">X</button>
-                    <h2 class="text-xl font-black text-navy mb-1">Fechamento Consolidado</h2>
-                    <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-6 border-b border-gray-100 pb-4">De {{ fatura.data_inicio.strftime('%d/%m') }} a {{ fatura.data_fim.strftime('%d/%m') }}</p>
-                    
-                    <div class="space-y-4 font-medium text-sm text-gray-600">
-                        <div class="flex justify-between items-center"><span class="text-xs font-bold uppercase tracking-widest text-gray-400">Valor Bruto</span> <span class="font-black text-navy">R$ {{ fatura.bruto|format_brl }}</span></div>
-                        <div class="flex justify-between items-center"><span class="text-xs font-bold uppercase tracking-widest text-red-400">Custos Unificados</span> <span class="font-bold text-red-500">R$ {{ (fatura.taxas_b3 + fatura.irrf_1)|format_brl }}</span></div>
-                        <div class="flex justify-between items-center pt-2 border-t border-gray-100"><span class="text-xs font-bold uppercase tracking-widest text-gray-400">Líq. do Pregão</span> <span class="font-black text-navy">R$ {{ fatura.liquido_pregao|format_brl }}</span></div>
-                        <div class="flex justify-between items-center"><span class="text-xs font-bold uppercase tracking-widest text-red-400">IRRF (19%)</span> <span class="font-bold text-red-500">R$ {{ fatura.irrf_19|format_brl }}</span></div>
-                        <div class="flex justify-between items-center pt-2 border-t border-gray-100"><span class="text-xs font-bold uppercase tracking-widest text-gray-400">Líquido Real</span> <span class="font-black text-navy">R$ {{ fatura.liquido|format_brl }}</span></div>
-                        <div class="flex justify-between items-center pt-4 mt-2 bg-green-50 p-4 rounded-xl border border-green-100"><span class="font-black uppercase tracking-widest text-[10px] text-green-700">Repasse DW (30%)</span> <span class="font-black text-lg text-green-600">R$ {{ fatura.repasse|format_brl }}</span></div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="modal-pix-{{ fatura.id }}" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
-                <div class="bg-white border border-gray-100 w-full max-w-md rounded-[2rem] shadow-2xl p-8 relative">
-                    <button onclick="document.getElementById('modal-pix-{{ fatura.id }}').classList.add('hidden')" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black">X</button>
-                    <div class="text-center mb-6 border-b border-gray-100 pb-6">
-                        <div class="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-green-600">
-                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        </div>
-                        <h2 class="text-2xl font-black text-navy">Pagamento PIX</h2>
-                    </div>
-                    
-                    <div class="bg-gray-50 p-5 rounded-2xl border border-gray-200 mb-6 space-y-3">
-                        <div class="flex justify-between border-b border-gray-200 pb-3"><span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Instituição</span><span class="text-xs font-black text-navy">Nu Pagamentos</span></div>
-                        <div class="flex justify-between border-b border-gray-200 pb-3 pt-1"><span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Nome</span><span class="text-xs font-black text-navy">Dw Sollar</span></div>
-                        <div class="flex justify-between items-center pt-1"><span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Chave CNPJ</span><span class="text-sm font-black text-green-600 bg-white px-2 py-1 rounded border border-gray-200">58.422.030/0001-76</span></div>
-                    </div>
-
-                    <div class="mt-2">
-                        {% if fatura.comprovante_pix %}
-                            <div class="bg-green-50/80 border border-green-200 p-5 rounded-2xl text-center">
-                                <p class="text-[10px] font-black text-green-700 uppercase tracking-widest mb-3">O Repasse Foi Realizado</p>
-                                <a href="{{ fatura.comprovante_pix }}" target="_blank" class="inline-block bg-white text-green-600 px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest shadow-sm hover:scale-105 transition border border-green-200">Visualizar Recibo Oficial</a>
-                            </div>
-                        {% else %}
-                            <form action="{{ url_for('client.enviar_comprovante', fatura_id=fatura.id) }}" method="POST" enctype="multipart/form-data" class="flex flex-col gap-4">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                <div class="border-2 border-dashed border-gray-200 bg-gray-50 rounded-2xl p-4 text-center hover:bg-white transition relative">
-                                    <input type="file" name="comprovante" accept="image/*,.pdf" required class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                                    <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1">Anexar Comprovante PIX</span>
-                                    <span class="text-xs text-gray-400 font-medium">Toque para selecionar imagem ou PDF</span>
-                                </div>
-                                <button type="submit" class="w-full py-4 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-md transition">Enviar Recibo para Diretoria</button>
-                            </form>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
     </div>
+
+    {% if current_user.modelo_negocio != 'compra' %}
+    <div id="modal-auditoria-pix-global" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
+        <div class="bg-white border border-gray-100 w-full max-w-lg rounded-[2.5rem] shadow-2xl p-8 md:p-10 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <button onclick="fecharModalAuditoriaPagamento()" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black text-xl outline-none">&times;</button>
+            
+            <div class="mb-6 pb-4 border-b border-gray-100">
+                <h2 class="text-2xl font-black text-navy">Auditoria do Período</h2>
+                <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-1">Conferência Individualizada de Ativos</p>
+            </div>
+
+            <div class="space-y-3 mb-6" id="container-auditoria-corretoras">
+                {% for alocacao in current_user.alocacoes %}
+                <div class="flex justify-between items-center p-4 bg-gray-50 border border-gray-100 rounded-xl">
+                    <span class="text-xs font-black text-royal tracking-wider uppercase">{{ alocacao.nome_corretora }}</span>
+                    <span class="text-sm font-bold text-navy" id="auditoria-subtotal-{{ alocacao.nome_corretora }}">Calculando...</span>
+                </div>
+                {% endfor %}
+                
+                <div class="p-5 bg-gradient-to-r from-royal to-royal-dark text-white rounded-2xl shadow-md mt-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-[10px] font-black uppercase tracking-widest text-blue-200">Total do Repasse (30%)</span>
+                        <span class="text-2xl font-black" id="auditoria-valor-final-repasse">R$ 0,00</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="box-alerta-pendencia" class="hidden mb-6 p-5 bg-red-50 border border-red-200 rounded-2xl text-center">
+                <p class="text-xs font-black text-red-700 uppercase tracking-widest mb-1.5">Bloqueio Financeiro</p>
+                <p class="text-[11px] text-red-500 font-bold leading-tight" id="texto-alerta-mensagem"></p>
+            </div>
+
+            {% if inter_sandbox %}
+                <div id="box-gateway-inter-pix" class="hidden space-y-4 pt-4 border-t border-gray-100">
+                    <div class="p-4 bg-white border border-gray-200 shadow-inner rounded-2xl flex items-center justify-center" id="box-qrcode-dinamico">
+                        </div>
+                    <div class="relative">
+                        <input type="text" id="input-copia-cola-real" readonly class="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-navy font-mono text-xs outline-none pr-24 overflow-hidden text-ellipsis shadow-inner whitespace-nowrap">
+                        <button onclick="copiarCopiaEColaFatura()" id="btn-copiar-fatura" class="absolute right-2 top-2 bottom-2 bg-navy text-white px-4 rounded-lg text-[10px] font-black uppercase tracking-widest transition shadow-sm">Copiar</button>
+                    </div>
+                    <p class="text-[9px] font-black text-center uppercase text-green-600 tracking-widest animate-pulse mt-2 flex items-center justify-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Aguardando compensação instantânea do Banco Inter...
+                    </p>
+                </div>
+
+                <div class="mt-8 flex justify-end" id="box-acao-gerar-inicial">
+                    <button onclick="solicitarGeracaoPixInter()" id="btn-disparar-pix-inter" class="w-full py-4 bg-navy hover:bg-gray-900 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition">Gerar PIX</button>
+                </div>
+            {% else %}
+                <div id="box-pagamento-manual" class="space-y-4 pt-4 border-t border-gray-100">
+                    <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-3">
+                        <div class="flex justify-between items-center border-b border-gray-200 pb-2">
+                            <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest">Instituição</span>
+                            <span class="text-xs font-black text-navy">Nu Pagamentos</span>
+                        </div>
+                        <div class="flex justify-between items-center border-b border-gray-200 pb-2">
+                            <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest">Favorecido</span>
+                            <span class="text-xs font-black text-navy">Dw Sollar</span>
+                        </div>
+                        <div class="flex justify-between items-center pb-1">
+                            <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest">Chave PIX (CNPJ)</span>
+                            <span class="text-sm font-black text-green-600">58.422.030/0001-76</span>
+                        </div>
+                    </div>
+                    <div class="relative">
+                        <input type="text" id="chave-pix-manual-fatura" readonly value="58.422.030/0001-76" class="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-navy font-mono text-xs outline-none pr-24 shadow-inner">
+                        <button onclick="copiarChaveManualFatura()" id="btn-copiar-manual-fatura" class="absolute right-2 top-2 bottom-2 bg-navy text-white px-4 rounded-lg text-[10px] font-black uppercase tracking-widest transition shadow-sm">Copiar</button>
+                    </div>
+                    <p class="text-[9px] font-black text-center uppercase text-gray-500 tracking-widest mt-2">
+                        Após o pagamento, anexe o comprovante na tabela da fatura.
+                    </p>
+                </div>
+                <div class="mt-6 flex justify-end">
+                    <button onclick="fecharModalAuditoriaPagamento()" class="w-full py-4 bg-navy hover:bg-gray-900 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition">Entendi</button>
+                </div>
+            {% endif %}
+            </div>
+    </div>
+    {% endif %}
 
     <div id="modal-senha" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
         <div class="bg-white w-full max-w-sm rounded-[2rem] shadow-2xl p-10 relative text-center border border-gray-100">
             <div class="w-16 h-16 bg-royal/10 rounded-2xl flex items-center justify-center mx-auto mb-6 text-royal">
-                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 00-2-2H6a2 2 0 00-2-2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
             </div>
             <h3 class="text-xl font-black text-navy mb-2">Nota Protegida (XP)</h3>
             <p class="text-xs text-gray-500 font-medium mb-8">Por padrão da XP, a nota vem com senha. Digite os 3 últimos dígitos do seu CPF.</p>
-            
             <input type="hidden" id="modal-dia-id">
             <input type="password" id="input-senha-manual" placeholder="•••" class="block w-full rounded-2xl px-5 py-4 bg-gray-50 border border-gray-200 text-center text-xl font-black tracking-[0.5em] focus:bg-white focus:border-royal mb-6 outline-none transition">
-            
             <button onclick="tentarComSenhaManual()" class="w-full py-4 bg-royal text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg hover:-translate-y-1 transition">Desbloquear PDF</button>
             <button onclick="fecharModalSenha()" class="mt-4 text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-navy transition w-full py-2">Cancelar</button>
         </div>
@@ -234,73 +259,187 @@
 </div>
 
 <script>
-// ==========================================
-// RESTAURAÇÃO DE MEMÓRIA (CONTINUIDADE DE UX)
-// ==========================================
+let globalFaturaAtivaId = null;
+
+// RESTAURAÇÃO DE MEMÓRIA DE NAVEGAÇÃO
 document.addEventListener("DOMContentLoaded", () => {
     const cicloSalvo = sessionStorage.getItem('cicloAtivo');
-    if (cicloSalvo) {
-        abrirCiclo(cicloSalvo, true); // true = é uma restauração de tela
-    }
+    if (cicloSalvo) { abrirCiclo(cicloSalvo, true); }
 });
 
 function abrirCiclo(faturaId, isRestore = false) {
-    // 1. Salva a posição na memória
+    globalFaturaAtivaId = faturaId;
     sessionStorage.setItem('cicloAtivo', faturaId);
-    
     document.getElementById('grid-ciclos').classList.add('hidden');
     document.getElementById('area-conteudo').classList.remove('hidden');
     
-    document.querySelectorAll('.bloco-fatura').forEach(el => {
-        el.classList.add('hidden');
-        el.classList.add('opacity-0');
-    });
-    
+    document.querySelectorAll('.bloco-fatura').forEach(el => { el.classList.add('hidden', 'opacity-0'); });
     document.querySelectorAll('.ciclo-' + faturaId).forEach(el => {
         el.classList.remove('hidden');
         setTimeout(() => el.classList.remove('opacity-0'), 50);
     });
-
-    // 2. Tenta restaurar a aba que estava aberta ou clica na primeira
+    
     const abaSalva = sessionStorage.getItem('abaAtiva');
-    if (isRestore && abaSalva) {
-        mudarAba(abaSalva);
-    } else {
+    if (isRestore && abaSalva) { mudarAba(abaSalva); } 
+    else {
         const primeiraAba = document.querySelector('.aba-btn');
-        if (primeiraAba) {
-            primeiraAba.click();
-        }
+        if (primeiraAba) { primeiraAba.click(); }
     }
 }
 
 function voltarGrid() {
-    // 3. Limpa a memória quando o usuário decide voltar
     sessionStorage.removeItem('cicloAtivo');
     sessionStorage.removeItem('abaAtiva');
-    
+    globalFaturaAtivaId = null;
     document.getElementById('area-conteudo').classList.add('hidden');
     document.getElementById('grid-ciclos').classList.remove('hidden');
 }
 
 function mudarAba(nome) {
-    // 4. Salva qual aba (Corretora) o cara clicou
     sessionStorage.setItem('abaAtiva', nome);
-    
     document.querySelectorAll('.aba-conteudo').forEach(el => el.classList.add('hidden', 'opacity-0'));
     document.getElementById('tab-'+nome).classList.remove('hidden');
     setTimeout(() => document.getElementById('tab-'+nome).classList.remove('opacity-0'), 50);
     document.querySelectorAll('.aba-btn').forEach(b => {
         b.classList.remove('bg-navy', 'text-white', 'shadow-md');
-        b.classList.add('bg-white', 'text-gray-500');
+        b.classList.add('bg-white', 'text-gray-500', 'border-gray-200');
     });
     const activeBtn = document.getElementById('btn-tab-'+nome);
     if(activeBtn) {
-        activeBtn.classList.remove('bg-white', 'text-gray-500');
+        activeBtn.classList.remove('bg-white', 'text-gray-500', 'border-gray-200');
         activeBtn.classList.add('bg-navy', 'text-white', 'shadow-md');
     }
 }
 
-// LÓGICA DE UPLOAD
+{% if current_user.modelo_negocio != 'compra' %}
+// LÓGICA DO MODAL DE AUDITORIA UNIFICADA (FASE 4 - ITEM 2)
+function abrirModalAuditoriaPagamento() {
+    if (!globalFaturaAtivaId) return;
+    
+    // Reseta visibilidade dos boxes internos do modal
+    const boxAlerta = document.getElementById("box-alerta-pendencia");
+    if(boxAlerta) boxAlerta.classList.add("hidden");
+    
+    {% if inter_sandbox %}
+    document.getElementById("box-gateway-inter-pix").classList.add("hidden");
+    document.getElementById("box-acao-gerar-inicial").classList.remove("hidden");
+    {% endif %}
+    
+    // Puxa dinamicamente a performance das abas do ciclo ativo para popular os cards do modal
+    {% for alocacao in current_user.alocacoes %}
+    (function(){
+        let subtotalStr = "R$ 0,00";
+        // O seletor correto é a aba da corretora primeiro e o ciclo ativo internamente
+        let blocoTxt = document.querySelector('#tab-{{ alocacao.nome_corretora }} .ciclo-' + globalFaturaAtivaId + ' .bg-blue-50\\/50 span.text-2xl');
+        if(blocoTxt) {
+            subtotalStr = blocoTxt.innerText;
+        }
+        let targetEl = document.getElementById("auditoria-subtotal-{{ alocacao.nome_corretora }}");
+        if(targetEl) targetEl.innerText = subtotalStr;
+    })();
+    {% endfor %}
+    
+    // Atualiza o widget master de repasse do modal pegando o valor bruto total do ciclo
+    let cardCiclo = document.querySelector(`[onclick="abrirCiclo('${globalFaturaAtivaId}')"] p.text-2xl`);
+    if(cardCiclo) {
+        document.getElementById("auditoria-valor-final-repasse").innerText = cardCiclo.innerText;
+    }
+    
+    document.getElementById('modal-auditoria-pix-global').classList.remove('hidden');
+}
+
+function fecharModalAuditoriaPagamento() {
+    document.getElementById('modal-auditoria-pix-global').classList.add('hidden');
+}
+
+{% if inter_sandbox %}
+async function solicitarGeracaoPixInter() {
+    const btn = document.getElementById("btn-disparar-pix-inter");
+    const boxAlerta = document.getElementById("box-alerta-pendencia");
+    const txtAlerta = document.getElementById("texto-alerta-mensagem");
+    const boxPix = document.getElementById("box-gateway-inter-pix");
+    const boxQr = document.getElementById("box-qrcode-dinamico");
+    const inputCopiaCola = document.getElementById("input-copia-cola-real");
+    
+    btn.disabled = true;
+    btn.innerText = "Conectando ao banco Inter...";
+    
+    try {
+        const res = await fetch(`/portal/faturas/gerar_pix/${globalFaturaAtivaId}`, {
+            method: "POST",
+            headers: { "X-CSRFToken": "{{ csrf_token() }}" }
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            boxAlerta.classList.add("hidden");
+            document.getElementById("box-acao-gerar-inicial").classList.add("hidden");
+            boxPix.classList.remove("hidden");
+            
+            inputCopiaCola.value = data.pix_copia_e_cola;
+            boxQr.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(data.pix_copia_e_cola)}" alt="PIX INTER" class="rounded-xl shadow-sm">`;
+            
+            // Inicia o rastreamento em lote do Webhook da fatura
+            setInterval(async () => {
+                try {
+                    const statusRes = await fetch(`/portal/api/status_fatura/${globalFaturaAtivaId}`);
+                    const statusData = await statusRes.json();
+                    if (statusData.pago) { window.location.reload(); }
+                } catch (e) {}
+            }, 4000);
+            
+        } else if (data.error === "NOTAS_PENDENTES") {
+            boxPix.classList.add("hidden");
+            txtAlerta.innerText = data.message;
+            boxAlerta.classList.remove("hidden");
+            btn.disabled = false;
+            btn.innerText = "Gerar PIX";
+        } else {
+            alert(data.message || "Erro de comunicacao com o gateway.");
+            btn.disabled = false;
+            btn.innerText = "Gerar PIX";
+        }
+    } catch (e) {
+        alert("Falha de rede com o servidor proprietario.");
+        btn.disabled = false;
+        btn.innerText = "Gerar PIX";
+    }
+}
+
+function copiarCopiaEColaFatura() {
+    const text = document.getElementById("input-copia-cola-real");
+    text.select();
+    text.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(text.value);
+    
+    const btn = document.getElementById("btn-copiar-fatura");
+    btn.innerText = "COPIADO";
+    btn.classList.replace("bg-navy", "bg-green-600");
+    setTimeout(() => {
+        btn.innerText = "COPIAR";
+        btn.classList.replace("bg-green-600", "bg-navy");
+    }, 2000);
+}
+{% else %}
+function copiarChaveManualFatura() {
+    const text = document.getElementById("chave-pix-manual-fatura");
+    text.select();
+    text.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(text.value);
+    
+    const btn = document.getElementById("btn-copiar-manual-fatura");
+    btn.innerText = "COPIADO";
+    btn.classList.replace("bg-navy", "bg-green-600");
+    setTimeout(() => {
+        btn.innerText = "COPIAR";
+        btn.classList.replace("bg-green-600", "bg-navy");
+    }, 2000);
+}
+{% endif %}
+
+{% endif %}
+
+// UPLOAD DAS NOTAS DIÁRIAS
 async function enviarRelatorio(diaId, senhaManual = null) {
     const fileInput = document.getElementById(`file-${diaId}`);
     const btn = document.getElementById(`btn-${diaId}`);
@@ -314,23 +453,22 @@ async function enviarRelatorio(diaId, senhaManual = null) {
 
     btn.disabled = true;
     btn.classList.add('opacity-80', 'cursor-not-allowed');
-    btn.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Processando...`;
-
+    btn.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Lendo...`;
+    
     try {
         const response = await fetch("{{ url_for('client.faturas') }}", { method: 'POST', body: formData });
         const data = await response.json();
         
-        if (data.success) { 
-            window.location.reload(); // O reload vai acontecer, mas a memória restaurará o estado!
-        } else if (data.error === 'REQUER_SENHA') { 
-            abrirModalSenha(diaId); 
+        if (data.success) { window.location.reload(); } 
+        else if (data.error === 'REQUER_SENHA') { 
+            abrirModalSenha(diaId);
             resetarBotao(btn);
         } else { 
-            alert(data.message || 'Erro no processamento.'); 
+            alert(data.message || 'Erro no processamento.');
             resetarBotao(btn);
         }
     } catch (e) { 
-        alert('Erro de conexão com o servidor.'); 
+        alert('Erro de conexão com o servidor.');
         resetarBotao(btn);
     }
 }

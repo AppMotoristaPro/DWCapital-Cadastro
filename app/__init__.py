@@ -18,7 +18,6 @@ migrate = Migrate()
 login_manager = LoginManager()
 csrf = CSRFProtect()
 
-# Limiter configurado com headers ativos para avisar o navegador
 limiter = Limiter(
     key_func=get_remote_address,
     storage_uri="memory://",
@@ -30,7 +29,6 @@ def create_app():
     app = Flask(__name__)
     load_dotenv()
     
-    # AJUSTE RENDER: Confia nos cabeçalhos de proxy para capturar o IP real do cliente
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
     
     secret_key = os.getenv('SECRET_KEY')
@@ -38,11 +36,7 @@ def create_app():
         raise ValueError("VAZAMENTO EVITADO: A SECRET_KEY não está configurada no ambiente. O sistema foi bloqueado por segurança.")
     app.config['SECRET_KEY'] = secret_key
     
-    # ==========================================
-    # TRAVA DE SEGURANÇA: TIMEOUT DA SESSÃO (30 MINUTOS)
-    # ==========================================
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
-    # ==========================================
     
     database_url = os.getenv('DATABASE_URL')
     if database_url and database_url.startswith("postgres://"):
@@ -67,30 +61,28 @@ def create_app():
     
     login_manager.login_view = 'auth.login'
     
-    # REGISTRO DOS FILTROS NO JINJA (Puxados do novo arquivo)
     app.jinja_env.filters['format_brl'] = format_brl
     app.jinja_env.filters['to_tz_br'] = to_tz_br
 
-    # ==========================================
-    # CORREÇÃO DA IMPORTAÇÃO CIRCULAR AQUI
-    # A importação acontece depois que o 'db' já existe.
-    # ==========================================
     from app.cli import register_cli_commands
     register_cli_commands(app)
 
     from app.auth.routes import auth_bp
     from app.client.routes import client_bp
     from app.admin.routes import admin_bp
+    from app.api.pix_webhook import api_bp # Importa as rotas de API do Webhook
+    
     app.register_blueprint(auth_bp)
     app.register_blueprint(client_bp, name='client')
     app.register_blueprint(admin_bp)
+    app.register_blueprint(api_bp)
+
+    # 🛡️ TRAVA DE SEGURANÇA: Isenta a API do Webhook do bloqueio CSRF do Flask-WTF
+    csrf.exempt(api_bp)
 
     @app.route('/')
     def root(): return redirect(url_for('auth.login'))
 
-    # ==========================================
-    # CAPTURA DE ERROS (ERROR HANDLERS)
-    # ==========================================
     @app.errorhandler(404)
     def page_not_found(e):
         return render_template('errors/404.html'), 404

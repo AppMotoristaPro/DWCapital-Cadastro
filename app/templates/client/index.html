@@ -39,7 +39,13 @@
         <div class="bg-white/80 backdrop-blur-xl border border-white p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 transition-transform duration-300 flex flex-col justify-between">
             <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Performance Bruta</p>
             <p class="text-3xl font-black text-navy mt-1 leading-tight">R$ {{ bruto_total|format_brl }}</p>
-            <p class="text-[9px] text-gray-400 font-bold mt-2 uppercase">Antes do IR 19% e 30% DWCapital</p>
+            <p class="text-[9px] text-gray-400 font-bold mt-2 uppercase">
+                {% if user.modelo_negocio == 'compra' %}
+                    Antes do IR 19% (Sem Repasse)
+                {% else %}
+                    Antes do IR 19% e 30% DWCapital
+                {% endif %}
+            </p>
         </div>
 
         <div class="bg-white/80 backdrop-blur-xl border border-white p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 transition-transform duration-300 flex flex-col justify-between">
@@ -52,7 +58,13 @@
             <div class="absolute -right-6 -top-6 w-32 h-32 bg-white/20 rounded-full blur-2xl"></div>
             <p class="text-[10px] font-black text-green-100 uppercase tracking-widest mb-2 relative z-10">Lucro Limpo (Crédito)</p>
             <p class="text-3xl font-black text-white relative z-10 leading-tight">R$ {{ lucro_parceiro_total|format_brl }}</p>
-            <p class="text-[9px] text-green-100 font-bold mt-2 relative z-10 uppercase leading-relaxed">Resultado Pós-taxas e pós-repasse 30%</p>
+            <p class="text-[9px] text-green-100 font-bold mt-2 relative z-10 uppercase leading-relaxed">
+                {% if user.modelo_negocio == 'compra' %}
+                    Resultado Integral Pós-taxas Operacionais
+                {% else %}
+                    Resultado Pós-taxas e pós-repasse 30%
+                {% endif %}
+            </p>
         </div>
     </div>
 
@@ -77,7 +89,13 @@
                     <li class="flex items-start"><span class="text-royal font-black mr-2">1.</span> Acesse o menu Extrato de Faturamento.</li>
                     <li class="flex items-start"><span class="text-royal font-black mr-2">2.</span> Localize a semana pendente correspondente.</li>
                     <li class="flex items-start"><span class="text-royal font-black mr-2">3.</span> Baixe a Nota de Corretagem oficial (PDF).</li>
-                    <li class="flex items-start"><span class="text-royal font-black mr-2">4.</span> Anexe o arquivo na linha correta. O sistema calculará o repasse automaticamente.</li>
+                    <li class="flex items-start"><span class="text-royal font-black mr-2">4.</span> Anexe o arquivo na linha correta. 
+                        {% if user.modelo_negocio == 'compra' %}
+                            Seus resultados serão contabilizados no dashboard.
+                        {% else %}
+                            O sistema calculará o repasse automaticamente.
+                        {% endif %}
+                    </li>
                 </ul>
             </div>
             <div class="mt-8 pt-6 border-t border-gray-100">

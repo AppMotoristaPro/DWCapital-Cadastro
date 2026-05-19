@@ -30,7 +30,15 @@
                 <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Nome Completo</label>
                 <input type="text" name="nome" id="nome-edit" value="{{ cliente.nome }}" class="w-full px-5 py-4 bg-white border border-gray-200 rounded-xl outline-none font-bold text-navy focus:border-royal shadow-sm transition">
             </div>
+            
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div class="md:col-span-2">
+                    <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Modelo de Negócio (Transição)</label>
+                    <select name="modelo_negocio" id="modelo-negocio-edit" class="w-full px-5 py-4 bg-white border border-gray-200 rounded-xl outline-none font-bold text-navy focus:border-royal shadow-sm transition cursor-pointer">
+                        <option value="comissao" {% if not cliente.modelo_negocio or cliente.modelo_negocio == 'comissao' %}selected{% endif %}>Divisão de Lucros (Comissão 30%)</option>
+                        <option value="compra" {% if cliente.modelo_negocio == 'compra' %}selected{% endif %}>Compra de Licença (Robô)</option>
+                    </select>
+                </div>
                 <div>
                     <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">E-mail</label>
                     <input type="email" name="email" value="{{ cliente.email or '' }}" class="w-full px-5 py-4 bg-white border border-gray-200 rounded-xl outline-none font-bold text-navy focus:border-royal shadow-sm transition">
@@ -65,6 +73,7 @@
                             <div>
                                 <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Corretora</label>
                                 <select name="corretora[]" required class="w-full px-5 py-4 bg-white border border-gray-200 rounded-xl outline-none font-black text-sm text-navy focus:border-royal shadow-sm">
+                                    <option value="" disabled>Selecione</option>
                                     <option value="GENIAL" {% if aloc.nome_corretora == 'GENIAL' %}selected{% endif %}>GENIAL INVESTIMENTOS</option>
                                     <option value="BTG" {% if aloc.nome_corretora == 'BTG' %}selected{% endif %}>BTG PACTUAL</option>
                                     <option value="XP" {% if aloc.nome_corretora == 'XP' %}selected{% endif %}>XP INVESTIMENTOS</option>
@@ -121,4 +130,45 @@
         </form>
     </div>
 </div>
+
+<script>
+document.getElementById('modelo-negocio-edit')?.addEventListener('change', function(e) {
+    if (e.target.value === 'compra' && '{{ cliente.modelo_negocio or "comissao" }}' === 'comissao') {
+        alert('ATENÇÃO DO SISTEMA:\n\nAlterar o modelo para "Compra de Licença" irá congelar as faturas semanais de 30% deste parceiro.\n\nO sistema irá gerar IMEDIATAMENTE as 3 parcelas de licenciamento (1x R$ 5.000,00 e 2x R$ 2.500,00) que bloquearão o próximo acesso dele até o pagamento.');
+    }
+});
+
+function adicionarCorretora() {
+    const container = document.getElementById('corretoras-container');
+    const cards = container.querySelectorAll('.corretora-card');
+    
+    if (cards.length >= 3) {
+        alert('Limite máximo de 3 corretoras ativas atingido.');
+        return;
+    }
+    
+    // Clona o primeiro card da lista
+    const clone = cards[0].cloneNode(true);
+    
+    // Reseta o select e o input numérico do clone
+    const selectBox = clone.querySelector('select');
+    selectBox.value = "";
+    
+    const inputNum = clone.querySelector('input[type="number"]');
+    inputNum.value = "";
+    
+    container.appendChild(clone);
+}
+
+function removerCorretora(btn) {
+    const container = document.getElementById('corretoras-container');
+    const cards = container.querySelectorAll('.corretora-card');
+    
+    if (cards.length > 1) {
+        btn.closest('.corretora-card').remove();
+    } else {
+        alert('É necessário manter pelo menos uma corretora alocada para este parceiro.');
+    }
+}
+</script>
 {% endblock %}
