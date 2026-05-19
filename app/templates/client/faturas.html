@@ -151,7 +151,7 @@
                         <div class="mt-6 mb-6 flex justify-end px-8">
                             <div class="bg-blue-50/50 border border-blue-100 px-8 py-4 rounded-[1rem] flex items-center gap-6 shadow-sm">
                                 <span class="text-[10px] font-black text-royal uppercase tracking-widest">
-                                    {% if current_user.modelo_negocio == 'compra' %}Líquido Operacional{% else %}Repasse da {{ alocacao.nome_corretora }}{% endif %}
+                                    {% if current_user.modelo_negocio == 'compra' %}Subtotal Líquido{% else %}Subtotal da {{ alocacao.nome_corretora }}{% endif %}
                                 </span>
                                 <span class="text-2xl font-black text-navy">R$ {{ subtotal_parcial.total|format_brl }}</span>
                             </div>
@@ -195,22 +195,51 @@
                 <p class="text-[11px] text-red-500 font-bold leading-tight" id="texto-alerta-mensagem"></p>
             </div>
 
-            <div id="box-gateway-inter-pix" class="hidden space-y-4 pt-4 border-t border-gray-100">
-                <div class="p-4 bg-white border border-gray-200 shadow-inner rounded-2xl flex items-center justify-center" id="box-qrcode-dinamico">
+            {% if inter_sandbox %}
+                <div id="box-gateway-inter-pix" class="hidden space-y-4 pt-4 border-t border-gray-100">
+                    <div class="p-4 bg-white border border-gray-200 shadow-inner rounded-2xl flex items-center justify-center" id="box-qrcode-dinamico">
+                        </div>
+                    <div class="relative">
+                        <input type="text" id="input-copia-cola-real" readonly class="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-navy font-mono text-xs outline-none pr-24 overflow-hidden text-ellipsis shadow-inner whitespace-nowrap">
+                        <button onclick="copiarCopiaEColaFatura()" id="btn-copiar-fatura" class="absolute right-2 top-2 bottom-2 bg-navy text-white px-4 rounded-lg text-[10px] font-black uppercase tracking-widest transition shadow-sm">Copiar</button>
                     </div>
-                <div class="relative">
-                    <input type="text" id="input-copia-cola-real" readonly class="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-navy font-mono text-xs outline-none pr-24 overflow-hidden text-ellipsis shadow-inner whitespace-nowrap">
-                    <button onclick="copiarCopiaEColaFatura()" id="btn-copiar-fatura" class="absolute right-2 top-2 bottom-2 bg-navy text-white px-4 rounded-lg text-[10px] font-black uppercase tracking-widest transition shadow-sm">Copiar</button>
+                    <p class="text-[9px] font-black text-center uppercase text-green-600 tracking-widest animate-pulse mt-2 flex items-center justify-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Aguardando compensação instantânea do Banco Inter...
+                    </p>
                 </div>
-                <p class="text-[9px] font-black text-center uppercase text-green-600 tracking-widest animate-pulse mt-2 flex items-center justify-center gap-1">
-                    <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Aguardando compensação instantânea do Banco Inter...
-                </p>
-            </div>
 
-            <div class="mt-8 flex justify-end" id="box-acao-gerar-inicial">
-                <button onclick="solicitarGeracaoPixInter()" id="btn-disparar-pix-inter" class="w-full py-4 bg-navy hover:bg-gray-900 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition">Gerar PIX</button>
+                <div class="mt-8 flex justify-end" id="box-acao-gerar-inicial">
+                    <button onclick="solicitarGeracaoPixInter()" id="btn-disparar-pix-inter" class="w-full py-4 bg-navy hover:bg-gray-900 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition">Gerar PIX</button>
+                </div>
+            {% else %}
+                <div id="box-pagamento-manual" class="space-y-4 pt-4 border-t border-gray-100">
+                    <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-3">
+                        <div class="flex justify-between items-center border-b border-gray-200 pb-2">
+                            <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest">Instituição</span>
+                            <span class="text-xs font-black text-navy">Nu Pagamentos</span>
+                        </div>
+                        <div class="flex justify-between items-center border-b border-gray-200 pb-2">
+                            <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest">Favorecido</span>
+                            <span class="text-xs font-black text-navy">Dw Sollar</span>
+                        </div>
+                        <div class="flex justify-between items-center pb-1">
+                            <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest">Chave PIX (CNPJ)</span>
+                            <span class="text-sm font-black text-green-600">58.422.030/0001-76</span>
+                        </div>
+                    </div>
+                    <div class="relative">
+                        <input type="text" id="chave-pix-manual-fatura" readonly value="58.422.030/0001-76" class="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-navy font-mono text-xs outline-none pr-24 shadow-inner">
+                        <button onclick="copiarChaveManualFatura()" id="btn-copiar-manual-fatura" class="absolute right-2 top-2 bottom-2 bg-navy text-white px-4 rounded-lg text-[10px] font-black uppercase tracking-widest transition shadow-sm">Copiar</button>
+                    </div>
+                    <p class="text-[9px] font-black text-center uppercase text-gray-500 tracking-widest mt-2">
+                        Após o pagamento, anexe o comprovante na tabela da fatura.
+                    </p>
+                </div>
+                <div class="mt-6 flex justify-end">
+                    <button onclick="fecharModalAuditoriaPagamento()" class="w-full py-4 bg-navy hover:bg-gray-900 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition">Entendi</button>
+                </div>
+            {% endif %}
             </div>
-        </div>
     </div>
     {% endif %}
 
@@ -288,9 +317,13 @@ function abrirModalAuditoriaPagamento() {
     if (!globalFaturaAtivaId) return;
     
     // Reseta visibilidade dos boxes internos do modal
-    document.getElementById("box-alerta-pendencia").classList.add("hidden");
+    const boxAlerta = document.getElementById("box-alerta-pendencia");
+    if(boxAlerta) boxAlerta.classList.add("hidden");
+    
+    {% if inter_sandbox %}
     document.getElementById("box-gateway-inter-pix").classList.add("hidden");
     document.getElementById("box-acao-gerar-inicial").classList.remove("hidden");
+    {% endif %}
     
     // Puxa dinamicamente a performance das abas do ciclo ativo para popular os cards do modal
     {% for alocacao in current_user.alocacoes %}
@@ -319,6 +352,7 @@ function fecharModalAuditoriaPagamento() {
     document.getElementById('modal-auditoria-pix-global').classList.add('hidden');
 }
 
+{% if inter_sandbox %}
 async function solicitarGeracaoPixInter() {
     const btn = document.getElementById("btn-disparar-pix-inter");
     const boxAlerta = document.getElementById("box-alerta-pendencia");
@@ -386,6 +420,23 @@ function copiarCopiaEColaFatura() {
         btn.classList.replace("bg-green-600", "bg-navy");
     }, 2000);
 }
+{% else %}
+function copiarChaveManualFatura() {
+    const text = document.getElementById("chave-pix-manual-fatura");
+    text.select();
+    text.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(text.value);
+    
+    const btn = document.getElementById("btn-copiar-manual-fatura");
+    btn.innerText = "COPIADO";
+    btn.classList.replace("bg-navy", "bg-green-600");
+    setTimeout(() => {
+        btn.innerText = "COPIAR";
+        btn.classList.replace("bg-green-600", "bg-navy");
+    }, 2000);
+}
+{% endif %}
+
 {% endif %}
 
 // UPLOAD DAS NOTAS DIÁRIAS

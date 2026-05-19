@@ -25,93 +25,134 @@
             </div>
         </div>
 
-        <div class="space-y-4 mb-8">
-            <div class="p-6 bg-white rounded-2xl flex flex-col items-center justify-center shadow-inner border border-gray-100">
-                <div id="wrapper-qrcode" class="w-48 h-48 flex items-center justify-center bg-gray-50 rounded-xl border border-gray-100 shadow-inner">
-                    <svg class="animate-spin h-6 w-6 text-royal" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
+        {% if inter_sandbox %}
+            <div class="space-y-4 mb-8">
+                <div class="p-6 bg-white rounded-2xl flex flex-col items-center justify-center shadow-inner border border-gray-100">
+                    <div id="wrapper-qrcode" class="w-48 h-48 flex items-center justify-center bg-gray-50 rounded-xl border border-gray-100 shadow-inner">
+                        <svg class="animate-spin h-6 w-6 text-royal" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </div>
+                </div>
+                
+                <div class="relative">
+                    <input type="text" id="payload-string-pix" readonly value="Carregando código copia e cola..." class="w-full px-5 py-4 bg-navy/40 border border-white/5 rounded-xl text-gray-400 text-xs font-mono outline-none pr-24 overflow-hidden text-ellipsis whitespace-nowrap shadow-inner">
+                    <button onclick="copiarCopiaECola()" id="btn-copiar-payload" disabled class="absolute right-2 top-2 bottom-2 bg-royal hover:bg-royal-dark text-white px-4 rounded-lg text-[10px] font-black uppercase tracking-widest transition shadow-md opacity-50 cursor-not-allowed">Copiar</button>
                 </div>
             </div>
-            
-            <div class="relative">
-                <input type="text" id="payload-string-pix" readonly value="Carregando código copia e cola..." class="w-full px-5 py-4 bg-navy/40 border border-white/5 rounded-xl text-gray-400 text-xs font-mono outline-none pr-24 overflow-hidden text-ellipsis whitespace-nowrap shadow-inner">
-                <button onclick="copiarCopiaECola()" id="btn-copiar-payload" disabled class="absolute right-2 top-2 bottom-2 bg-royal hover:bg-royal-dark text-white px-4 rounded-lg text-[10px] font-black uppercase tracking-widest transition shadow-md opacity-50 cursor-not-allowed">Copiar</button>
+
+            <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-8 flex items-center justify-center gap-2 bg-white/5 py-3 rounded-xl border border-white/5">
+                <svg class="w-3.5 h-3.5 animate-spin text-green-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                Aguardando Confirmação do Banco Inter....
             </div>
-        </div>
+        {% else %}
+            <div class="bg-navy/40 border border-white/5 rounded-2xl p-6 mb-8 text-left space-y-4 shadow-inner">
+                <div class="flex justify-between items-center border-b border-white/10 pb-3">
+                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Instituição</span>
+                    <span class="text-xs font-black text-white">Nu Pagamentos</span>
+                </div>
+                <div class="flex justify-between items-center border-b border-white/10 pb-3">
+                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Favorecido</span>
+                    <span class="text-xs font-black text-white">Dw Sollar</span>
+                </div>
+                <div class="flex justify-between items-center pb-1">
+                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Chave PIX (CNPJ)</span>
+                    <span class="text-sm font-black text-green-400">58.422.030/0001-76</span>
+                </div>
+                <div class="pt-2 relative">
+                    <input type="text" id="chave-pix-manual" readonly value="58.422.030/0001-76" class="w-full px-5 py-4 bg-navy/60 border border-white/5 rounded-xl text-white text-xs font-mono outline-none pr-24 shadow-inner">
+                    <button onclick="copiarChaveManual()" id="btn-copiar-manual" class="absolute right-2 top-2 bottom-2 bg-royal hover:bg-royal-dark text-white px-4 rounded-lg text-[10px] font-black uppercase tracking-widest transition shadow-md">Copiar</button>
+                </div>
+            </div>
 
-        <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-8 flex items-center justify-center gap-2 bg-white/5 py-3 rounded-xl border border-white/5">
-            <svg class="w-3.5 h-3.5 animate-spin text-green-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-            Aguardando Confirmação do Banco Inter....
-        </div>
-
+            <div class="text-[10px] font-bold text-yellow-500 uppercase tracking-widest mb-8 flex items-center justify-center gap-2 bg-yellow-500/10 py-3 rounded-xl border border-yellow-500/20 shadow-inner">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                Envie o comprovante para o suporte para liberar o acesso.
+            </div>
+        {% endif %}
         <a href="{{ url_for('auth.logout') }}" class="text-xs font-bold text-gray-500 hover:text-white transition uppercase tracking-widest underline">Sair da Conta</a>
     </div>
 </div>
 
 <script>
-document.addEventListener("DOMContentLoaded", async () => {
-    const inputPayload = document.getElementById("payload-string-pix");
-    const btnCopiar = document.getElementById("btn-copiar-payload");
-    const wrapperQr = document.getElementById("wrapper-qrcode");
+{% if inter_sandbox %}
+    // SCRIPT DO MODO AUTOMATIZADO (API BANCO INTER)
+    document.addEventListener("DOMContentLoaded", async () => {
+        const inputPayload = document.getElementById("payload-string-pix");
+        const btnCopiar = document.getElementById("btn-copiar-payload");
+        const wrapperQr = document.getElementById("wrapper-qrcode");
 
-    try {
-        // Dispara o motor do banco assincronamente no carregamento
-        const res = await fetch("/portal/licencas/gerar_pix/{{ parcela.id }}", {
-            method: "POST",
-            headers: { "X-CSRFToken": "{{ csrf_token() }}" }
-        });
-        const data = await res.json();
-        
-        if (data.success) {
-            inputPayload.value = data.pix_copia_e_cola;
-            inputPayload.classList.remove("text-gray-400");
-            inputPayload.classList.add("text-white");
-            btnCopiar.disabled = false;
-            btnCopiar.classList.remove("opacity-50", "cursor-not-allowed");
-            
-            // Desenha o QR Code real com a API pública
-            wrapperQr.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=185x185&data=${encodeURIComponent(data.pix_copia_e_cola)}" alt="PIX QR CODE" class="rounded-lg shadow-sm">`;
-            
-            // Inicia o rastreamento em lote do Webhook (Varredura automatica)
-            iniciarMonitoramentoDeBaixa();
-        } else {
-            inputPayload.value = "Erro: " + data.message;
-            wrapperQr.innerHTML = `<span class="text-xs text-red-400 font-bold p-4">Erro na API Inter</span>`;
-        }
-    } catch (e) {
-        inputPayload.value = "Erro crítico de conexão.";
-        wrapperQr.innerHTML = `<span class="text-xs text-red-400 font-bold p-4">Falha de Servidor</span>`;
-    }
-});
-
-function copiarCopiaECola() {
-    const text = document.getElementById("payload-string-pix");
-    text.select();
-    text.setSelectionRange(0, 99999);
-    navigator.clipboard.writeText(text.value);
-    
-    const btn = document.getElementById("btn-copiar-payload");
-    const originalText = btn.innerText;
-    btn.innerText = "COPIADO!";
-    btn.classList.replace("bg-royal", "bg-green-600");
-    setTimeout(() => {
-        btn.innerText = originalText;
-        btn.classList.replace("bg-green-600", "bg-royal");
-    }, 2000);
-}
-
-function iniciarMonitoramentoDeBaixa() {
-    setInterval(async () => {
         try {
-            const res = await fetch("/portal/api/status_licenca/{{ parcela.id }}");
+            const res = await fetch("/portal/licencas/gerar_pix/{{ parcela.id }}", {
+                method: "POST",
+                headers: { "X-CSRFToken": "{{ csrf_token() }}" }
+            });
             const data = await res.json();
-            if (data.pago) {
-                window.location.href = "/portal/dashboard";
+            
+            if (data.success) {
+                inputPayload.value = data.pix_copia_e_cola;
+                inputPayload.classList.remove("text-gray-400");
+                inputPayload.classList.add("text-white");
+                btnCopiar.disabled = false;
+                btnCopiar.classList.remove("opacity-50", "cursor-not-allowed");
+                
+                wrapperQr.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=185x185&data=${encodeURIComponent(data.pix_copia_e_cola)}" alt="PIX QR CODE" class="rounded-lg shadow-sm">`;
+                iniciarMonitoramentoDeBaixa();
+            } else {
+                inputPayload.value = "Erro: " + data.message;
+                wrapperQr.innerHTML = `<span class="text-xs text-red-400 font-bold p-4">Erro na API Inter</span>`;
             }
-        } catch (e) {}
-    }, 4000);
-}
+        } catch (e) {
+            inputPayload.value = "Erro crítico de conexão.";
+            wrapperQr.innerHTML = `<span class="text-xs text-red-400 font-bold p-4">Falha de Servidor</span>`;
+        }
+    });
+
+    function copiarCopiaECola() {
+        const text = document.getElementById("payload-string-pix");
+        text.select();
+        text.setSelectionRange(0, 99999);
+        navigator.clipboard.writeText(text.value);
+        
+        const btn = document.getElementById("btn-copiar-payload");
+        const originalText = btn.innerText;
+        btn.innerText = "COPIADO!";
+        btn.classList.replace("bg-royal", "bg-green-600");
+        setTimeout(() => {
+            btn.innerText = originalText;
+            btn.classList.replace("bg-green-600", "bg-royal");
+        }, 2000);
+    }
+
+    function iniciarMonitoramentoDeBaixa() {
+        setInterval(async () => {
+            try {
+                const res = await fetch("/portal/api/status_licenca/{{ parcela.id }}");
+                const data = await res.json();
+                if (data.pago) {
+                    window.location.href = "/portal/dashboard";
+                }
+            } catch (e) {}
+        }, 4000);
+    }
+{% else %}
+    // SCRIPT DO MODO MANUAL CONSERVADOR
+    function copiarChaveManual() {
+        const text = document.getElementById("chave-pix-manual");
+        text.select();
+        text.setSelectionRange(0, 99999);
+        navigator.clipboard.writeText(text.value);
+        
+        const btn = document.getElementById("btn-copiar-manual");
+        const originalText = btn.innerText;
+        btn.innerText = "COPIADO!";
+        btn.classList.replace("bg-royal", "bg-green-600");
+        setTimeout(() => {
+            btn.innerText = originalText;
+            btn.classList.replace("bg-green-600", "bg-royal");
+        }, 2000);
+    }
+{% endif %}
 </script>
 {% endblock %}

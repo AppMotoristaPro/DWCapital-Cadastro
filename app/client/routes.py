@@ -64,7 +64,10 @@ def bloqueio_pagamento():
     if not parcela_pendente:
         return redirect(url_for('client.dashboard'))
         
-    return render_template('client/bloqueio_pix.html', parcela=parcela_pendente)
+    # LEITURA DA FEATURE FLAG (O "Interruptor")
+    inter_sandbox = os.environ.get('INTER_SANDBOX', 'true').lower() in ('true', '1', 't')
+        
+    return render_template('client/bloqueio_pix.html', parcela=parcela_pendente, inter_sandbox=inter_sandbox)
 
 
 # ===================================================
@@ -86,7 +89,6 @@ def gerar_pix_fatura(fatura_id):
             "message": "Você possui faturas de corretagem pendentes neste ciclo. Anexe todas para liberar o PIX."
         }), 200
 
-    # Se já foi gerado anteriormente, reaproveita o mesmo payload economizando requisição
     if fatura.txid_pix and fatura.payload_pix:
         return jsonify({"success": True, "txid": fatura.txid_pix, "pix_copia_e_cola": fatura.payload_pix})
 
@@ -282,7 +284,9 @@ def faturas():
                 
                 return jsonify({'success': False, 'error': 'ERRO_TECNICO', 'message': str(e)})
 
-    return render_template('client/faturas.html', faturas=current_user.faturas)
+    # LEITURA DA FEATURE FLAG (O "Interruptor")
+    inter_sandbox = os.environ.get('INTER_SANDBOX', 'true').lower() in ('true', '1', 't')
+    return render_template('client/faturas.html', faturas=current_user.faturas, inter_sandbox=inter_sandbox)
 
 @client_bp.route('/faturas/comprovante/<int:fatura_id>', methods=['POST'])
 @login_required
