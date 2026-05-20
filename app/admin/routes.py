@@ -11,7 +11,7 @@ from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditor
 from app import db
 from datetime import datetime, timedelta
 from app.utils.decorators import admin_required
-from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo
+from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo, auto_gerar_ciclos_em_lote
 from app.services.documento_service import disparar_lote, disparar_unico
 from app.services.dashboard_service import obter_dados_dashboard
 from app.utils.parsers.gerenciador_pdf import processar_pdf
@@ -215,12 +215,9 @@ def pagamentos():
                 dias_uteis.append(data_atual)
             data_atual += timedelta(days=1)
         
-        # 🚀 OTIMIZAÇÃO (Problema N+1 resolvido)
-        # 1. Dispara a lógica de criação de faturas faltantes
-        for c in ativos:
-            auto_gerar_ciclo(c, data_base=inicio_ciclo)
+        # 🚀 OTIMIZAÇÃO (Item 1 e 2 Resolvidos): Escrita Lote + Eager Load
+        auto_gerar_ciclos_em_lote(ativos, data_base=inicio_ciclo)
             
-        # 2. Busca todas as faturas e dias do ciclo ativo em uma única query
         user_ids = [c.id for c in ativos]
         faturas_do_ciclo = []
         if user_ids:
@@ -229,7 +226,6 @@ def pagamentos():
                 Fatura.data_inicio == inicio_ciclo
             ).all()
             
-        # 3. Transforma numa biblioteca de acesso instantâneo (memória)
         mapa_faturas = {f.user_id: f for f in faturas_do_ciclo}
         
         clientes_dados = []
@@ -297,7 +293,6 @@ def exportar_pendencias():
         User.status_acesso == 'ativo'
     ).order_by(User.nome.asc()).all()
     
-    # 🚀 OTIMIZAÇÃO (Problema N+1 resolvido na exportação também)
     user_ids = [c.id for c in ativos]
     todas_faturas = []
     if user_ids:
@@ -392,8 +387,11 @@ def isentar_dia_global():
             dia.zerar_valores(isentar=True)
             faturas_afetadas.add(dia.fatura_semanal)
             
+        # 🚀 OTIMIZAÇÃO (Item 2): Removemos o atualizar_totais_semana (que possuia commits no loop)
         for fatura in faturas_afetadas:
-            atualizar_totais_semana(fatura)
+            fatura.recalcular_totais()
+        
+        db.session.commit() # Um único commit no final
             
         registrar_log(f"Isentou globalmente o dia {data_alvo.strftime('%d/%m/%Y')} para toda a base.", "Pagamentos")
         flash(f'O dia {data_alvo.strftime("%d/%m/%Y")} foi isentado para todos os clientes!', 'success')
@@ -600,8 +598,9 @@ def reprocessar_notas_antigas():
             print(f"Erro ao reprocessar dia {dia.id}: {str(e)}")
             erros += 1
             
+    # 🚀 OTIMIZAÇÃO (Item 2): Removemos o atualizar_totais_semana e o commit excessivo
     for fatura in faturas_afetadas:
-        atualizar_totais_semana(fatura)
+        fatura.recalcular_totais()
         
     db.session.commit()
     

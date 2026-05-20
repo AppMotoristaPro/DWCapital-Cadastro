@@ -70,7 +70,6 @@ def bloqueio_pagamento():
         
     return render_template('client/bloqueio_pix.html', parcela=parcela_pendente, inter_sandbox=inter_sandbox)
 
-
 # ===================================================
 # ENDPOINTS ASSÍNCRONOS DO MOTOR PIX INTER
 # ===================================================
@@ -134,7 +133,6 @@ def status_licenca_api(parcela_id):
     return jsonify({"pago": parcela.status == 'pago'})
 # ===================================================
 
-
 @client_bp.route('/dashboard')
 @login_required
 def dashboard():
@@ -185,7 +183,6 @@ def dados_pessoais():
 def faturas():
     auto_gerar_ciclo(current_user)
 
-    # 🚀 OTIMIZAÇÃO: Eager Loading para evitar N+1 na leitura da tela do parceiro
     faturas_carregadas = Fatura.query.options(joinedload(Fatura.dias)).filter_by(user_id=current_user.id).order_by(Fatura.data_inicio.desc()).all()
 
     if request.method == 'GET':
@@ -197,8 +194,6 @@ def faturas():
                     db.session.delete(dia)
                     houve_alteracao = True
             
-            # Removemos o db.session.commit() de dentro deste laço
-            
             datas_da_semana = []
             data_atual = fatura.data_inicio
             while len(datas_da_semana) < 5:
@@ -206,7 +201,6 @@ def faturas():
                     datas_da_semana.append(data_atual)
                 data_atual += timedelta(days=1)
                 
-            # Verifica em memória para não consultar banco a cada loop
             dias_existentes = { (d.data_pregao, d.nome_corretora) for d in fatura.dias }
 
             for data in datas_da_semana:
@@ -221,7 +215,6 @@ def faturas():
                         db.session.add(novo_dia)
                         houve_alteracao = True
                         
-        # 🚀 OTIMIZAÇÃO: Um único commit consolidado no fim do processo todo
         if houve_alteracao:
             try:
                 db.session.commit()
@@ -294,10 +287,7 @@ def faturas():
                 
                 return jsonify({'success': False, 'error': 'ERRO_TECNICO', 'message': str(e)})
 
-    # LEITURA DA FEATURE FLAG (O "Interruptor")
     inter_sandbox = os.environ.get('INTER_SANDBOX', 'true').lower() in ('true', '1', 't')
-    
-    # Passamos a variável otimizada faturas_carregadas para o HTML, cortando o lazy load do Jinja
     return render_template('client/faturas.html', faturas=faturas_carregadas, inter_sandbox=inter_sandbox)
 
 @client_bp.route('/faturas/comprovante/<int:fatura_id>', methods=['POST'])
@@ -335,7 +325,6 @@ def remover_fatura(dia_id):
 @client_bp.route('/documentos')
 @login_required
 def documentos():
-    # 🚀 OTIMIZAÇÃO: Já traz o template para a memória de uma vez
     meus_docs = DocumentoCliente.query.options(joinedload(DocumentoCliente.template)).filter_by(user_id=current_user.id).order_by(DocumentoCliente.data_envio.desc()).all()
     return render_template('client/documentos.html', documentos=meus_docs)
 
