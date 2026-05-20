@@ -10,6 +10,7 @@ from app import db
 from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra
 from app.utils.parsers.gerenciador_pdf import processar_pdf
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import joinedload
 from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo
 from app.services.documento_service import gerar_termo_adesao, verificar_status_termo, verificar_status_documento_cliente
 from app.services.dashboard_service import obter_dados_dashboard_cliente
@@ -184,13 +185,20 @@ def dados_pessoais():
 def faturas():
     auto_gerar_ciclo(current_user)
 
+    # 🚀 OTIMIZAÇÃO: Eager Loading para evitar N+1 na leitura da tela do parceiro
+    faturas_carregadas = Fatura.query.options(joinedload(Fatura.dias)).filter_by(user_id=current_user.id).order_by(Fatura.data_inicio.desc()).all()
+
     if request.method == 'GET':
-        for fatura in current_user.faturas:
+        houve_alteracao = False
+
+        for fatura in faturas_carregadas:
             for dia in list(fatura.dias):
                 if dia.data_pregao.weekday() >= 5:
                     db.session.delete(dia)
-            db.session.commit()
-
+                    houve_alteracao = True
+            
+            # Removemos o db.session.commit() de dentro deste laço
+            
             datas_da_semana = []
             data_atual = fatura.data_inicio
             while len(datas_da_semana) < 5:
@@ -198,14 +206,12 @@ def faturas():
                     datas_da_semana.append(data_atual)
                 data_atual += timedelta(days=1)
                 
+            # Verifica em memória para não consultar banco a cada loop
+            dias_existentes = { (d.data_pregao, d.nome_corretora) for d in fatura.dias }
+
             for data in datas_da_semana:
                 for alocacao in current_user.alocacoes:
-                    dia_existente = FaturaDiaria.query.filter_by(
-                        fatura_id=fatura.id, 
-                        data_pregao=data, 
-                        nome_corretora=alocacao.nome_corretora
-                    ).first()
-                    if not dia_existente:
+                    if (data, alocacao.nome_corretora) not in dias_existentes:
                         novo_dia = FaturaDiaria(
                             fatura_id=fatura.id, 
                             data_pregao=data, 
@@ -213,10 +219,14 @@ def faturas():
                             status='pendente'
                         )
                         db.session.add(novo_dia)
-        try:
-            db.session.commit()
-        except IntegrityError:
-            db.session.rollback()
+                        houve_alteracao = True
+                        
+        # 🚀 OTIMIZAÇÃO: Um único commit consolidado no fim do processo todo
+        if houve_alteracao:
+            try:
+                db.session.commit()
+            except IntegrityError:
+                db.session.rollback()
 
     if request.method == 'POST':
         dia_id = request.form.get('dia_id')
@@ -286,7 +296,9 @@ def faturas():
 
     # LEITURA DA FEATURE FLAG (O "Interruptor")
     inter_sandbox = os.environ.get('INTER_SANDBOX', 'true').lower() in ('true', '1', 't')
-    return render_template('client/faturas.html', faturas=current_user.faturas, inter_sandbox=inter_sandbox)
+    
+    # Passamos a variável otimizada faturas_carregadas para o HTML, cortando o lazy load do Jinja
+    return render_template('client/faturas.html', faturas=faturas_carregadas, inter_sandbox=inter_sandbox)
 
 @client_bp.route('/faturas/comprovante/<int:fatura_id>', methods=['POST'])
 @login_required
@@ -323,7 +335,8 @@ def remover_fatura(dia_id):
 @client_bp.route('/documentos')
 @login_required
 def documentos():
-    meus_docs = DocumentoCliente.query.filter_by(user_id=current_user.id).order_by(DocumentoCliente.data_envio.desc()).all()
+    # 🚀 OTIMIZAÇÃO: Já traz o template para a memória de uma vez
+    meus_docs = DocumentoCliente.query.options(joinedload(DocumentoCliente.template)).filter_by(user_id=current_user.id).order_by(DocumentoCliente.data_envio.desc()).all()
     return render_template('client/documentos.html', documentos=meus_docs)
 
 @client_bp.route('/api/status_documento/<int:doc_id>')
@@ -345,3 +358,4 @@ def ajuda():
     return render_template('client/ajuda.html', 
                            link_suporte=f"https://wa.me/5511991167709?text={msg_suporte_encoded}",
                            link_comercial=f"https://wa.me/5511920504850?text={msg_comercial_encoded}")
+

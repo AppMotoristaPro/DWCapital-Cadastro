@@ -215,10 +215,26 @@ def pagamentos():
                 dias_uteis.append(data_atual)
             data_atual += timedelta(days=1)
         
-        clientes_dados = []
+        # 🚀 OTIMIZAÇÃO (Problema N+1 resolvido)
+        # 1. Dispara a lógica de criação de faturas faltantes
         for c in ativos:
             auto_gerar_ciclo(c, data_base=inicio_ciclo)
-            fatura_atual = Fatura.query.options(joinedload(Fatura.dias)).filter_by(user_id=c.id, data_inicio=inicio_ciclo).first()
+            
+        # 2. Busca todas as faturas e dias do ciclo ativo em uma única query
+        user_ids = [c.id for c in ativos]
+        faturas_do_ciclo = []
+        if user_ids:
+            faturas_do_ciclo = Fatura.query.options(joinedload(Fatura.dias)).filter(
+                Fatura.user_id.in_(user_ids),
+                Fatura.data_inicio == inicio_ciclo
+            ).all()
+            
+        # 3. Transforma numa biblioteca de acesso instantâneo (memória)
+        mapa_faturas = {f.user_id: f for f in faturas_do_ciclo}
+        
+        clientes_dados = []
+        for c in ativos:
+            fatura_atual = mapa_faturas.get(c.id)
             detalhes_corretoras = {}
             
             if fatura_atual:
@@ -250,7 +266,6 @@ def pagamentos():
         
         gavetas = []
         for dt_ini, dt_fim in ciclos_db:
-            # Removido filtro de isenção e modelo para que todos os ativos gerem a gaveta
             todas_faturas = Fatura.query.join(User).filter(
                 Fatura.data_inicio == dt_ini,
                 User.status_acesso == 'ativo'
@@ -282,10 +297,20 @@ def exportar_pendencias():
         User.status_acesso == 'ativo'
     ).order_by(User.nome.asc()).all()
     
+    # 🚀 OTIMIZAÇÃO (Problema N+1 resolvido na exportação também)
+    user_ids = [c.id for c in ativos]
+    todas_faturas = []
+    if user_ids:
+        todas_faturas = Fatura.query.options(joinedload(Fatura.dias)).filter(Fatura.user_id.in_(user_ids)).all()
+        
+    faturas_por_cliente = {}
+    for f in todas_faturas:
+        faturas_por_cliente.setdefault(f.user_id, []).append(f)
+    
     dados_planilha = []
     
     for c in ativos:
-        faturas = Fatura.query.options(joinedload(Fatura.dias)).filter_by(user_id=c.id).all()
+        faturas = faturas_por_cliente.get(c.id, [])
         dias_set = set()
         
         for fatura_atual in faturas:
@@ -584,3 +609,4 @@ def reprocessar_notas_antigas():
     flash(f'Reprocessamento concluído com sucesso! {sucesso} notas financeiras foram corrigidas com o novo motor unificado ({erros} não puderam ser lidas).', 'success')
     
     return redirect(url_for('admin.dashboard'))
+
