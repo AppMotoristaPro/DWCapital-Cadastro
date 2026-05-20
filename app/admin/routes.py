@@ -45,6 +45,7 @@ def dashboard():
 def clientes_list():
     busca = request.args.get('q', '')
     status_filtro = request.args.get('status', '')
+    page = request.args.get('page', 1, type=int)
     
     query = User.query.filter_by(role='cliente').options(joinedload(User.alocacoes))
     
@@ -53,8 +54,8 @@ def clientes_list():
     if status_filtro:
         query = query.filter_by(status_acesso=status_filtro)
         
-    clientes = query.order_by(User.nome.asc()).all()
-    return render_template('admin/index.html', clientes=clientes, busca=busca, status_filtro=status_filtro)
+    pagination = query.order_by(User.nome.asc()).paginate(page=page, per_page=20, error_out=False)
+    return render_template('admin/index.html', pagination=pagination, busca=busca, status_filtro=status_filtro)
 
 @admin_bp.route('/liberar_cliente', methods=['POST'])
 @admin_required
@@ -215,7 +216,6 @@ def pagamentos():
                 dias_uteis.append(data_atual)
             data_atual += timedelta(days=1)
         
-        # 🚀 OTIMIZAÇÃO (Item 1 e 2 Resolvidos): Escrita Lote + Eager Load
         auto_gerar_ciclos_em_lote(ativos, data_base=inicio_ciclo)
             
         user_ids = [c.id for c in ativos]
@@ -387,11 +387,10 @@ def isentar_dia_global():
             dia.zerar_valores(isentar=True)
             faturas_afetadas.add(dia.fatura_semanal)
             
-        # 🚀 OTIMIZAÇÃO (Item 2): Removemos o atualizar_totais_semana (que possuia commits no loop)
         for fatura in faturas_afetadas:
             fatura.recalcular_totais()
         
-        db.session.commit() # Um único commit no final
+        db.session.commit()
             
         registrar_log(f"Isentou globalmente o dia {data_alvo.strftime('%d/%m/%Y')} para toda a base.", "Pagamentos")
         flash(f'O dia {data_alvo.strftime("%d/%m/%Y")} foi isentado para todos os clientes!', 'success')
@@ -468,14 +467,16 @@ def gerar_senha_temporaria(id):
 @admin_required
 def atividades():
     busca = request.args.get('q', '')
+    page = request.args.get('page', 1, type=int)
+    
     query = LogAuditoria.query
     if busca:
         query = query.filter(
             (LogAuditoria.admin_nome.ilike(f'%{busca}%')) | (LogAuditoria.acao_detalhada.ilike(f'%{busca}%')) | 
             (LogAuditoria.categoria.ilike(f'%{busca}%'))
         )
-    logs = query.order_by(LogAuditoria.timestamp.desc()).limit(200).all()
-    return render_template('admin/atividades.html', logs=logs, busca=busca)
+    pagination = query.order_by(LogAuditoria.timestamp.desc()).paginate(page=page, per_page=30, error_out=False)
+    return render_template('admin/atividades.html', pagination=pagination, busca=busca)
 
 @admin_bp.route('/documentos')
 @admin_required
@@ -598,7 +599,6 @@ def reprocessar_notas_antigas():
             print(f"Erro ao reprocessar dia {dia.id}: {str(e)}")
             erros += 1
             
-    # 🚀 OTIMIZAÇÃO (Item 2): Removemos o atualizar_totais_semana e o commit excessivo
     for fatura in faturas_afetadas:
         fatura.recalcular_totais()
         
