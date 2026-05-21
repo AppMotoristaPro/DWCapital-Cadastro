@@ -2,81 +2,46 @@
 
 {% block client_content %}
 <div class="max-w-2xl mx-auto pb-20 flex flex-col items-center justify-center min-h-[70vh]">
-    
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div class="mb-8 w-full">
-        {% for category, message in messages %}
-          <div class="p-4 rounded-xl font-bold shadow-sm text-sm text-center {% if category == 'danger' %}bg-red-50 text-red-700 border border-red-100{% else %}bg-green-50 text-green-700 border border-green-100{% endif %}">
-            {{ message }}
-          </div>
-        {% endfor %}
-        </div>
-      {% endif %}
-    {% endwith %}
-
     <div class="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden border border-white w-full">
         <div class="bg-gradient-to-br from-navy to-royal-dark p-10 text-white text-center relative overflow-hidden">
-            <div class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center mix-blend-overlay opacity-10"></div>
-            <p class="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-2 relative z-10">Compliance DW Capital</p>
             <h2 class="text-3xl font-black tracking-tight relative z-10">Autenticação Contratual</h2>
+            <p class="text-[10px] font-black text-blue-200 uppercase tracking-widest mt-2 relative z-10">Assine para liberar seu acesso</p>
         </div>
 
-        <div class="p-12 text-center">
-            {% if documento_enviado %}
-                <div class="flex justify-center mb-8">
-                    <div class="w-24 h-24 bg-blue-50 text-royal rounded-[2rem] flex items-center justify-center shadow-inner border border-blue-100">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M2 2a2 2 0 0 0-2 2v8.01A2 2 0 0 0 2 14h5.5a.5.5 0 0 0 0-1H2a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3.5a.5.5 0 0 0 1 0V4a2 2 0 0 0-2-2H2Zm3.434 4.132L8 9.283l2.566-3.151C10.156 5.86 9.096 5.5 8 5.5c-1.096 0-2.156.36-2.566.632Z"/>
-                            <path d="M16 12.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Zm-1.993-1.679a.5.5 0 0 0-.686.172l-1.17 1.95-.547-.547a.5.5 0 0 0-.708.708l.774.773a.75.75 0 0 0 1.174-.144l1.335-2.226a.5.5 0 0 0-.172-.686Z"/>
-                        </svg>
+        <div class="p-10">
+            <h3 class="text-lg font-black text-navy mb-6 text-center">Documentos Pendentes ({{ documentos|length }})</h3>
+            <div class="space-y-4">
+                {% for doc in documentos %}
+                <div class="p-5 border border-gray-100 rounded-2xl bg-gray-50 flex justify-between items-center">
+                    <div>
+                        <p class="font-black text-navy text-sm">{{ doc.template.nome }}</p>
+                        <p class="text-[10px] font-bold text-gray-400 uppercase">Status: Pendente de assinatura</p>
                     </div>
+                    {% if doc.link_assinatura %}
+                    <a href="{{ doc.link_assinatura }}" target="_blank" class="text-royal font-black text-xs hover:underline">Assinar Agora</a>
+                    {% else %}
+                    <span class="text-gray-400 text-xs">Aguardando API...</span>
+                    {% endif %}
                 </div>
-                
-                <h3 class="text-2xl font-black text-navy mb-4">Aguardando sua assinatura...</h3>
-                <p class="text-gray-500 mb-10 font-medium text-sm leading-relaxed px-4">
-                    O documento foi enviado para caixa de entrada do e-mail <strong class="text-navy bg-gray-50 px-2 py-1 rounded">{{ current_user.email }}</strong>, verifique também a caixa de spam.<br><br>
-                    Realize a assinatura do documento no site da Autentique. <br><span class="text-royal font-bold mt-2 inline-block">O painel será liberado automaticamente.</span>
-                </p>
-                
-                <div class="flex items-center justify-center space-x-3 bg-gray-50 text-gray-500 font-black uppercase tracking-widest text-[10px] p-5 rounded-2xl border border-gray-100">
-                    <svg class="animate-spin h-4 w-4 text-royal" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Sincronizando com a Autentique...</span>
-                </div>
+                {% endfor %}
+            </div>
 
-                <script>
-                    setInterval(async () => {
-                        try {
-                            const response = await fetch("{{ url_for('client.api_status_assinatura') }}");
-                            const data = await response.json();
-                            if (data.assinado) window.location.href = "{{ url_for('client.dashboard') }}";
-                        } catch (e) {}
-                    }, 5000);
-                </script>
-                
-            {% else %}
-                <div class="flex justify-center mb-8">
-                    <div class="w-24 h-24 bg-red-50 text-red-500 rounded-[2rem] flex items-center justify-center shadow-inner border border-red-100">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
-                            <path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/>
-                        </svg>
-                    </div>
+            <div class="mt-10 text-center text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                <p>Verificando assinaturas em tempo real...</p>
+                <div class="w-full h-1 bg-gray-100 mt-3 rounded-full overflow-hidden">
+                    <div class="h-full bg-royal animate-pulse"></div>
                 </div>
+            </div>
 
-                <h3 class="text-2xl font-black text-navy mb-4">Falha de Integração</h3>
-                <p class="text-gray-500 mb-10 font-medium text-sm leading-relaxed px-4">
-                    Não foi possível despachar o documento para o serviço de assinaturas. Por favor, reinicie a operação.
-                </p>
-                
-                <a href="{{ url_for('client.assinar_termo') }}" class="block w-full py-5 bg-navy hover:bg-gray-900 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-md transition-all">
-                    Tentar Novamente
-                </a>
-            {% endif %}
-            
+            <script>
+                setInterval(async () => {
+                    try {
+                        const response = await fetch("{{ url_for('client.api_status_assinatura') }}");
+                        const data = await response.json();
+                        if (data.assinado) window.location.href = "{{ url_for('client.dashboard') }}";
+                    } catch (e) {}
+                }, 3000);
+            </script>
         </div>
     </div>
 </div>

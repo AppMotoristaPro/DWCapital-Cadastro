@@ -164,6 +164,7 @@ class DocumentoTemplate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(100), nullable=False) 
     arquivo_local = db.Column(db.String(100), nullable=False)
+    is_onboarding = db.Column(db.Boolean, default=False) # FASE 1: Etiqueta Inteligente
     data_criacao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     
 class DocumentoCliente(db.Model):
@@ -171,9 +172,10 @@ class DocumentoCliente(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     template_id = db.Column(db.Integer, db.ForeignKey('documento_template.id'), nullable=False)
     
-    autentique_document_id = db.Column(db.String(100), nullable=False)
+    # FASE 1 e 3: Agora aceitam vazio (None), pois serão preenchidos apenas no Login pelo motor Just-in-Time
+    autentique_document_id = db.Column(db.String(100), nullable=True)
     link_assinatura = db.Column(db.String(255), nullable=True) 
-    status = db.Column(db.String(20), default='pendente')
+    status = db.Column(db.String(20), default='na_fila') 
     
     data_envio = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     data_assinatura = db.Column(db.DateTime, nullable=True)
@@ -183,3 +185,4 @@ class DocumentoCliente(db.Model):
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+

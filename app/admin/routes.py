@@ -71,7 +71,7 @@ def liberar_cliente():
 
     novo = User(cpf=cpf, nome=nome_temp, role='cliente', status_acesso='pendente_cadastro', is_isento=is_isento, modelo_negocio=modelo_negocio)
     db.session.add(novo)
-    db.session.flush()
+    db.session.flush() # Necessário para pegar o novo.id gerado
     
     hoje = datetime.now(tz_br).date()
     
@@ -86,12 +86,24 @@ def liberar_cliente():
         fim_ciclo = inicio_ciclo + timedelta(days=6)
         fatura = Fatura(user_id=novo.id, data_inicio=inicio_ciclo, data_fim=fim_ciclo)
         db.session.add(fatura)
+        
+    # FASE 3: Automação Onboarding - Joga os contratos obrigatórios na fila de disparo do cliente
+    templates_onboarding = DocumentoTemplate.query.filter_by(is_onboarding=True).all()
+    if templates_onboarding:
+        docs_onboarding = [
+            DocumentoCliente(
+                user_id=novo.id,
+                template_id=t.id,
+                status='na_fila'
+            ) for t in templates_onboarding
+        ]
+        db.session.add_all(docs_onboarding)
     
     status_isento_str = "Sim" if is_isento else "Não"
     registrar_log(f"Liberou novo acesso pré-cadastro para o CPF {cpf} (Nome: {nome_temp}, Isento: {status_isento_str}, Modelo: {modelo_negocio.upper()}).", "Clientes")
     
     db.session.commit()
-    flash('Acesso liberado e conta inicial preparada!', 'success')
+    flash('Acesso liberado e conta inicial preparada com contratos de onboarding na fila!', 'success')
     return redirect(url_for('admin.clientes_list'))
 
 @admin_bp.route('/editar/<int:id>', methods=['GET', 'POST'])
@@ -496,10 +508,13 @@ def documentos():
 def cadastrar_template():
     nome = request.form.get('nome')
     arquivo_local = request.form.get('arquivo_local')
+    is_onboarding = True if request.form.get('is_onboarding') else False
     
-    novo_temp = DocumentoTemplate(nome=nome, arquivo_local=arquivo_local)
+    novo_temp = DocumentoTemplate(nome=nome, arquivo_local=arquivo_local, is_onboarding=is_onboarding)
     db.session.add(novo_temp)
-    registrar_log(f"Cadastrou novo Modelo de Contrato: {nome}.", "Assinaturas")
+    
+    status_msg = "obrigatório no primeiro acesso" if is_onboarding else "padrão"
+    registrar_log(f"Cadastrou novo Modelo de Contrato {status_msg}: {nome}.", "Assinaturas")
     db.session.commit()
     
     flash(f'Modelo "{nome}" registrado! Certifique-se de que o arquivo "{arquivo_local}" esteja na pasta static/documentos/.', 'success')
@@ -515,14 +530,14 @@ def disparar_documento():
         enviados, erros, sem_email, nome_template = disparar_lote(template_id, user_ids)
         
         if enviados > 0:
-            registrar_log(f"Disparou contrato '{nome_template}' via arquivo local para {enviados} investidores.", "Assinaturas")
-            flash(f'{enviados} documentos enviados com sucesso!', 'success')
+            registrar_log(f"Enfileirou contrato '{nome_template}' para disparo futuro a {enviados} investidores.", "Assinaturas")
+            flash(f'{enviados} documentos entraram na fila de assinatura dos clientes!', 'success')
             
         if sem_email:
             flash(f'Clientes sem e-mail ignorados: {", ".join(sem_email)}', 'error')
             
         if erros > 0:
-            flash(f'Houve erro técnico em {erros} envios.', 'error')
+            flash(f'Houve erro técnico ao enfileirar {erros} envios.', 'error')
             
     except FileNotFoundError as e:
         flash(str(e), 'error')
@@ -544,9 +559,30 @@ def api_disparar_unico():
     resultado = disparar_unico(template_id, user_id)
     
     if resultado.get("success"):
-        registrar_log(f"Disparou contrato '{resultado.get('nome_template')}' via arquivo local para o ID de cliente {user_id}.", "Assinaturas")
+        registrar_log(f"Enfileirou contrato '{resultado.get('nome_template')}' para o ID de cliente {user_id}.", "Assinaturas")
         
     return jsonify(resultado)
+
+@admin_bp.route('/documentos/excluir/<int:doc_id>', methods=['POST'])
+@admin_required
+def excluir_documento_cliente(doc_id):
+    """Fase 2: Botão de Pânico para cancelar documentos enfileirados ou pendentes."""
+    doc = DocumentoCliente.query.get_or_404(doc_id)
+    
+    if doc.status == 'assinado':
+        flash('Não é possível excluir ou cancelar um documento que já foi assinado pelo parceiro.', 'error')
+        return redirect(url_for('admin.documentos'))
+    
+    nome_doc = doc.template.nome
+    nome_cliente = doc.cliente.nome
+    
+    db.session.delete(doc)
+    registrar_log(f"Cancelou e excluiu o documento '{nome_doc}' da fila do parceiro {nome_cliente}.", "Assinaturas")
+    db.session.commit()
+    
+    flash('Documento removido e cancelado com sucesso!', 'success')
+    return redirect(url_for('admin.documentos'))
+
 
 @admin_bp.route('/reprocessar_notas_antigas', methods=['GET'])
 @admin_required
