@@ -305,19 +305,10 @@ def exportar_pendencias():
         User.status_acesso == 'ativo'
     ).order_by(User.nome.asc()).all()
     
-    user_ids = [c.id for c in ativos]
-    todas_faturas = []
-    if user_ids:
-        todas_faturas = Fatura.query.options(joinedload(Fatura.dias)).filter(Fatura.user_id.in_(user_ids)).all()
-        
-    faturas_por_cliente = {}
-    for f in todas_faturas:
-        faturas_por_cliente.setdefault(f.user_id, []).append(f)
-    
     dados_planilha = []
     
     for c in ativos:
-        faturas = faturas_por_cliente.get(c.id, [])
+        faturas = Fatura.query.options(joinedload(Fatura.dias)).filter_by(user_id=c.id).all()
         dias_set = set()
         
         for fatura_atual in faturas:
@@ -496,10 +487,13 @@ def documentos():
     templates = DocumentoTemplate.query.all()
     clientes = User.query.filter_by(role='cliente', status_acesso='ativo').order_by(User.nome.asc()).all()
     
-    historico = DocumentoCliente.query.options(
-        joinedload(DocumentoCliente.cliente), 
-        joinedload(DocumentoCliente.template)
-    ).order_by(DocumentoCliente.data_envio.desc()).limit(100).all()
+    # FASE 2: Filtrando para não exibir documentos de onboarding no histórico
+    historico = DocumentoCliente.query.join(DocumentoTemplate)\
+        .filter(DocumentoTemplate.is_onboarding == False)\
+        .options(
+            joinedload(DocumentoCliente.cliente), 
+            joinedload(DocumentoCliente.template)
+        ).order_by(DocumentoCliente.data_envio.desc()).limit(100).all()
     
     return render_template('admin/documentos.html', templates=templates, clientes=clientes, historico=historico)
 
@@ -523,14 +517,18 @@ def cadastrar_template():
 @admin_bp.route('/documentos/disparar', methods=['POST'])
 @admin_required
 def disparar_documento():
-    template_id = request.form.get('template_id')
+    template_ids = request.form.getlist('template_ids[]')
     user_ids = request.form.getlist('clientes[]')
     
+    if not template_ids or not user_ids:
+        flash('Selecione ao menos um modelo e um cliente.', 'error')
+        return redirect(url_for('admin.documentos'))
+        
     try:
-        enviados, erros, sem_email, nome_template = disparar_lote(template_id, user_ids)
+        enviados, erros, sem_email, nome_template = disparar_lote(template_ids, user_ids)
         
         if enviados > 0:
-            registrar_log(f"Enfileirou contrato '{nome_template}' para disparo futuro a {enviados} investidores.", "Assinaturas")
+            registrar_log(f"Enfileirou contrato(s) '{nome_template}' para disparo futuro a {enviados} investidores.", "Assinaturas")
             flash(f'{enviados} documentos entraram na fila de assinatura dos clientes!', 'success')
             
         if sem_email:
@@ -566,7 +564,7 @@ def api_disparar_unico():
 @admin_bp.route('/documentos/excluir/<int:doc_id>', methods=['POST'])
 @admin_required
 def excluir_documento_cliente(doc_id):
-    """Fase 2: Botão de Pânico para cancelar documentos enfileirados ou pendentes."""
+    """Botão para cancelar documentos enfileirados ou pendentes (individual)."""
     doc = DocumentoCliente.query.get_or_404(doc_id)
     
     if doc.status == 'assinado':
@@ -583,6 +581,21 @@ def excluir_documento_cliente(doc_id):
     flash('Documento removido e cancelado com sucesso!', 'success')
     return redirect(url_for('admin.documentos'))
 
+@admin_bp.route('/documentos/excluir_pendentes', methods=['POST'])
+@admin_required
+def excluir_todos_pendentes():
+    """Botão de Pânico: Cancelar TODOS os documentos enfileirados/pendentes."""
+    try:
+        DocumentoCliente.query.filter(DocumentoCliente.status.in_(['na_fila', 'pendente'])).delete(synchronize_session=False)
+        db.session.commit()
+        
+        registrar_log("Cancelou e excluiu TODOS os documentos pendentes/na fila globalmente.", "Assinaturas")
+        flash('Todos os documentos pendentes foram removidos com sucesso da fila de disparo!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erro ao excluir em massa: {str(e)}', 'error')
+        
+    return redirect(url_for('admin.documentos'))
 
 @admin_bp.route('/reprocessar_notas_antigas', methods=['GET'])
 @admin_required
