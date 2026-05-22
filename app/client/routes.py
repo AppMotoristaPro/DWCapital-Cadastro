@@ -26,23 +26,20 @@ def check_paywall():
     if getattr(current_user, 'precisa_trocar_senha', False):
         return
         
-    # FASE 4: Nova Catraca de Segurança (Check Just-in-Time em tempo real)
+    # Identifica documentos pendentes ou na fila
     pendentes = DocumentoCliente.query.filter(
         DocumentoCliente.user_id == current_user.id,
-        DocumentoCliente.status.in_(['na_fila', 'pendente'])
+        DocumentoCliente.status.in_(['na_fila', 'pendente', 'processando'])
     ).first()
 
-    # HIERARQUIA 1: Assinatura de Documentos (Manda no fluxo)
+    # HIERARQUIA 1: Assinatura de Documentos (Prioridade Máxima)
     if pendentes:
         if request.endpoint not in ['client.assinar_termo', 'client.api_status_assinatura', 'auth.logout']:
             return redirect(url_for('client.assinar_termo'))
-        # Se ele já está na página de assinar, interrompe aqui. Não checa o financeiro ainda!
         return 
             
-    # HIERARQUIA 2: Bloqueio Financeiro (PIX) - Só roda se não houver documentos pendentes
-    if request.endpoint in ['client.bloqueio_pagamento', 'client.gerar_pix_licenca', 'client.status_licenca_api', 'auth.logout']:
-        pass
-    else:
+    # HIERARQUIA 2: Bloqueio Financeiro (PIX)
+    if request.endpoint not in ['client.bloqueio_pagamento', 'client.gerar_pix_licenca', 'client.status_licenca_api', 'auth.logout']:
         if getattr(current_user, 'modelo_negocio', 'comissao') == 'compra':
             hoje = datetime.now(tz_br).date()
             parcela_pendente = ParcelaCompra.query.filter(
@@ -126,33 +123,40 @@ def status_licenca_api(parcela_id):
 def dashboard():
     if getattr(current_user, 'precisa_trocar_senha', False):
         return redirect(url_for('auth.forcar_troca_senha'))
-        
     auto_gerar_ciclo(current_user)
-    
-    filtro_dia = request.args.get('dia')
-    filtro_semana_dia = request.args.get('semana_dia') 
-    filtro_ano = request.args.get('ano') 
-    
-    dados = obter_dados_dashboard_cliente(current_user.id, filtro_dia, filtro_semana_dia, filtro_ano)
+    dados = obter_dados_dashboard_cliente(current_user.id, request.args.get('dia'), request.args.get('semana_dia'), request.args.get('ano'))
     return render_template('client/index.html', user=current_user, **dados)
 
 @client_bp.route('/assinar')
 @login_required
 def assinar_termo():
     docs_na_fila = DocumentoCliente.query.filter_by(user_id=current_user.id, status='na_fila').all()
+    
     for doc in docs_na_fila:
         try:
+            # TRAVA DE ESTADO: Evita disparo duplicado se o usuário recarregar a página
+            doc.status = 'processando'
+            db.session.commit()
+            
             caminho_pdf = os.path.join(current_app.root_path, 'static', 'documentos', doc.template.arquivo_local)
             nome_doc = f"{doc.template.nome} - {current_user.nome}"
+            
             doc_id, link = enviar_documento_local_com_link(current_user.nome, current_user.email, caminho_pdf, nome_doc)
+            
             doc.autentique_document_id = doc_id
             doc.link_assinatura = link
             doc.status = 'pendente'
             db.session.commit()
         except Exception as e:
+            doc.status = 'na_fila' # Rollback do status em caso de erro
+            db.session.commit()
             print(f"Erro ao disparar Just-in-Time: {e}")
 
-    pendentes = DocumentoCliente.query.filter_by(user_id=current_user.id, status='pendente').options(joinedload(DocumentoCliente.template)).all()
+    pendentes = DocumentoCliente.query.filter(
+        DocumentoCliente.user_id == current_user.id, 
+        DocumentoCliente.status.in_(['pendente', 'processando'])
+    ).options(joinedload(DocumentoCliente.template)).all()
+    
     return render_template('client/assinar_termo.html', documentos=pendentes)
 
 @client_bp.route('/api/status_assinatura')
@@ -180,20 +184,17 @@ def faturas():
     if request.method == 'GET':
         houve_alteracao = False
         data_cadastro = current_user.data_cadastro.date() if current_user.data_cadastro else datetime.min.date()
-        
         for fatura in faturas_carregadas:
             for dia in list(fatura.dias):
                 if dia.data_pregao.weekday() >= 5:
                     db.session.delete(dia)
                     houve_alteracao = True
-                    
             datas_da_semana = []
             data_atual = fatura.data_inicio
             while len(datas_da_semana) < 5:
                 if data_atual.weekday() < 5 and data_atual >= data_cadastro:
                     datas_da_semana.append(data_atual)
                 data_atual += timedelta(days=1)
-                
             dias_existentes = { (d.data_pregao, d.nome_corretora) for d in fatura.dias }
             for data in datas_da_semana:
                 for alocacao in current_user.alocacoes:
@@ -201,7 +202,6 @@ def faturas():
                         novo_dia = FaturaDiaria(fatura_id=fatura.id, data_pregao=data, nome_corretora=alocacao.nome_corretora, status='pendente')
                         db.session.add(novo_dia)
                         houve_alteracao = True
-                        
         if houve_alteracao:
             try: db.session.commit()
             except IntegrityError: db.session.rollback()
