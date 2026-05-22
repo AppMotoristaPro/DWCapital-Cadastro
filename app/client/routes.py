@@ -26,18 +26,20 @@ def check_paywall():
     if getattr(current_user, 'precisa_trocar_senha', False):
         return
         
-    # FASE 4: Nova Catraca de Segurança (Check Just-in-Time em tempo real com 'first' para ser ultra rápido)
-    # Removido o Cache de Sessão para garantir que envios avulsos bloqueiem o usuário imediatamente
+    # FASE 4: Nova Catraca de Segurança (Check Just-in-Time em tempo real)
     pendentes = DocumentoCliente.query.filter(
         DocumentoCliente.user_id == current_user.id,
         DocumentoCliente.status.in_(['na_fila', 'pendente'])
     ).first()
 
+    # HIERARQUIA 1: Assinatura de Documentos (Manda no fluxo)
     if pendentes:
         if request.endpoint not in ['client.assinar_termo', 'client.api_status_assinatura', 'auth.logout']:
             return redirect(url_for('client.assinar_termo'))
+        # Se ele já está na página de assinar, interrompe aqui. Não checa o financeiro ainda!
+        return 
             
-    # Bloqueio Financeiro (PIX)
+    # HIERARQUIA 2: Bloqueio Financeiro (PIX) - Só roda se não houver documentos pendentes
     if request.endpoint in ['client.bloqueio_pagamento', 'client.gerar_pix_licenca', 'client.status_licenca_api', 'auth.logout']:
         pass
     else:
