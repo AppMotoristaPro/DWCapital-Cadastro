@@ -144,8 +144,12 @@
                                     <span class="text-xs font-bold text-gray-600">{{ doc.cliente.nome }}</span>
                                 </td>
                                 <td class="px-6 py-6">
-                                    <span class="text-[10px] font-bold text-gray-500 tracking-widest uppercase block">{{ doc.data_envio.strftime('%d/%m/%Y') }}</span>
-                                    <span class="text-[9px] font-black text-gray-400">{{ doc.data_envio.strftime('%H:%M') }}</span>
+                                    {% if doc.data_envio %}
+                                        <span class="text-[10px] font-bold text-gray-500 tracking-widest uppercase block">{{ doc.data_envio.strftime('%d/%m/%Y') }}</span>
+                                        <span class="text-[9px] font-black text-gray-400">{{ doc.data_envio.strftime('%H:%M') }}</span>
+                                    {% else %}
+                                        <span class="text-[10px] font-bold text-gray-500 tracking-widest uppercase block">Recém criado</span>
+                                    {% endif %}
                                 </td>
                                 <td class="px-6 py-6 text-center">
                                     {% if doc.status == 'assinado' %}

@@ -38,13 +38,14 @@ def disparar_lote(template_ids, user_ids):
                     continue
                     
                 try:
-                    # Cria a pendência e coloca na fila do usuário
+                    # CORREÇÃO: Preenche a data de envio para não quebrar a ordenação no admin
                     novo_doc = DocumentoCliente(
                         user_id=cliente.id,
                         template_id=template.id,
                         autentique_document_id=None,
                         link_assinatura=None,
-                        status='na_fila'
+                        status='na_fila',
+                        data_envio=datetime.now(tz_br)
                     )
                     novos_docs.append(novo_doc)
                     enviados += 1
@@ -83,13 +84,14 @@ def disparar_unico(template_id, user_id):
         return {"success": False, "message": "Cliente não possui e-mail cadastrado."}
         
     try:
-        # Cria a pendência e coloca na fila do usuário
+        # CORREÇÃO: Preenche a data de envio para não quebrar a ordenação no admin
         novo_doc = DocumentoCliente(
             user_id=cliente.id,
             template_id=template.id,
             autentique_document_id=None,
             link_assinatura=None,
-            status='na_fila'
+            status='na_fila',
+            data_envio=datetime.now(tz_br)
         )
         db.session.add(novo_doc)
         db.session.commit()
