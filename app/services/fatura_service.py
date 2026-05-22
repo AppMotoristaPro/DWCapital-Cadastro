@@ -20,6 +20,12 @@ def auto_gerar_ciclo(user, data_base=None):
     dias_para_sexta = (hoje.weekday() - 4) % 7
     inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
     fim_ciclo = inicio_ciclo + timedelta(days=6)
+    
+    data_cadastro = user.data_cadastro.date() if user.data_cadastro else datetime.min.date()
+    
+    # Trava Temporal: Não gera ciclo se a semana encerrou antes do cliente entrar
+    if fim_ciclo < data_cadastro:
+        return
 
     fatura_existente = Fatura.query.filter_by(user_id=user.id, data_inicio=inicio_ciclo).first()
 
@@ -45,7 +51,8 @@ def auto_gerar_ciclo(user, data_base=None):
         dias_uteis = []
         data_atual = inicio_ciclo
         while len(dias_uteis) < 5 and data_atual <= fim_ciclo:
-            if data_atual.weekday() < 5:
+            # Trava Temporal: Só adiciona o dia útil se for maior ou igual à data de entrada
+            if data_atual.weekday() < 5 and data_atual >= data_cadastro:
                 dias_uteis.append(data_atual)
             data_atual += timedelta(days=1)
             
@@ -104,6 +111,13 @@ def auto_gerar_ciclos_em_lote(users, data_base=None):
     for user in users:
         if not user.alocacoes:
             continue
+            
+        data_cadastro = user.data_cadastro.date() if user.data_cadastro else datetime.min.date()
+        
+        # Trava Temporal Lote
+        if fim_ciclo < data_cadastro:
+            continue
+            
         if user.id not in mapa_faturas:
             nova_fatura = Fatura(
                 user_id=user.id,
@@ -150,8 +164,14 @@ def auto_gerar_ciclos_em_lote(users, data_base=None):
         fatura = mapa_faturas.get(user.id)
         if not fatura:
             continue
+            
+        data_cadastro = user.data_cadastro.date() if user.data_cadastro else datetime.min.date()
         
         for data in dias_uteis:
+            # Trava Temporal: só adiciona o dia se for maior ou igual à entrada do cliente
+            if data < data_cadastro:
+                continue
+                
             for alocacao in user.alocacoes:
                 chave = (fatura.id, data, alocacao.nome_corretora)
                 if chave not in mapa_dias:

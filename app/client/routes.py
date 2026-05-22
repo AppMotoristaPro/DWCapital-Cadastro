@@ -185,17 +185,22 @@ def faturas():
 
     if request.method == 'GET':
         houve_alteracao = False
+        data_cadastro = current_user.data_cadastro.date() if current_user.data_cadastro else datetime.min.date()
+        
         for fatura in faturas_carregadas:
             for dia in list(fatura.dias):
                 if dia.data_pregao.weekday() >= 5:
                     db.session.delete(dia)
                     houve_alteracao = True
+                    
             datas_da_semana = []
             data_atual = fatura.data_inicio
             while len(datas_da_semana) < 5:
-                if data_atual.weekday() < 5:
+                # Trava Temporal no frontend do cliente
+                if data_atual.weekday() < 5 and data_atual >= data_cadastro:
                     datas_da_semana.append(data_atual)
                 data_atual += timedelta(days=1)
+                
             dias_existentes = { (d.data_pregao, d.nome_corretora) for d in fatura.dias }
             for data in datas_da_semana:
                 for alocacao in current_user.alocacoes:
@@ -203,6 +208,7 @@ def faturas():
                         novo_dia = FaturaDiaria(fatura_id=fatura.id, data_pregao=data, nome_corretora=alocacao.nome_corretora, status='pendente')
                         db.session.add(novo_dia)
                         houve_alteracao = True
+                        
         if houve_alteracao:
             try: db.session.commit()
             except IntegrityError: db.session.rollback()
