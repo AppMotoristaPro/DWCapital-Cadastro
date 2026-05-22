@@ -13,7 +13,7 @@
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
         <form method="GET" action="{{ url_for('admin.pagamentos') }}" class="flex gap-4 bg-white/60 backdrop-blur-xl p-3 rounded-[2rem] shadow-sm border border-white w-full md:w-max">
             <input type="date" name="ciclo" required class="flex-1 px-5 py-3 outline-none text-sm font-bold text-navy bg-white rounded-xl border border-gray-100 cursor-pointer shadow-inner">
-            <button type="submit" class="px-8 py-3 bg-navy text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition shadow-md">Carregar Gaveta</button>
+            <button type="submit" class="px-8 py-3 bg-navy text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition shadow-md">Carregar Ciclo</button>
         </form>
         
         <a href="{{ url_for('admin.exportar_pendencias') }}" class="flex items-center gap-2 px-6 py-4 bg-green-50 hover:bg-green-600 text-green-700 hover:text-white rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition border border-green-200 shadow-sm shrink-0 group w-full md:w-auto justify-center">
@@ -181,3 +181,4 @@
     {% endif %}
 </div>
 {% endblock %}
+

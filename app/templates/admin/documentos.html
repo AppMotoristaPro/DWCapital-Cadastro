@@ -34,13 +34,18 @@
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                     
                     <div>
-                        <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Modelo Selecionado</label>
-                        <select name="template_id" required class="w-full px-5 py-4 bg-white border border-gray-200 rounded-xl outline-none font-bold text-sm text-navy focus:border-purple-400 shadow-inner transition cursor-pointer">
-                            <option value="" disabled selected>Escolha o documento...</option>
+                        <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Selecionar Modelos</label>
+                        <div class="bg-white border border-gray-200 rounded-xl max-h-48 overflow-y-auto p-3 space-y-1 custom-scrollbar shadow-inner relative">
                             {% for temp in templates %}
-                                <option value="{{ temp.id }}">{{ temp.nome }}</option>
+                            <label class="flex items-center p-3 hover:bg-gray-50 rounded-lg cursor-pointer border border-transparent hover:border-gray-200 transition group">
+                                <input type="checkbox" name="template_ids[]" value="{{ temp.id }}" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer temp-checkbox">
+                                <span class="ml-3 text-xs font-bold text-navy transition">{{ temp.nome }}</span>
+                            </label>
+                            {% else %}
+                            <p class="text-xs text-gray-400 font-medium p-4 text-center">Nenhum modelo cadastrado.</p>
                             {% endfor %}
-                        </select>
+                        </div>
+                        <p class="text-[9px] text-gray-400 mt-2 font-bold uppercase tracking-widest text-right">*Múltipla seleção permitida</p>
                     </div>
 
                     <div>
@@ -63,7 +68,6 @@
                             <p class="text-xs text-gray-400 font-medium p-4 text-center">Nenhum parceiro ativo.</p>
                             {% endfor %}
                         </div>
-                        <p class="text-[9px] text-gray-400 mt-2 font-bold uppercase tracking-widest text-right">*Múltipla seleção permitida</p>
                     </div>
 
                     <button type="submit" class="w-full py-4 bg-gradient-to-r from-purple-600 to-royal text-white font-black uppercase tracking-widest rounded-xl text-xs shadow-md hover:shadow-lg hover:-translate-y-0.5 transition border border-purple-700">Disparar Lote</button>
@@ -82,7 +86,19 @@
                         <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 block mb-1">Arquivo Físico (.pdf)</label>
                         <input type="text" name="arquivo_local" placeholder="Ex: aditivo_v1.pdf" required class="w-full px-5 py-3.5 bg-white border border-gray-200 rounded-xl outline-none font-bold text-xs text-navy focus:border-gray-400 transition font-mono shadow-sm">
                     </div>
-                    <button type="submit" class="w-full py-4 bg-white text-gray-600 hover:bg-navy hover:text-white border border-gray-200 font-black uppercase tracking-widest rounded-xl text-[10px] transition shadow-sm">Salvar Modelo no Banco</button>
+                    
+                    <div class="mt-4 p-4 bg-purple-50/50 border border-purple-100 rounded-xl flex items-center justify-between shadow-sm">
+                        <div>
+                            <p class="text-[10px] font-black text-purple-900 uppercase tracking-widest">Obrigatório (Onboarding)</p>
+                            <p class="text-[9px] text-purple-600/80 font-bold mt-1">Exigir no primeiro acesso.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer ml-4 shrink-0">
+                            <input type="checkbox" name="is_onboarding" value="1" class="sr-only peer">
+                            <div class="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600 shadow-inner"></div>
+                        </label>
+                    </div>
+
+                    <button type="submit" class="w-full py-4 bg-white text-gray-600 hover:bg-navy hover:text-white border border-gray-200 font-black uppercase tracking-widest rounded-xl text-[10px] transition shadow-sm mt-2">Salvar Modelo no Banco</button>
                 </form>
             </div>
             
@@ -90,22 +106,32 @@
 
         <div class="lg:col-span-2">
             <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden">
-                <div class="p-8 border-b border-gray-100 bg-white/50 flex justify-between items-center">
+                <div class="p-8 border-b border-gray-100 bg-white/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
-                        <h2 class="text-xl font-black text-navy tracking-tight">Histórico de Disparos</h2>
+                        <h2 class="text-xl font-black text-navy tracking-tight">Histórico de Disparos Avulsos</h2>
                         <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Cofre Administrativo</p>
                     </div>
-                    <span class="px-4 py-2 bg-gray-50 border border-gray-200 text-gray-500 text-[9px] font-black uppercase tracking-widest rounded-lg shadow-sm">Top 100 Registros</span>
+                    
+                    <div class="flex items-center gap-3">
+                        <form action="{{ url_for('admin.excluir_todos_pendentes') }}" method="POST" onsubmit="return confirm('ATENÇÃO EXTREMA: Deseja cancelar e excluir TODOS os documentos que estão na fila ou pendentes de assinatura de TODOS os parceiros? Essa ação não pode ser desfeita.')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" class="px-4 py-2 bg-red-50 hover:bg-red-500 text-red-600 hover:text-white border border-red-200 hover:border-transparent text-[9px] font-black uppercase tracking-widest rounded-lg shadow-sm transition">
+                                Excluir Todos Pendentes
+                            </button>
+                        </form>
+                        <span class="px-4 py-2 bg-gray-50 border border-gray-200 text-gray-500 text-[9px] font-black uppercase tracking-widest rounded-lg shadow-sm">Top 100</span>
+                    </div>
                 </div>
                 
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
                         <thead class="bg-gray-50/50 border-b border-gray-100 text-gray-400 text-[10px] font-black uppercase tracking-wider">
                             <tr>
-                                <th class="px-8 py-5">Identificação do Lote</th>
+                                <th class="px-8 py-5">Identificação do Documento</th>
                                 <th class="px-6 py-5">Parceiro Destino</th>
                                 <th class="px-6 py-5">Data da Emissão</th>
-                                <th class="px-8 py-5 text-right">Status Atual</th>
+                                <th class="px-6 py-5 text-center">Status</th>
+                                <th class="px-8 py-5 text-right">Ação</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-50 bg-white">
@@ -121,21 +147,35 @@
                                     <span class="text-[10px] font-bold text-gray-500 tracking-widest uppercase block">{{ doc.data_envio.strftime('%d/%m/%Y') }}</span>
                                     <span class="text-[9px] font-black text-gray-400">{{ doc.data_envio.strftime('%H:%M') }}</span>
                                 </td>
-                                <td class="px-8 py-6 text-right">
+                                <td class="px-6 py-6 text-center">
                                     {% if doc.status == 'assinado' %}
                                         <span class="inline-flex items-center px-3 py-1.5 bg-green-50 text-green-600 border border-green-200 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm gap-1.5">
                                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> Assinado
                                         </span>
-                                    {% else %}
+                                    {% elif doc.status == 'pendente' %}
                                         <span class="inline-flex items-center px-3 py-1.5 bg-yellow-50 text-yellow-600 border border-yellow-200 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm gap-1.5">
                                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Pendente
                                         </span>
+                                    {% else %}
+                                        <span class="inline-flex items-center px-3 py-1.5 bg-gray-50 text-gray-500 border border-gray-200 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm gap-1.5">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Na Fila
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-8 py-6 text-right">
+                                    {% if doc.status in ['na_fila', 'pendente'] %}
+                                    <form action="{{ url_for('admin.excluir_documento_cliente', doc_id=doc.id) }}" method="POST" class="inline" onsubmit="return confirm('ATENÇÃO: Deseja cancelar e excluir o envio deste documento para este parceiro?')">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                        <button type="submit" class="text-[10px] font-black text-red-500 hover:text-red-700 uppercase tracking-widest transition border border-red-200 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg shadow-sm">Excluir</button>
+                                    </form>
+                                    {% else %}
+                                    <span class="text-[10px] font-black text-gray-300 uppercase tracking-widest">Trancado</span>
                                     {% endif %}
                                 </td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="4" class="px-8 py-16 text-center text-gray-400 font-medium">
+                                <td colspan="5" class="px-8 py-16 text-center text-gray-400 font-medium">
                                     Nenhum contrato disparado pela mesa.
                                 </td>
                             </tr>
@@ -156,8 +196,8 @@
             <svg class="w-8 h-8 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
         </div>
         
-        <h3 class="text-xl font-black text-navy mb-2">Disparando Lote...</h3>
-        <p id="progresso-texto" class="text-xs text-gray-500 font-medium mb-6">Iniciando comunicação com a Autentique...</p>
+        <h3 class="text-xl font-black text-navy mb-2">Enfileirando Lote...</h3>
+        <p id="progresso-texto" class="text-xs text-gray-500 font-medium mb-6">Reservando contratos na base de dados (Just-in-Time)...</p>
         
         <div class="h-3 w-full bg-gray-100 rounded-full overflow-hidden shadow-inner mb-4">
             <div id="barra-progresso" class="h-full bg-gradient-to-r from-purple-600 to-royal transition-all duration-300 w-0"></div>
@@ -191,16 +231,20 @@ document.getElementById('check-todos')?.addEventListener('change', function() {
 document.getElementById('form-disparo-lote').addEventListener('submit', async function(e) {
     e.preventDefault(); 
     
-    const templateSelect = document.querySelector('select[name="template_id"]');
-    const templateId = templateSelect.value;
+    const tempCheckboxes = document.querySelectorAll('.temp-checkbox:checked');
+    if(tempCheckboxes.length === 0) {
+        alert('Selecione ao menos um modelo de documento.');
+        return;
+    }
+    const templates = Array.from(tempCheckboxes).map(cb => cb.value);
     
-    const checkboxes = document.querySelectorAll('input[name="clientes[]"]:checked');
-    if(checkboxes.length === 0) {
+    const cliCheckboxes = document.querySelectorAll('.cli-checkbox:checked');
+    if(cliCheckboxes.length === 0) {
         alert('Selecione ao menos um parceiro na lista para efetuar o disparo.');
         return;
     }
     
-    if(!confirm(`Você está preste a enviar este contrato para ${checkboxes.length} parceiros.\nDeseja iniciar a esteira?`)) return;
+    if(!confirm(`Você está prestes a enfileirar ${templates.length} documento(s) para ${cliCheckboxes.length} parceiro(s) (Total: ${templates.length * cliCheckboxes.length} envios).\nDeseja iniciar a esteira?`)) return;
 
     const modal = document.getElementById('modal-progresso-disparo');
     const barra = document.getElementById('barra-progresso');
@@ -218,50 +262,55 @@ document.getElementById('form-disparo-lote').addEventListener('submit', async fu
     
     let sucesso = 0;
     let falha = 0;
-    const total = checkboxes.length;
+    const total = templates.length * cliCheckboxes.length;
+    let processados = 0;
     
-    for(let i = 0; i < total; i++) {
-        const userId = checkboxes[i].value;
-        const clientName = checkboxes[i].nextElementSibling.innerText;
-        
-        texto.innerText = `Processando a fila: ${clientName}...`;
-        
-        try {
-            const response = await fetch("{{ url_for('admin.api_disparar_unico') }}", {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token() }}'
-                },
-                body: JSON.stringify({
-                    template_id: templateId,
-                    user_id: userId
-                })
-            });
+    for(let tId of templates) {
+        for(let i = 0; i < cliCheckboxes.length; i++) {
+            const userId = cliCheckboxes[i].value;
+            const clientName = cliCheckboxes[i].nextElementSibling.innerText;
             
-            const data = await response.json();
+            texto.innerText = `Processando a fila: ${clientName}...`;
             
-            if(data.success) {
-                sucesso++;
-            } else {
+            try {
+                const response = await fetch("{{ url_for('admin.api_disparar_unico') }}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({
+                        template_id: tId,
+                        user_id: userId
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if(data.success) {
+                    sucesso++;
+                } else {
+                    falha++;
+                    divErros.classList.remove('hidden');
+                    listaErros.innerHTML += `<li>• ${clientName}: ${data.message}</li>`;
+                }
+            } catch(error) {
                 falha++;
                 divErros.classList.remove('hidden');
-                listaErros.innerHTML += `<li>• ${clientName}: ${data.message}</li>`;
+                listaErros.innerHTML += `<li>• ${clientName}: Timeout / Queda de Conexão.</li>`;
             }
-        } catch(error) {
-            falha++;
-            divErros.classList.remove('hidden');
-            listaErros.innerHTML += `<li>• ${clientName}: Timeout / Queda de Conexão.</li>`;
+            
+            processados++;
+            const perc = Math.round((processados / total) * 100);
+            barra.style.width = perc + '%';
+            contador.innerText = `${processados} de ${total} processados`;
         }
-        
-        const perc = Math.round(((i + 1) / total) * 100);
-        barra.style.width = perc + '%';
-        contador.innerText = `${i + 1} de ${total} processados`;
     }
     
-    texto.innerText = `Esteira finalizada! ${sucesso} enviados com sucesso.`;
+    texto.innerText = `Esteira finalizada! ${sucesso} contratos colocados na fila com sucesso.`;
     texto.classList.add('text-green-500', 'font-bold');
     btnFechar.classList.remove('hidden');
 });
 </script>
 {% endblock %}
+

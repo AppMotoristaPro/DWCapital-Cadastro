@@ -5,3 +5,7 @@ venv/
 /tmp/
 certs/
 *.key
+*.sql
+*.dump
+*.bak
+

@@ -8,55 +8,62 @@ from app.utils.autentique import enviar_documento_local_com_link, verificar_stat
 
 tz_br = pytz.timezone('America/Sao_Paulo')
 
-def disparar_lote(template_id, user_ids):
+def disparar_lote(template_ids, user_ids):
     """
-    Dispara um template específico de contrato para uma lista de clientes.
-    Retorna uma tupla contendo: (qtd_enviados, qtd_erros, lista_sem_email, nome_do_template)
+    FASE 3: Enfileira múltiplos templates de contrato para uma lista de clientes.
+    Não chama a API do Autentique aqui, apenas cria a pendência (Just-in-Time).
     """
-    template = DocumentoTemplate.query.get_or_404(template_id)
-    caminho_pdf = os.path.join(current_app.root_path, 'static', 'documentos', template.arquivo_local)
-    
-    if not os.path.exists(caminho_pdf):
-        raise FileNotFoundError(f'Erro: O arquivo "{template.arquivo_local}" não foi encontrado na pasta static/documentos/.')
-
     enviados = 0
     erros = 0
     sem_email = []
     
-    for uid in user_ids:
-        cliente = User.query.get(uid)
-        if cliente:
-            if not cliente.email:
-                sem_email.append(cliente.nome)
-                continue
+    novos_docs = []
+    nomes_templates = []
+
+    for template_id in template_ids:
+        template = DocumentoTemplate.query.get(template_id)
+        if not template: continue
+        
+        nomes_templates.append(template.nome)
+        caminho_pdf = os.path.join(current_app.root_path, 'static', 'documentos', template.arquivo_local)
+        
+        if not os.path.exists(caminho_pdf):
+            continue
+
+        for uid in user_ids:
+            cliente = User.query.get(uid)
+            if cliente:
+                if not cliente.email:
+                    if cliente.nome not in sem_email: sem_email.append(cliente.nome)
+                    continue
+                    
+                try:
+                    # Cria a pendência e coloca na fila do usuário
+                    novo_doc = DocumentoCliente(
+                        user_id=cliente.id,
+                        template_id=template.id,
+                        autentique_document_id=None,
+                        link_assinatura=None,
+                        status='na_fila'
+                    )
+                    novos_docs.append(novo_doc)
+                    enviados += 1
+                except Exception as e:
+                    print(f"Erro ao enfileirar para {cliente.nome}: {e}")
+                    erros += 1
                 
-            try:
-                nome_doc = f"{template.nome} - {cliente.nome}"
-                doc_id, link = enviar_documento_local_com_link(cliente.nome, cliente.email, caminho_pdf, nome_doc)
-                
-                novo_doc = DocumentoCliente(
-                    user_id=cliente.id,
-                    template_id=template.id,
-                    autentique_document_id=doc_id,
-                    link_assinatura=link,
-                    status='pendente'
-                )
-                db.session.add(novo_doc)
-                enviados += 1
-            except Exception as e:
-                print(f"Erro ao disparar para {cliente.nome}: {e}")
-                erros += 1
-                
-    db.session.commit()
-    return enviados, erros, sem_email, template.nome
+    if novos_docs:
+        db.session.add_all(novos_docs)
+        db.session.commit()
+        
+    return enviados, erros, sem_email, ", ".join(nomes_templates)
 
 # ==========================================
-# NOVA FUNÇÃO: FASE 3 (PLANO A)
-# Processa apenas UM disparo e retorna para o JS
+# FUNÇÃO PARA O MOTOR JS DO FRONTEND
 # ==========================================
 def disparar_unico(template_id, user_id):
     """
-    Dispara um template específico para UM único cliente.
+    FASE 3: Enfileira um template específico para UM único cliente via AJAX.
     Feito para rodar em loop no frontend para evitar timeout no Render.
     """
     template = DocumentoTemplate.query.get(template_id)
@@ -76,22 +83,20 @@ def disparar_unico(template_id, user_id):
         return {"success": False, "message": "Cliente não possui e-mail cadastrado."}
         
     try:
-        nome_doc = f"{template.nome} - {cliente.nome}"
-        doc_id, link = enviar_documento_local_com_link(cliente.nome, cliente.email, caminho_pdf, nome_doc)
-        
+        # Cria a pendência e coloca na fila do usuário
         novo_doc = DocumentoCliente(
             user_id=cliente.id,
             template_id=template.id,
-            autentique_document_id=doc_id,
-            link_assinatura=link,
-            status='pendente'
+            autentique_document_id=None,
+            link_assinatura=None,
+            status='na_fila'
         )
         db.session.add(novo_doc)
         db.session.commit()
         
         return {
             "success": True, 
-            "message": "Enviado com sucesso.", 
+            "message": "Enfileirado com sucesso para disparo futuro.", 
             "nome_template": template.nome
         }
     except Exception as e:
@@ -135,7 +140,8 @@ def verificar_status_documento_cliente(doc_id, user_id):
         return True, True
         
     try:
-        if verificar_status_autentique(doc.autentique_document_id):
+        # Garante que só verifica se ele tem ID na autentique
+        if doc.autentique_document_id and verificar_status_autentique(doc.autentique_document_id):
             doc.status = 'assinado'
             doc.data_assinatura = datetime.now(tz_br)
             db.session.commit()
@@ -144,3 +150,4 @@ def verificar_status_documento_cliente(doc_id, user_id):
         pass
         
     return True, False
+

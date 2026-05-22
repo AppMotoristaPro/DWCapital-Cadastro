@@ -11,7 +11,7 @@ from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditor
 from app import db
 from datetime import datetime, timedelta
 from app.utils.decorators import admin_required
-from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo
+from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo, auto_gerar_ciclos_em_lote
 from app.services.documento_service import disparar_lote, disparar_unico
 from app.services.dashboard_service import obter_dados_dashboard
 from app.utils.parsers.gerenciador_pdf import processar_pdf
@@ -45,6 +45,7 @@ def dashboard():
 def clientes_list():
     busca = request.args.get('q', '')
     status_filtro = request.args.get('status', '')
+    page = request.args.get('page', 1, type=int)
     
     query = User.query.filter_by(role='cliente').options(joinedload(User.alocacoes))
     
@@ -53,8 +54,8 @@ def clientes_list():
     if status_filtro:
         query = query.filter_by(status_acesso=status_filtro)
         
-    clientes = query.order_by(User.nome.asc()).all()
-    return render_template('admin/index.html', clientes=clientes, busca=busca, status_filtro=status_filtro)
+    pagination = query.order_by(User.nome.asc()).paginate(page=page, per_page=20, error_out=False)
+    return render_template('admin/index.html', pagination=pagination, busca=busca, status_filtro=status_filtro)
 
 @admin_bp.route('/liberar_cliente', methods=['POST'])
 @admin_required
@@ -70,7 +71,7 @@ def liberar_cliente():
 
     novo = User(cpf=cpf, nome=nome_temp, role='cliente', status_acesso='pendente_cadastro', is_isento=is_isento, modelo_negocio=modelo_negocio)
     db.session.add(novo)
-    db.session.flush()
+    db.session.flush() 
     
     hoje = datetime.now(tz_br).date()
     
@@ -85,12 +86,23 @@ def liberar_cliente():
         fim_ciclo = inicio_ciclo + timedelta(days=6)
         fatura = Fatura(user_id=novo.id, data_inicio=inicio_ciclo, data_fim=fim_ciclo)
         db.session.add(fatura)
+        
+    templates_onboarding = DocumentoTemplate.query.filter_by(is_onboarding=True).all()
+    if templates_onboarding:
+        docs_onboarding = [
+            DocumentoCliente(
+                user_id=novo.id,
+                template_id=t.id,
+                status='na_fila'
+            ) for t in templates_onboarding
+        ]
+        db.session.add_all(docs_onboarding)
     
     status_isento_str = "Sim" if is_isento else "Não"
     registrar_log(f"Liberou novo acesso pré-cadastro para o CPF {cpf} (Nome: {nome_temp}, Isento: {status_isento_str}, Modelo: {modelo_negocio.upper()}).", "Clientes")
     
     db.session.commit()
-    flash('Acesso liberado e conta inicial preparada!', 'success')
+    flash('Acesso liberado e conta inicial preparada com contratos de onboarding na fila!', 'success')
     return redirect(url_for('admin.clientes_list'))
 
 @admin_bp.route('/editar/<int:id>', methods=['GET', 'POST'])
@@ -215,11 +227,27 @@ def pagamentos():
                 dias_uteis.append(data_atual)
             data_atual += timedelta(days=1)
         
+        # Gera apenas as Faturas (sem dias)
+        auto_gerar_ciclos_em_lote(ativos, data_base=inicio_ciclo)
+            
+        user_ids = [c.id for c in ativos]
+        faturas_do_ciclo = []
+        if user_ids:
+            faturas_do_ciclo = Fatura.query.options(joinedload(Fatura.dias)).filter(
+                Fatura.user_id.in_(user_ids),
+                Fatura.data_inicio == inicio_ciclo
+            ).all()
+            
+        mapa_faturas = {f.user_id: f for f in faturas_do_ciclo}
+        
         clientes_dados = []
         for c in ativos:
-            auto_gerar_ciclo(c, data_base=inicio_ciclo)
-            fatura_atual = Fatura.query.options(joinedload(Fatura.dias)).filter_by(user_id=c.id, data_inicio=inicio_ciclo).first()
+            fatura_atual = mapa_faturas.get(c.id)
             detalhes_corretoras = {}
+            
+            # Cálculo de "Dias Virtuais" Esperados para este ciclo:
+            data_cadastro = c.data_cadastro.date() if c.data_cadastro else datetime.min.date()
+            total_esperado = sum(1 for d_util in dias_uteis if d_util >= data_cadastro)
             
             if fatura_atual:
                 status_atual = fatura_atual.status
@@ -227,12 +255,15 @@ def pagamentos():
                     dias_corretora = [d for d in fatura_atual.dias if d.nome_corretora == aloc.nome_corretora]
                     dias_enviados = sum(1 for d in dias_corretora if d.status == 'relatorio_enviado')
                     dias_isentos = sum(1 for d in dias_corretora if d.status == 'isento')
-                    total_base = len(dias_corretora) if dias_corretora else 5
-                    total_exigido = total_base - dias_isentos
+                    
+                    total_exigido = total_esperado - dias_isentos
+                    if total_exigido < 0: total_exigido = 0
                     
                     detalhes_corretoras[aloc.nome_corretora] = f"{dias_enviados}/{total_exigido}"
             else:
                 status_atual = 'sem_fatura'
+                for aloc in c.alocacoes:
+                    detalhes_corretoras[aloc.nome_corretora] = f"0/{total_esperado}"
                 
             clientes_dados.append({
                 'info': c, 
@@ -250,7 +281,6 @@ def pagamentos():
         
         gavetas = []
         for dt_ini, dt_fim in ciclos_db:
-            # Removido filtro de isenção e modelo para que todos os ativos gerem a gaveta
             todas_faturas = Fatura.query.join(User).filter(
                 Fatura.data_inicio == dt_ini,
                 User.status_acesso == 'ativo'
@@ -280,42 +310,23 @@ def exportar_pendencias():
     ativos = User.query.filter(
         User.role == 'cliente', 
         User.status_acesso == 'ativo'
-    ).order_by(User.nome.asc()).all()
+    ).options(joinedload(User.faturas).joinedload(Fatura.dias)).order_by(User.nome.asc()).all()
     
-    dados_planilha = []
-    
-    for c in ativos:
-        faturas = Fatura.query.options(joinedload(Fatura.dias)).filter_by(user_id=c.id).all()
-        dias_set = set()
-        
-        for fatura_atual in faturas:
-            for d in fatura_atual.dias:
-                if d.status == 'pendente' and not d.is_isento:
-                    dias_set.add(d.data_pregao)
-                    
-        if dias_set:
-            datas_ordenadas = sorted(list(dias_set))
-            datas_pendentes = [dt.strftime('%d/%m/%Y') for dt in datas_ordenadas]
-            
-            dados_planilha.append({
-                'nome': c.nome.upper(),
-                'datas': datas_pendentes
-            })
-               
-    if not dados_planilha:
-        flash('Excelente! Nenhuma pendência encontrada no sistema de forma global.', 'success')
-        return redirect(url_for('admin.pagamentos'))
-        
     from app.utils.processador_xlsx import gerar_relatorio_pendencias
     
     caminho_tmp = os.path.join(current_app.root_path, 'static', 'uploads')
     os.makedirs(caminho_tmp, exist_ok=True)
-    arquivo_saida = os.path.join(caminho_tmp, f'Pendencias_Global_DW.xlsx')
+    arquivo_saida = os.path.join(caminho_tmp, f'Pendencias_Ate_Ontem.xlsx')
     
-    gerar_relatorio_pendencias(dados_planilha, arquivo_saida)
-    registrar_log("Exportou relatório Excel GLOBAL de pendências.", "Pagamentos")
+    tem_dados = gerar_relatorio_pendencias(ativos, arquivo_saida)
     
-    return send_file(arquivo_saida, as_attachment=True, download_name='Pendencias_Gerais.xlsx')
+    if not tem_dados:
+        flash('Excelente! Nenhuma pendência consolidada até o dia de ontem foi encontrada.', 'success')
+        return redirect(url_for('admin.pagamentos'))
+        
+    registrar_log("Exportou relatório Excel GLOBAL de pendências (Calculado até ontem).", "Pagamentos")
+    
+    return send_file(arquivo_saida, as_attachment=True, download_name='Pendencias_Ate_Ontem.xlsx')
 
 @admin_bp.route('/pagamentos/<int:id>')
 @admin_required
@@ -368,7 +379,9 @@ def isentar_dia_global():
             faturas_afetadas.add(dia.fatura_semanal)
             
         for fatura in faturas_afetadas:
-            atualizar_totais_semana(fatura)
+            fatura.recalcular_totais()
+        
+        db.session.commit()
             
         registrar_log(f"Isentou globalmente o dia {data_alvo.strftime('%d/%m/%Y')} para toda a base.", "Pagamentos")
         flash(f'O dia {data_alvo.strftime("%d/%m/%Y")} foi isentado para todos os clientes!', 'success')
@@ -445,14 +458,16 @@ def gerar_senha_temporaria(id):
 @admin_required
 def atividades():
     busca = request.args.get('q', '')
+    page = request.args.get('page', 1, type=int)
+    
     query = LogAuditoria.query
     if busca:
         query = query.filter(
             (LogAuditoria.admin_nome.ilike(f'%{busca}%')) | (LogAuditoria.acao_detalhada.ilike(f'%{busca}%')) | 
             (LogAuditoria.categoria.ilike(f'%{busca}%'))
         )
-    logs = query.order_by(LogAuditoria.timestamp.desc()).limit(200).all()
-    return render_template('admin/atividades.html', logs=logs, busca=busca)
+    pagination = query.order_by(LogAuditoria.timestamp.desc()).paginate(page=page, per_page=30, error_out=False)
+    return render_template('admin/atividades.html', pagination=pagination, busca=busca)
 
 @admin_bp.route('/documentos')
 @admin_required
@@ -460,10 +475,12 @@ def documentos():
     templates = DocumentoTemplate.query.all()
     clientes = User.query.filter_by(role='cliente', status_acesso='ativo').order_by(User.nome.asc()).all()
     
-    historico = DocumentoCliente.query.options(
-        joinedload(DocumentoCliente.cliente), 
-        joinedload(DocumentoCliente.template)
-    ).order_by(DocumentoCliente.data_envio.desc()).limit(100).all()
+    historico = DocumentoCliente.query.join(DocumentoTemplate)\
+        .filter(DocumentoTemplate.is_onboarding == False)\
+        .options(
+            joinedload(DocumentoCliente.cliente), 
+            joinedload(DocumentoCliente.template)
+        ).order_by(DocumentoCliente.data_envio.desc()).limit(100).all()
     
     return render_template('admin/documentos.html', templates=templates, clientes=clientes, historico=historico)
 
@@ -472,10 +489,13 @@ def documentos():
 def cadastrar_template():
     nome = request.form.get('nome')
     arquivo_local = request.form.get('arquivo_local')
+    is_onboarding = True if request.form.get('is_onboarding') else False
     
-    novo_temp = DocumentoTemplate(nome=nome, arquivo_local=arquivo_local)
+    novo_temp = DocumentoTemplate(nome=nome, arquivo_local=arquivo_local, is_onboarding=is_onboarding)
     db.session.add(novo_temp)
-    registrar_log(f"Cadastrou novo Modelo de Contrato: {nome}.", "Assinaturas")
+    
+    status_msg = "obrigatório no primeiro acesso" if is_onboarding else "padrão"
+    registrar_log(f"Cadastrou novo Modelo de Contrato {status_msg}: {nome}.", "Assinaturas")
     db.session.commit()
     
     flash(f'Modelo "{nome}" registrado! Certifique-se de que o arquivo "{arquivo_local}" esteja na pasta static/documentos/.', 'success')
@@ -484,21 +504,25 @@ def cadastrar_template():
 @admin_bp.route('/documentos/disparar', methods=['POST'])
 @admin_required
 def disparar_documento():
-    template_id = request.form.get('template_id')
+    template_ids = request.form.getlist('template_ids[]')
     user_ids = request.form.getlist('clientes[]')
     
+    if not template_ids or not user_ids:
+        flash('Selecione ao menos um modelo e um cliente.', 'error')
+        return redirect(url_for('admin.documentos'))
+        
     try:
-        enviados, erros, sem_email, nome_template = disparar_lote(template_id, user_ids)
+        enviados, erros, sem_email, nome_template = disparar_lote(template_ids, user_ids)
         
         if enviados > 0:
-            registrar_log(f"Disparou contrato '{nome_template}' via arquivo local para {enviados} investidores.", "Assinaturas")
-            flash(f'{enviados} documentos enviados com sucesso!', 'success')
+            registrar_log(f"Enfileirou contrato(s) '{nome_template}' para disparo futuro a {enviados} investidores.", "Assinaturas")
+            flash(f'{enviados} documentos entraram na fila de assinatura dos clientes!', 'success')
             
         if sem_email:
             flash(f'Clientes sem e-mail ignorados: {", ".join(sem_email)}', 'error')
             
         if erros > 0:
-            flash(f'Houve erro técnico em {erros} envios.', 'error')
+            flash(f'Houve erro técnico ao enfileirar {erros} envios.', 'error')
             
     except FileNotFoundError as e:
         flash(str(e), 'error')
@@ -520,9 +544,43 @@ def api_disparar_unico():
     resultado = disparar_unico(template_id, user_id)
     
     if resultado.get("success"):
-        registrar_log(f"Disparou contrato '{resultado.get('nome_template')}' via arquivo local para o ID de cliente {user_id}.", "Assinaturas")
+        registrar_log(f"Enfileirou contrato '{resultado.get('nome_template')}' para o ID de cliente {user_id}.", "Assinaturas")
         
     return jsonify(resultado)
+
+@admin_bp.route('/documentos/excluir/<int:doc_id>', methods=['POST'])
+@admin_required
+def excluir_documento_cliente(doc_id):
+    doc = DocumentoCliente.query.get_or_404(doc_id)
+    
+    if doc.status == 'assinado':
+        flash('Não é possível excluir ou cancelar um documento que já foi assinado pelo parceiro.', 'error')
+        return redirect(url_for('admin.documentos'))
+    
+    nome_doc = doc.template.nome
+    nome_cliente = doc.cliente.nome
+    
+    db.session.delete(doc)
+    registrar_log(f"Cancelou e excluiu o documento '{nome_doc}' da fila do parceiro {nome_cliente}.", "Assinaturas")
+    db.session.commit()
+    
+    flash('Documento removido e cancelado com sucesso!', 'success')
+    return redirect(url_for('admin.documentos'))
+
+@admin_bp.route('/documentos/excluir_pendentes', methods=['POST'])
+@admin_required
+def excluir_todos_pendentes():
+    try:
+        DocumentoCliente.query.filter(DocumentoCliente.status.in_(['na_fila', 'pendente'])).delete(synchronize_session=False)
+        db.session.commit()
+        
+        registrar_log("Cancelou e excluiu TODOS os documentos pendentes/na fila globalmente.", "Assinaturas")
+        flash('Todos os documentos pendentes foram removidos com sucesso da fila de disparo!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erro ao excluir em massa: {str(e)}', 'error')
+        
+    return redirect(url_for('admin.documentos'))
 
 @admin_bp.route('/reprocessar_notas_antigas', methods=['GET'])
 @admin_required
@@ -576,7 +634,7 @@ def reprocessar_notas_antigas():
             erros += 1
             
     for fatura in faturas_afetadas:
-        atualizar_totais_semana(fatura)
+        fatura.recalcular_totais()
         
     db.session.commit()
     
@@ -584,3 +642,4 @@ def reprocessar_notas_antigas():
     flash(f'Reprocessamento concluído com sucesso! {sucesso} notas financeiras foram corrigidas com o novo motor unificado ({erros} não puderam ser lidas).', 'success')
     
     return redirect(url_for('admin.dashboard'))
+
