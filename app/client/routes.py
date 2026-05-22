@@ -26,11 +26,8 @@ def check_paywall():
     if getattr(current_user, 'precisa_trocar_senha', False):
         return
         
-    # OTIMIZAÇÃO EXTREMA: Cache de sessão para erradicar o gargalo de login
-    if session.get('paywall_liberado'):
-        return
-        
-    # FASE 4: Nova Catraca de Segurança (Check Just-in-Time com 'first' para ser ultra rápido)
+    # FASE 4: Nova Catraca de Segurança (Check Just-in-Time em tempo real com 'first' para ser ultra rápido)
+    # Removido o Cache de Sessão para garantir que envios avulsos bloqueiem o usuário imediatamente
     pendentes = DocumentoCliente.query.filter(
         DocumentoCliente.user_id == current_user.id,
         DocumentoCliente.status.in_(['na_fila', 'pendente'])
@@ -41,7 +38,6 @@ def check_paywall():
             return redirect(url_for('client.assinar_termo'))
             
     # Bloqueio Financeiro (PIX)
-    parcela_pendente = None
     if request.endpoint in ['client.bloqueio_pagamento', 'client.gerar_pix_licenca', 'client.status_licenca_api', 'auth.logout']:
         pass
     else:
@@ -55,10 +51,6 @@ def check_paywall():
             
             if parcela_pendente:
                 return redirect(url_for('client.bloqueio_pagamento'))
-                
-    # Salva na memória do navegador para pular o banco de dados nas próximas telas
-    if not pendentes and not parcela_pendente:
-        session['paywall_liberado'] = True
 
 @client_bp.route('/bloqueio_pagamento')
 @login_required
