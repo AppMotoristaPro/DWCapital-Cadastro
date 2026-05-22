@@ -71,7 +71,7 @@ def liberar_cliente():
 
     novo = User(cpf=cpf, nome=nome_temp, role='cliente', status_acesso='pendente_cadastro', is_isento=is_isento, modelo_negocio=modelo_negocio)
     db.session.add(novo)
-    db.session.flush() # Necessário para pegar o novo.id gerado
+    db.session.flush() 
     
     hoje = datetime.now(tz_br).date()
     
@@ -87,7 +87,6 @@ def liberar_cliente():
         fatura = Fatura(user_id=novo.id, data_inicio=inicio_ciclo, data_fim=fim_ciclo)
         db.session.add(fatura)
         
-    # FASE 3: Automação Onboarding - Joga os contratos obrigatórios na fila de disparo do cliente
     templates_onboarding = DocumentoTemplate.query.filter_by(is_onboarding=True).all()
     if templates_onboarding:
         docs_onboarding = [
@@ -228,6 +227,7 @@ def pagamentos():
                 dias_uteis.append(data_atual)
             data_atual += timedelta(days=1)
         
+        # Gera apenas as Faturas (sem dias)
         auto_gerar_ciclos_em_lote(ativos, data_base=inicio_ciclo)
             
         user_ids = [c.id for c in ativos]
@@ -245,18 +245,25 @@ def pagamentos():
             fatura_atual = mapa_faturas.get(c.id)
             detalhes_corretoras = {}
             
+            # Cálculo de "Dias Virtuais" Esperados para este ciclo:
+            data_cadastro = c.data_cadastro.date() if c.data_cadastro else datetime.min.date()
+            total_esperado = sum(1 for d_util in dias_uteis if d_util >= data_cadastro)
+            
             if fatura_atual:
                 status_atual = fatura_atual.status
                 for aloc in c.alocacoes:
                     dias_corretora = [d for d in fatura_atual.dias if d.nome_corretora == aloc.nome_corretora]
                     dias_enviados = sum(1 for d in dias_corretora if d.status == 'relatorio_enviado')
                     dias_isentos = sum(1 for d in dias_corretora if d.status == 'isento')
-                    total_base = len(dias_corretora) if dias_corretora else 5
-                    total_exigido = total_base - dias_isentos
+                    
+                    total_exigido = total_esperado - dias_isentos
+                    if total_exigido < 0: total_exigido = 0
                     
                     detalhes_corretoras[aloc.nome_corretora] = f"{dias_enviados}/{total_exigido}"
             else:
                 status_atual = 'sem_fatura'
+                for aloc in c.alocacoes:
+                    detalhes_corretoras[aloc.nome_corretora] = f"0/{total_esperado}"
                 
             clientes_dados.append({
                 'info': c, 
@@ -303,42 +310,23 @@ def exportar_pendencias():
     ativos = User.query.filter(
         User.role == 'cliente', 
         User.status_acesso == 'ativo'
-    ).order_by(User.nome.asc()).all()
+    ).options(joinedload(User.faturas).joinedload(Fatura.dias)).order_by(User.nome.asc()).all()
     
-    dados_planilha = []
-    
-    for c in ativos:
-        faturas = Fatura.query.options(joinedload(Fatura.dias)).filter_by(user_id=c.id).all()
-        dias_set = set()
-        
-        for fatura_atual in faturas:
-            for d in fatura_atual.dias:
-                if d.status == 'pendente' and not d.is_isento:
-                    dias_set.add(d.data_pregao)
-                    
-        if dias_set:
-            datas_ordenadas = sorted(list(dias_set))
-            datas_pendentes = [dt.strftime('%d/%m/%Y') for dt in datas_ordenadas]
-            
-            dados_planilha.append({
-                'nome': c.nome.upper(),
-                'datas': datas_pendentes
-            })
-               
-    if not dados_planilha:
-        flash('Excelente! Nenhuma pendência encontrada no sistema de forma global.', 'success')
-        return redirect(url_for('admin.pagamentos'))
-        
     from app.utils.processador_xlsx import gerar_relatorio_pendencias
     
     caminho_tmp = os.path.join(current_app.root_path, 'static', 'uploads')
     os.makedirs(caminho_tmp, exist_ok=True)
-    arquivo_saida = os.path.join(caminho_tmp, f'Pendencias_Global_DW.xlsx')
+    arquivo_saida = os.path.join(caminho_tmp, f'Pendencias_Ate_Ontem.xlsx')
     
-    gerar_relatorio_pendencias(dados_planilha, arquivo_saida)
-    registrar_log("Exportou relatório Excel GLOBAL de pendências.", "Pagamentos")
+    tem_dados = gerar_relatorio_pendencias(ativos, arquivo_saida)
     
-    return send_file(arquivo_saida, as_attachment=True, download_name='Pendencias_Gerais.xlsx')
+    if not tem_dados:
+        flash('Excelente! Nenhuma pendência consolidada até o dia de ontem foi encontrada.', 'success')
+        return redirect(url_for('admin.pagamentos'))
+        
+    registrar_log("Exportou relatório Excel GLOBAL de pendências (Calculado até ontem).", "Pagamentos")
+    
+    return send_file(arquivo_saida, as_attachment=True, download_name='Pendencias_Ate_Ontem.xlsx')
 
 @admin_bp.route('/pagamentos/<int:id>')
 @admin_required
@@ -487,7 +475,6 @@ def documentos():
     templates = DocumentoTemplate.query.all()
     clientes = User.query.filter_by(role='cliente', status_acesso='ativo').order_by(User.nome.asc()).all()
     
-    # FASE 2: Filtrando para não exibir documentos de onboarding no histórico
     historico = DocumentoCliente.query.join(DocumentoTemplate)\
         .filter(DocumentoTemplate.is_onboarding == False)\
         .options(
@@ -564,7 +551,6 @@ def api_disparar_unico():
 @admin_bp.route('/documentos/excluir/<int:doc_id>', methods=['POST'])
 @admin_required
 def excluir_documento_cliente(doc_id):
-    """Botão para cancelar documentos enfileirados ou pendentes (individual)."""
     doc = DocumentoCliente.query.get_or_404(doc_id)
     
     if doc.status == 'assinado':
@@ -584,7 +570,6 @@ def excluir_documento_cliente(doc_id):
 @admin_bp.route('/documentos/excluir_pendentes', methods=['POST'])
 @admin_required
 def excluir_todos_pendentes():
-    """Botão de Pânico: Cancelar TODOS os documentos enfileirados/pendentes."""
     try:
         DocumentoCliente.query.filter(DocumentoCliente.status.in_(['na_fila', 'pendente'])).delete(synchronize_session=False)
         db.session.commit()

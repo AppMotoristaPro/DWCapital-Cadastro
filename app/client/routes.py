@@ -2,7 +2,7 @@ import os
 import urllib.parse
 from datetime import datetime, timedelta
 import pytz
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify, session
 from flask_login import login_required, current_user
 import cloudinary.uploader
 from werkzeug.utils import secure_filename
@@ -26,31 +26,39 @@ def check_paywall():
     if getattr(current_user, 'precisa_trocar_senha', False):
         return
         
-    # FASE 4: Nova Catraca de Segurança (Check Just-in-Time)
-    # Bloqueia se existir qualquer documento pendente ou na fila
+    # OTIMIZAÇÃO EXTREMA: Cache de sessão para erradicar o gargalo de login
+    if session.get('paywall_liberado'):
+        return
+        
+    # FASE 4: Nova Catraca de Segurança (Check Just-in-Time com 'first' para ser ultra rápido)
     pendentes = DocumentoCliente.query.filter(
         DocumentoCliente.user_id == current_user.id,
         DocumentoCliente.status.in_(['na_fila', 'pendente'])
-    ).all()
+    ).first()
 
     if pendentes:
-        if request.endpoint not in ['client.assinar_termo', 'client.api_status_assinatura']:
+        if request.endpoint not in ['client.assinar_termo', 'client.api_status_assinatura', 'auth.logout']:
             return redirect(url_for('client.assinar_termo'))
             
     # Bloqueio Financeiro (PIX)
-    if request.endpoint in ['client.bloqueio_pagamento', 'client.gerar_pix_licenca', 'client.status_licenca_api']:
-        return
-        
-    if getattr(current_user, 'modelo_negocio', 'comissao') == 'compra':
-        hoje = datetime.now(tz_br).date()
-        parcela_pendente = ParcelaCompra.query.filter(
-            ParcelaCompra.user_id == current_user.id,
-            ParcelaCompra.status == 'pendente',
-            ParcelaCompra.data_vencimento <= hoje
-        ).order_by(ParcelaCompra.ordem.asc()).first()
-        
-        if parcela_pendente:
-            return redirect(url_for('client.bloqueio_pagamento'))
+    parcela_pendente = None
+    if request.endpoint in ['client.bloqueio_pagamento', 'client.gerar_pix_licenca', 'client.status_licenca_api', 'auth.logout']:
+        pass
+    else:
+        if getattr(current_user, 'modelo_negocio', 'comissao') == 'compra':
+            hoje = datetime.now(tz_br).date()
+            parcela_pendente = ParcelaCompra.query.filter(
+                ParcelaCompra.user_id == current_user.id,
+                ParcelaCompra.status == 'pendente',
+                ParcelaCompra.data_vencimento <= hoje
+            ).order_by(ParcelaCompra.ordem.asc()).first()
+            
+            if parcela_pendente:
+                return redirect(url_for('client.bloqueio_pagamento'))
+                
+    # Salva na memória do navegador para pular o banco de dados nas próximas telas
+    if not pendentes and not parcela_pendente:
+        session['paywall_liberado'] = True
 
 @client_bp.route('/bloqueio_pagamento')
 @login_required
@@ -137,17 +145,12 @@ def dashboard():
 @client_bp.route('/assinar')
 @login_required
 def assinar_termo():
-    # FASE 5: Motor Just-in-Time de Disparo
-    # Busca docs 'na_fila', dispara na API e muda status para 'pendente'
     docs_na_fila = DocumentoCliente.query.filter_by(user_id=current_user.id, status='na_fila').all()
-    
     for doc in docs_na_fila:
         try:
             caminho_pdf = os.path.join(current_app.root_path, 'static', 'documentos', doc.template.arquivo_local)
             nome_doc = f"{doc.template.nome} - {current_user.nome}"
-            
             doc_id, link = enviar_documento_local_com_link(current_user.nome, current_user.email, caminho_pdf, nome_doc)
-            
             doc.autentique_document_id = doc_id
             doc.link_assinatura = link
             doc.status = 'pendente'
@@ -161,15 +164,12 @@ def assinar_termo():
 @client_bp.route('/api/status_assinatura')
 @login_required
 def api_status_assinatura():
-    # Verifica se TODOS os pendentes foram assinados
     pendentes = DocumentoCliente.query.filter_by(user_id=current_user.id, status='pendente').all()
     all_signed = True
-    
     for doc in pendentes:
         _, assinado = verificar_status_documento_cliente(doc.id, current_user.id)
         if not assinado:
             all_signed = False
-            
     return jsonify({"assinado": all_signed})
 
 @client_bp.route('/dados_pessoais')
@@ -196,7 +196,6 @@ def faturas():
             datas_da_semana = []
             data_atual = fatura.data_inicio
             while len(datas_da_semana) < 5:
-                # Trava Temporal no frontend do cliente
                 if data_atual.weekday() < 5 and data_atual >= data_cadastro:
                     datas_da_semana.append(data_atual)
                 data_atual += timedelta(days=1)
@@ -288,7 +287,6 @@ def remover_fatura(dia_id):
 @client_bp.route('/documentos')
 @login_required
 def documentos():
-    # FASE 6: Apenas documentos assinados no cofre
     meus_docs = DocumentoCliente.query.filter_by(user_id=current_user.id, status='assinado').options(joinedload(DocumentoCliente.template)).order_by(DocumentoCliente.data_envio.desc()).all()
     return render_template('client/documentos.html', documentos=meus_docs)
 
