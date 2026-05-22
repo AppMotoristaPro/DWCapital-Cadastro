@@ -227,7 +227,6 @@ def pagamentos():
                 dias_uteis.append(data_atual)
             data_atual += timedelta(days=1)
         
-        # Gera apenas as Faturas (sem dias)
         auto_gerar_ciclos_em_lote(ativos, data_base=inicio_ciclo)
             
         user_ids = [c.id for c in ativos]
@@ -245,7 +244,6 @@ def pagamentos():
             fatura_atual = mapa_faturas.get(c.id)
             detalhes_corretoras = {}
             
-            # Cálculo de "Dias Virtuais" Esperados para este ciclo:
             data_cadastro = c.data_cadastro.date() if c.data_cadastro else datetime.min.date()
             total_esperado = sum(1 for d_util in dias_uteis if d_util >= data_cadastro)
             
@@ -475,12 +473,35 @@ def documentos():
     templates = DocumentoTemplate.query.all()
     clientes = User.query.filter_by(role='cliente', status_acesso='ativo').order_by(User.nome.asc()).all()
     
-    historico = DocumentoCliente.query.join(DocumentoTemplate)\
-        .filter(DocumentoTemplate.is_onboarding == False)\
-        .options(
-            joinedload(DocumentoCliente.cliente), 
-            joinedload(DocumentoCliente.template)
-        ).order_by(DocumentoCliente.data_envio.desc()).limit(100).all()
+    # Carrega uma janela ampla do histórico do banco de dados
+    todos_docs = DocumentoCliente.query.join(DocumentoTemplate).options(
+        joinedload(DocumentoCliente.cliente), 
+        joinedload(DocumentoCliente.template)
+    ).order_by(
+        DocumentoCliente.status.desc(),
+        DocumentoCliente.data_envio.desc()
+    ).limit(500).all()
+    
+    historico = []
+    for doc in todos_docs:
+        if doc.data_envio and doc.cliente.data_cadastro:
+            # Removemos a fuso-horário para poder subtrair sem dar erro de compatibilidade
+            data_envio_clean = doc.data_envio.replace(tzinfo=None)
+            data_cadastro_clean = doc.cliente.data_cadastro.replace(tzinfo=None)
+            
+            diferenca_segundos = (data_envio_clean - data_cadastro_clean).total_seconds()
+            
+            # LÓGICA DO AVULSO:
+            # Se o documento foi emitido mais de 60 segundos APÓS o cliente ser criado,
+            # então foi um disparo feito por você (Admin), e não pelo sistema automático.
+            if diferenca_segundos > 60:
+                historico.append(doc)
+        else:
+            # Garante que registros antigos sem data sejam mostrados para você poder gerenciar
+            historico.append(doc)
+            
+        if len(historico) >= 100:
+            break
     
     return render_template('admin/documentos.html', templates=templates, clientes=clientes, historico=historico)
 
