@@ -55,7 +55,7 @@
 
         <div id="mobile-menu" class="hidden lg:hidden bg-navy border-t border-white/5 absolute w-full shadow-2xl">
             <div class="px-6 py-4 space-y-2 flex flex-col">
-                <a href="{{ url_for('admin.dashboard') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'admin.dashboard' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Dashboard</a>
+                <a href="{{ url_for('admin.dashboard') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'admin.dashboard' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Tela Inicial</a>
                 <a href="{{ url_for('admin.clientes_list') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'admin.clientes_list' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Clientes</a>
                 <a href="{{ url_for('admin.pagamentos') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint and request.endpoint.startswith('admin.pagamentos') %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Pagamentos</a>
                 <a href="{{ url_for('admin.licencas') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint and request.endpoint.startswith('admin.licencas') %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Licenças</a>
@@ -79,3 +79,4 @@
     }
 </script>
 {% endblock %}
+

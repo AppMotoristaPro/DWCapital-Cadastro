@@ -52,7 +52,7 @@
 
         <div id="mobile-menu" class="hidden lg:hidden bg-navy border-t border-white/5 absolute w-full shadow-2xl">
             <div class="px-6 py-4 space-y-2 flex flex-col">
-                <a href="{{ url_for('client.dashboard') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'client.dashboard' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Dashboard</a>
+                <a href="{{ url_for('client.dashboard') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'client.dashboard' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Tela Inicial</a>
                 <a href="{{ url_for('client.faturas') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'client.faturas' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Extrato de Faturamento</a>
                 <a href="{{ url_for('client.dados_pessoais') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'client.dados_pessoais' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Meus Dados</a>
                 <a href="{{ url_for('client.documentos') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'client.documentos' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Meus Documentos</a>
@@ -75,3 +75,4 @@
     }
 </script>
 {% endblock %}
+
