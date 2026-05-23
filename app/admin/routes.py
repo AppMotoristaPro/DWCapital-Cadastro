@@ -211,7 +211,7 @@ def pagamentos():
         
         if busca:
             query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
-        ativos = query.order_by(User.nome.asc()).all()
+        ativos_brutos = query.order_by(User.nome.asc()).all()
         
         if ciclo:
             try:
@@ -233,6 +233,13 @@ def pagamentos():
             if data_atual.weekday() < 5:
                 dias_uteis.append(data_atual)
             data_atual += timedelta(days=1)
+            
+        # FRENTE 3: Oculta clientes do admin cujas gavetas são muito antigas (antes de entrarem)
+        ativos = []
+        for c in ativos_brutos:
+            data_cad = c.data_cadastro.date() if c.data_cadastro else datetime.min.date()
+            if data_cad <= (inicio_ciclo + timedelta(days=6)):
+                ativos.append(c)
         
         auto_gerar_ciclos_em_lote(ativos, data_base=inicio_ciclo)
             
@@ -251,8 +258,9 @@ def pagamentos():
             fatura_atual = mapa_faturas.get(c.id)
             detalhes_corretoras = {}
             
-            data_cadastro = c.data_cadastro.date() if c.data_cadastro else datetime.min.date()
-            total_esperado = sum(1 for d_util in dias_uteis if d_util >= data_cadastro)
+            # FRENTE 4: A nova regra da Fatura gera SEMPRE os 5 dias. 
+            # A expectativa pura base (o lado direito da barrinha) passa a ser SEMPRE 5 menos os dias isentos.
+            total_dias_brutos_da_semana = len(dias_uteis)
             
             if fatura_atual:
                 status_atual = fatura_atual.status
@@ -261,14 +269,15 @@ def pagamentos():
                     dias_enviados = sum(1 for d in dias_corretora if d.status == 'relatorio_enviado')
                     dias_isentos = sum(1 for d in dias_corretora if d.status == 'isento')
                     
-                    total_exigido = total_esperado - dias_isentos
+                    total_exigido = total_dias_brutos_da_semana - dias_isentos
                     if total_exigido < 0: total_exigido = 0
                     
                     detalhes_corretoras[aloc.nome_corretora] = f"{dias_enviados}/{total_exigido}"
             else:
                 status_atual = 'sem_fatura'
                 for aloc in c.alocacoes:
-                    detalhes_corretoras[aloc.nome_corretora] = f"0/{total_esperado}"
+                    # Se não gerou fatura (e não deveria ser isento total), assume-se a mesma matemática da regra de negócio normal
+                    detalhes_corretoras[aloc.nome_corretora] = f"0/{total_dias_brutos_da_semana}"
                 
             clientes_dados.append({
                 'info': c, 
@@ -312,7 +321,6 @@ def licencas():
 @admin_bp.route('/pagamentos/exportar_pendencias')
 @admin_required
 def exportar_pendencias():
-    # EXPORTAÇÃO CORRIGIDA: Inclui clientes 'comissao' e 'compra', mas IGNORA os 'isentos'
     ativos = User.query.filter(
         User.role == 'cliente', 
         User.status_acesso == 'ativo',
@@ -517,6 +525,22 @@ def cadastrar_template():
     db.session.commit()
     
     flash(f'Modelo "{nome}" registrado! Certifique-se de que o arquivo "{arquivo_local}" esteja na pasta static/documentos/.', 'success')
+    return redirect(url_for('admin.documentos'))
+
+@admin_bp.route('/documentos/excluir_template/<int:id>', methods=['POST'])
+@admin_required
+def excluir_template(id):
+    template = DocumentoTemplate.query.get_or_404(id)
+    nome_temp = template.nome
+    
+    # Removemos todos os DocumentoCliente atrelados para não quebrar a integridade no DB
+    DocumentoCliente.query.filter_by(template_id=template.id).delete()
+    
+    db.session.delete(template)
+    registrar_log(f"Excluiu o Modelo de Documento e todas as suas pendências: {nome_temp}.", "Assinaturas")
+    db.session.commit()
+    
+    flash(f'Modelo de contrato "{nome_temp}" excluído com sucesso!', 'success')
     return redirect(url_for('admin.documentos'))
 
 @admin_bp.route('/documentos/disparar', methods=['POST'])

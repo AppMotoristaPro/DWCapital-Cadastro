@@ -30,17 +30,23 @@
                     </div>
                 </div>
 
-                <form id="form-disparo-lote" class="space-y-6">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    
+                <div class="space-y-6">
                     <div>
                         <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Selecionar Modelos</label>
                         <div class="bg-white border border-gray-200 rounded-xl max-h-48 overflow-y-auto p-3 space-y-1 custom-scrollbar shadow-inner relative">
                             {% for temp in templates %}
-                            <label class="flex items-center p-3 hover:bg-gray-50 rounded-lg cursor-pointer border border-transparent hover:border-gray-200 transition group">
-                                <input type="checkbox" name="template_ids[]" value="{{ temp.id }}" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer temp-checkbox">
-                                <span class="ml-3 text-xs font-bold text-navy transition">{{ temp.nome }}</span>
-                            </label>
+                            <div class="flex justify-between items-center p-3 hover:bg-gray-50 rounded-lg border border-transparent hover:border-gray-200 transition group">
+                                <label class="flex items-center cursor-pointer flex-1">
+                                    <input type="checkbox" name="template_ids[]" form="form-disparo-lote" value="{{ temp.id }}" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer temp-checkbox">
+                                    <span class="ml-3 text-xs font-bold text-navy transition">{{ temp.nome }}</span>
+                                </label>
+                                <form action="{{ url_for('admin.excluir_template', id=temp.id) }}" method="POST" class="ml-2" onsubmit="return confirm('Tem certeza que deseja excluir o modelo de contrato ({{ temp.nome }}) e cancelar todas as assinaturas pendentes atreladas a ele? Esta ação limpa registros na fila.')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="text-red-400 hover:text-red-600 p-1.5 rounded-md hover:bg-red-50 border border-transparent hover:border-red-100 transition shadow-sm" title="Excluir Modelo">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                </form>
+                            </div>
                             {% else %}
                             <p class="text-xs text-gray-400 font-medium p-4 text-center">Nenhum modelo cadastrado.</p>
                             {% endfor %}
@@ -48,30 +54,33 @@
                         <p class="text-[9px] text-gray-400 mt-2 font-bold uppercase tracking-widest text-right">*Múltipla seleção permitida</p>
                     </div>
 
-                    <div>
-                        <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Selecionar Parceiros</label>
-                        <div class="bg-white border border-gray-200 rounded-xl h-48 overflow-y-auto p-3 space-y-1 custom-scrollbar shadow-inner relative">
-                            
-                            {% if clientes %}
-                            <label class="flex items-center p-3 mb-2 bg-purple-50 rounded-lg cursor-pointer border border-purple-100 hover:border-purple-300 transition group sticky top-0 z-10 shadow-sm">
-                                <input type="checkbox" id="check-todos" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer">
-                                <span class="ml-3 text-[10px] font-black text-navy uppercase tracking-widest group-hover:text-purple-700 transition">Selecionar Todos</span>
-                            </label>
-                            {% endif %}
-                            
-                            {% for cliente in clientes %}
-                            <label class="flex items-center p-3 hover:bg-gray-50 rounded-lg cursor-pointer border border-transparent hover:border-gray-200 transition group">
-                                <input type="checkbox" name="clientes[]" value="{{ cliente.id }}" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer cli-checkbox">
-                                <span class="ml-3 text-xs font-bold text-navy transition">{{ cliente.nome }}</span>
-                            </label>
-                            {% else %}
-                            <p class="text-xs text-gray-400 font-medium p-4 text-center">Nenhum parceiro ativo.</p>
-                            {% endfor %}
+                    <form id="form-disparo-lote" class="space-y-6">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Selecionar Parceiros</label>
+                            <div class="bg-white border border-gray-200 rounded-xl h-48 overflow-y-auto p-3 space-y-1 custom-scrollbar shadow-inner relative">
+                                
+                                {% if clientes %}
+                                <label class="flex items-center p-3 mb-2 bg-purple-50 rounded-lg cursor-pointer border border-purple-100 hover:border-purple-300 transition group sticky top-0 z-10 shadow-sm">
+                                    <input type="checkbox" id="check-todos" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer">
+                                    <span class="ml-3 text-[10px] font-black text-navy uppercase tracking-widest group-hover:text-purple-700 transition">Selecionar Todos</span>
+                                </label>
+                                {% endif %}
+                                
+                                {% for cliente in clientes %}
+                                <label class="flex items-center p-3 hover:bg-gray-50 rounded-lg cursor-pointer border border-transparent hover:border-gray-200 transition group">
+                                    <input type="checkbox" name="clientes[]" value="{{ cliente.id }}" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer cli-checkbox">
+                                    <span class="ml-3 text-xs font-bold text-navy transition">{{ cliente.nome }}</span>
+                                </label>
+                                {% else %}
+                                <p class="text-xs text-gray-400 font-medium p-4 text-center">Nenhum parceiro ativo.</p>
+                                {% endfor %}
+                            </div>
                         </div>
-                    </div>
 
-                    <button type="submit" class="w-full py-4 bg-gradient-to-r from-purple-600 to-royal text-white font-black uppercase tracking-widest rounded-xl text-xs shadow-md hover:shadow-lg hover:-translate-y-0.5 transition border border-purple-700">Disparar Lote</button>
-                </form>
+                        <button type="submit" class="w-full py-4 bg-gradient-to-r from-purple-600 to-royal text-white font-black uppercase tracking-widest rounded-xl text-xs shadow-md hover:shadow-lg hover:-translate-y-0.5 transition border border-purple-700">Disparar Lote</button>
+                    </form>
+                </div>
             </div>
 
             <div class="bg-gray-50/80 backdrop-blur-md p-8 rounded-[2rem] border border-gray-200 border-dashed">

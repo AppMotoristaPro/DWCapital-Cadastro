@@ -26,19 +26,16 @@ def check_paywall():
     if getattr(current_user, 'precisa_trocar_senha', False):
         return
         
-    # Identifica documentos pendentes ou na fila
     pendentes = DocumentoCliente.query.filter(
         DocumentoCliente.user_id == current_user.id,
         DocumentoCliente.status.in_(['na_fila', 'pendente', 'processando'])
     ).first()
 
-    # HIERARQUIA 1: Assinatura de Documentos (Prioridade Máxima)
     if pendentes:
         if request.endpoint not in ['client.assinar_termo', 'client.api_status_assinatura', 'auth.logout']:
             return redirect(url_for('client.assinar_termo'))
         return 
             
-    # HIERARQUIA 2: Bloqueio Financeiro (PIX)
     if request.endpoint not in ['client.bloqueio_pagamento', 'client.gerar_pix_licenca', 'client.status_licenca_api', 'auth.logout']:
         if getattr(current_user, 'modelo_negocio', 'comissao') == 'compra':
             hoje = datetime.now(tz_br).date()
@@ -134,7 +131,6 @@ def assinar_termo():
     
     for doc in docs_na_fila:
         try:
-            # TRAVA DE ESTADO: Evita disparo duplicado se o usuário recarregar a página
             doc.status = 'processando'
             db.session.commit()
             
@@ -148,7 +144,7 @@ def assinar_termo():
             doc.status = 'pendente'
             db.session.commit()
         except Exception as e:
-            doc.status = 'na_fila' # Rollback do status em caso de erro
+            doc.status = 'na_fila' 
             db.session.commit()
             print(f"Erro ao disparar Just-in-Time: {e}")
 
@@ -191,17 +187,26 @@ def faturas():
                     houve_alteracao = True
             datas_da_semana = []
             data_atual = fatura.data_inicio
-            while len(datas_da_semana) < 5:
-                if data_atual.weekday() < 5 and data_atual >= data_cadastro:
+            
+            # FRENTE 1: Cria sempre 5 dias sem ignorar/pular datas para não quebrar o layout
+            while len(datas_da_semana) < 5 and data_atual <= fatura.data_fim:
+                if data_atual.weekday() < 5:
                     datas_da_semana.append(data_atual)
                 data_atual += timedelta(days=1)
+                
             dias_existentes = { (d.data_pregao, d.nome_corretora) for d in fatura.dias }
+            
             for data in datas_da_semana:
                 for alocacao in current_user.alocacoes:
                     if (data, alocacao.nome_corretora) not in dias_existentes:
-                        novo_dia = FaturaDiaria(fatura_id=fatura.id, data_pregao=data, nome_corretora=alocacao.nome_corretora, status='pendente')
+                        # FRENTE 2: Determina isenção para dias passados
+                        is_isento = data < data_cadastro
+                        status_dia = 'isento' if is_isento else 'pendente'
+                        
+                        novo_dia = FaturaDiaria(fatura_id=fatura.id, data_pregao=data, nome_corretora=alocacao.nome_corretora, status=status_dia, is_isento=is_isento)
                         db.session.add(novo_dia)
                         houve_alteracao = True
+                        
         if houve_alteracao:
             try: db.session.commit()
             except IntegrityError: db.session.rollback()

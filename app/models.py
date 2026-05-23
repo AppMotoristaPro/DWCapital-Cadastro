@@ -16,8 +16,7 @@ class User(db.Model, UserMixin):
     
     is_isento = db.Column(db.Boolean, default=False)
     
-    # NOVO: Define se o cliente divide lucros ou comprou o robô
-    modelo_negocio = db.Column(db.String(20), default='comissao') # 'comissao' ou 'compra'
+    modelo_negocio = db.Column(db.String(20), default='comissao')
     
     endereco = db.Column(db.Text)
     email = db.Column(db.String(120))
@@ -38,27 +37,19 @@ class User(db.Model, UserMixin):
     logs = db.relationship('LogAuditoria', backref='admin', lazy=True)
     documentos_extras = db.relationship('DocumentoCliente', backref='cliente', lazy=True, cascade="all, delete-orphan")
     
-    # NOVO: Relação com as parcelas de compra do robô
     parcelas_licenca = db.relationship('ParcelaCompra', backref='cliente', lazy=True, cascade="all, delete-orphan", order_by="ParcelaCompra.ordem")
 
 class ParcelaCompra(db.Model):
-    """
-    NOVO: Tabela dedicada para gerenciar as 3 parcelas de quem comprou a licença do robô.
-    Ordem 1: R$ 5.000 (Imediato)
-    Ordem 2: R$ 2.500 (+30 dias)
-    Ordem 3: R$ 2.500 (+60 dias)
-    """
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     ordem = db.Column(db.Integer, nullable=False)
     valor = db.Column(db.Float, nullable=False)
     data_vencimento = db.Column(db.Date, nullable=False)
     
-    # Dados para o Gateway de Pagamento PIX
     txid_pix = db.Column(db.String(100), nullable=True)
     payload_pix = db.Column(db.Text, nullable=True)
     
-    status = db.Column(db.String(20), default='pendente') # 'pendente' ou 'pago'
+    status = db.Column(db.String(20), default='pendente')
     data_pagamento = db.Column(db.DateTime, nullable=True)
     data_criacao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
 
@@ -82,10 +73,8 @@ class Fatura(db.Model):
     liquido = db.Column(db.Float, default=0.0)
     repasse = db.Column(db.Float, default=0.0)
     
-    # Upload manual (será substituído gradativamente pela automação PIX)
     comprovante_pix = db.Column(db.String(255), nullable=True)
     
-    # NOVO: Dados para o Gateway de Pagamento PIX (Automação de Repasse 30%)
     txid_pix = db.Column(db.String(100), nullable=True)
     payload_pix = db.Column(db.Text, nullable=True)
     
@@ -93,7 +82,6 @@ class Fatura(db.Model):
     data_criacao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     dias = db.relationship('FaturaDiaria', backref='fatura_semanal', lazy=True, cascade="all, delete-orphan", order_by="FaturaDiaria.data_pregao")
 
-    # INTELIGÊNCIA EMBUTIDA NO MODELO (Fat Model)
     def recalcular_totais(self):
         self.bruto = sum((d.bruto if d.bruto > 0 else 0.0) for d in self.dias if d.status == 'relatorio_enviado')
         self.taxas_b3 = sum((d.taxas_b3 if d.taxas_b3 > 0 else 0.0) for d in self.dias if d.status == 'relatorio_enviado')
@@ -135,7 +123,6 @@ class FaturaDiaria(db.Model):
     arquivo_pdf = db.Column(db.String(255), nullable=True)
     status = db.Column(db.String(20), default='pendente')
 
-    # INTELIGÊNCIA EMBUTIDA NO MODELO (Fat Model)
     def zerar_valores(self, isentar=False):
         self.arquivo_pdf = None
         self.bruto = 0.0
@@ -164,7 +151,7 @@ class DocumentoTemplate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(100), nullable=False) 
     arquivo_local = db.Column(db.String(100), nullable=False)
-    is_onboarding = db.Column(db.Boolean, default=False) # FASE 1: Etiqueta Inteligente
+    is_onboarding = db.Column(db.Boolean, default=False)
     data_criacao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     
 class DocumentoCliente(db.Model):
@@ -172,7 +159,6 @@ class DocumentoCliente(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     template_id = db.Column(db.Integer, db.ForeignKey('documento_template.id'), nullable=False)
     
-    # FASE 1 e 3: Agora aceitam vazio (None), pois serão preenchidos apenas no Login pelo motor Just-in-Time
     autentique_document_id = db.Column(db.String(100), nullable=True)
     link_assinatura = db.Column(db.String(255), nullable=True) 
     status = db.Column(db.String(20), default='na_fila') 
