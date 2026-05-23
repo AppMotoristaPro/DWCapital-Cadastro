@@ -3,10 +3,15 @@
 <div class="max-w-7xl mx-auto relative z-10 pb-20">
     
     {% if not exibe_clientes %}
-    <div class="flex justify-between items-end mb-8">
+    <div class="flex flex-col lg:flex-row justify-between lg:items-end gap-6 mb-8">
         <div>
             <h1 class="text-4xl font-black text-navy tracking-tight">Auditoria Semanal</h1>
             <p class="text-gray-500 mt-2 font-medium">Selecione o ciclo de faturamento para realizar o fechamento e repasse.</p>
+        </div>
+        
+        <div class="bg-gradient-to-br from-royal to-royal-dark px-6 py-4 rounded-2xl shadow-lg border border-royal-dark text-right min-w-[220px]">
+            <p class="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1">Repasse Global (30%)</p>
+            <p class="text-2xl font-black text-white leading-none">R$ {{ repasse_global|format_brl }}</p>
         </div>
     </div>
 
@@ -41,6 +46,11 @@
                 </div>
                 
                 <div class="flex justify-between items-center">
+                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Repasse (30%)</span>
+                    <span class="text-xs font-black text-green-600">R$ {{ gaveta.repasse_total|format_brl }}</span>
+                </div>
+
+                <div class="flex justify-between items-center">
                     <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</span>
                     {% if gaveta.pendentes > 0 %}
                         <span class="px-3 py-1 bg-yellow-50 text-yellow-600 border border-yellow-100 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> {{ gaveta.pendentes }} Pendentes</span>
@@ -59,9 +69,16 @@
 
     {% else %}
     
-    <div class="mb-8 flex items-center gap-5 border-b border-gray-200 pb-6">
-        <a href="{{ url_for('admin.pagamentos') }}" class="px-5 py-3 bg-white text-[10px] font-black text-gray-500 uppercase tracking-widest rounded-xl hover:text-navy hover:shadow-md transition duration-200 border border-gray-200 flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg> Voltar</a>
-        <h2 class="text-3xl font-black text-navy tracking-tight">Ciclo: <span class="text-royal">{{ ciclo_data.strftime('%d/%m/%Y') }}</span></h2>
+    <div class="mb-8 flex flex-col md:flex-row lg:items-center justify-between gap-6 border-b border-gray-200 pb-6">
+        <div class="flex items-center gap-5">
+            <a href="{{ url_for('admin.pagamentos') }}" class="px-5 py-3 bg-white text-[10px] font-black text-gray-500 uppercase tracking-widest rounded-xl hover:text-navy hover:shadow-md transition duration-200 border border-gray-200 flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg> Voltar</a>
+            <h2 class="text-3xl font-black text-navy tracking-tight">Ciclo: <span class="text-royal">{{ ciclo_data.strftime('%d/%m/%Y') }}</span></h2>
+        </div>
+        
+        <div class="bg-gradient-to-br from-royal to-royal-dark px-6 py-4 rounded-2xl shadow-lg border border-royal-dark text-right min-w-[220px]">
+            <p class="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1">Repasse do Ciclo (30%)</p>
+            <p class="text-2xl font-black text-white leading-none">R$ {{ repasse_ciclo|format_brl }}</p>
+        </div>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}

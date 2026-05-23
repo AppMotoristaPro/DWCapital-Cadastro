@@ -206,6 +206,12 @@ def pagamentos():
     busca = request.args.get('q', '')
     ciclo = request.args.get('ciclo')
     
+    # 1) Faturamento (Repasse Global - Ignora 'compra' e 'isento')
+    repasse_global = db.session.query(db.func.sum(Fatura.repasse)).join(User).filter(
+        User.modelo_negocio == 'comissao',
+        db.or_(User.is_isento == False, User.is_isento.is_(None))
+    ).scalar() or 0.0
+    
     if ciclo or busca:
         query = User.query.filter_by(role='cliente', status_acesso='ativo').options(joinedload(User.alocacoes))
         
@@ -234,7 +240,6 @@ def pagamentos():
                 dias_uteis.append(data_atual)
             data_atual += timedelta(days=1)
             
-        # FRENTE 3: Oculta clientes do admin cujas gavetas são muito antigas (antes de entrarem)
         ativos = []
         for c in ativos_brutos:
             data_cad = c.data_cadastro.date() if c.data_cadastro else datetime.min.date()
@@ -253,13 +258,18 @@ def pagamentos():
             
         mapa_faturas = {f.user_id: f for f in faturas_do_ciclo}
         
+        # 2) Faturamento (Repasse do Ciclo Específico)
+        repasse_ciclo = db.session.query(db.func.sum(Fatura.repasse)).join(User).filter(
+            Fatura.data_inicio == inicio_ciclo,
+            User.modelo_negocio == 'comissao',
+            db.or_(User.is_isento == False, User.is_isento.is_(None))
+        ).scalar() or 0.0
+        
         clientes_dados = []
         for c in ativos:
             fatura_atual = mapa_faturas.get(c.id)
             detalhes_corretoras = {}
             
-            # FRENTE 4: A nova regra da Fatura gera SEMPRE os 5 dias. 
-            # A expectativa pura base (o lado direito da barrinha) passa a ser SEMPRE 5 menos os dias isentos.
             total_dias_brutos_da_semana = len(dias_uteis)
             
             if fatura_atual:
@@ -276,7 +286,6 @@ def pagamentos():
             else:
                 status_atual = 'sem_fatura'
                 for aloc in c.alocacoes:
-                    # Se não gerou fatura (e não deveria ser isento total), assume-se a mesma matemática da regra de negócio normal
                     detalhes_corretoras[aloc.nome_corretora] = f"0/{total_dias_brutos_da_semana}"
                 
             clientes_dados.append({
@@ -286,7 +295,16 @@ def pagamentos():
                 'detalhes_corretoras': detalhes_corretoras
             })
             
-        return render_template('admin/pagamentos.html', clientes_dados=clientes_dados, busca=busca, exibe_clientes=True, ciclo_data=inicio_ciclo, dias_uteis=dias_uteis)
+        return render_template(
+            'admin/pagamentos.html', 
+            clientes_dados=clientes_dados, 
+            busca=busca, 
+            exibe_clientes=True, 
+            ciclo_data=inicio_ciclo, 
+            dias_uteis=dias_uteis,
+            repasse_global=repasse_global,
+            repasse_ciclo=repasse_ciclo
+        )
     
     else:
         ciclos_db = db.session.query(
@@ -300,6 +318,9 @@ def pagamentos():
                 User.status_acesso == 'ativo'
             ).all()
             
+            # 3) Repasse Total exclusivo de cada Gaveta (Ignora 'compra' e 'isento')
+            repasse_gaveta = sum(f.repasse for f in todas_faturas if getattr(f.cliente, 'modelo_negocio', 'comissao') == 'comissao' and not getattr(f.cliente, 'is_isento', False))
+            
             total = len(todas_faturas)
             if total > 0:
                 pendentes = sum(1 for f in todas_faturas if f.status in ['pendente', 'parcial'])
@@ -307,10 +328,16 @@ def pagamentos():
                     'data_inicio': dt_ini,
                     'data_fim': dt_fim,
                     'total_clientes': total,
-                    'pendentes': pendentes
+                    'pendentes': pendentes,
+                    'repasse_total': repasse_gaveta
                 })
                 
-        return render_template('admin/pagamentos.html', gavetas=gavetas, exibe_clientes=False)
+        return render_template(
+            'admin/pagamentos.html', 
+            gavetas=gavetas, 
+            exibe_clientes=False,
+            repasse_global=repasse_global
+        )
 
 @admin_bp.route('/licencas')
 @admin_required
