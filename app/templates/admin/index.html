@@ -40,13 +40,20 @@
                     {% for cliente in pagination.items %}
                     <tr class="hover:bg-gray-50/50 transition-colors {% if cliente.status_acesso == 'inativo' %}opacity-60{% endif %}">
                         <td class="px-8 py-6">
-                            <div class="font-black text-navy text-sm flex items-center gap-2">
-                                {{ cliente.nome }}
+                            <div class="font-black text-navy text-sm flex flex-wrap items-center gap-2">
+                                <span>{{ cliente.nome }}</span>
+                                
+                                {% if not cliente.modelo_negocio or cliente.modelo_negocio == 'comissao' %}
+                                <span class="px-2 py-0.5 bg-blue-100 text-royal border border-blue-200 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">Comissão</span>
+                                {% elif cliente.modelo_negocio == 'compra' %}
+                                <span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">Licença</span>
+                                {% endif %}
+
                                 {% if cliente.is_isento %}
                                 <span class="px-2 py-0.5 bg-purple-100 text-purple-700 border border-purple-200 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">Isento</span>
                                 {% endif %}
                             </div>
-                            <div class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">{{ cliente.cpf }} <span class="mx-1 text-gray-300">|</span> ID: {{ cliente.matricula or 'PENDENTE' }}</div>
+                            <div class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">{{ cliente.cpf }} <span class="mx-1 text-gray-300">|</span> ID: {{ cliente.id }}</div>
                         </td>
                         <td class="px-6 py-6">
                             <div class="flex flex-wrap gap-2">

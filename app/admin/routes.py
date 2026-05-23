@@ -50,7 +50,14 @@ def clientes_list():
     query = User.query.filter_by(role='cliente').options(joinedload(User.alocacoes))
     
     if busca:
-        query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
+        busca_limpa = ''.join(filter(str.isdigit, busca))
+        filtros = [User.nome.ilike(f'%{busca}%')]
+        if busca_limpa:
+            filtros.append(User.cpf.ilike(f'%{busca_limpa}%'))
+        if busca.isdigit():
+            filtros.append(User.id == int(busca))
+        query = query.filter(db.or_(*filtros))
+        
     if status_filtro:
         query = query.filter_by(status_acesso=status_filtro)
         
