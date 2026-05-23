@@ -50,9 +50,10 @@ def auto_gerar_ciclo(user, data_base=None):
     if fatura_existente:
         dias_uteis = []
         data_atual = inicio_ciclo
+        
+        # FRENTE 1: Gera exatamente os 5 dias do ciclo, independentemente de quando o cliente entrou
         while len(dias_uteis) < 5 and data_atual <= fim_ciclo:
-            # Trava Temporal: Só adiciona o dia útil se for maior ou igual à data de entrada
-            if data_atual.weekday() < 5 and data_atual >= data_cadastro:
+            if data_atual.weekday() < 5:
                 dias_uteis.append(data_atual)
             data_atual += timedelta(days=1)
             
@@ -64,11 +65,16 @@ def auto_gerar_ciclo(user, data_base=None):
         for data in dias_uteis:
             for alocacao in user.alocacoes:
                 if (data, alocacao.nome_corretora) not in mapa_dias:
+                    # FRENTE 2: Dias anteriores ao cadastro entram automaticamente como isentos
+                    is_isento = data < data_cadastro
+                    status_dia = 'isento' if is_isento else 'pendente'
+                    
                     novo_dia = FaturaDiaria(
                         fatura_id=fatura_existente.id,
                         data_pregao=data,
                         nome_corretora=alocacao.nome_corretora,
-                        status='pendente'
+                        status=status_dia,
+                        is_isento=is_isento
                     )
                     db.session.add(novo_dia)
                     houve_alteracao = True
@@ -110,6 +116,7 @@ def auto_gerar_ciclos_em_lote(users, data_base=None):
             
         data_cadastro = user.data_cadastro.date() if user.data_cadastro else datetime.min.date()
         
+        # FRENTE 3: Trava que não polui ciclos passados.
         if fim_ciclo < data_cadastro:
             continue
             

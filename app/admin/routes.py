@@ -50,7 +50,14 @@ def clientes_list():
     query = User.query.filter_by(role='cliente').options(joinedload(User.alocacoes))
     
     if busca:
-        query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
+        busca_limpa = ''.join(filter(str.isdigit, busca))
+        filtros = [User.nome.ilike(f'%{busca}%')]
+        if busca_limpa:
+            filtros.append(User.cpf.ilike(f'%{busca_limpa}%'))
+        if busca.isdigit():
+            filtros.append(User.id == int(busca))
+        query = query.filter(db.or_(*filtros))
+        
     if status_filtro:
         query = query.filter_by(status_acesso=status_filtro)
         
@@ -204,7 +211,7 @@ def pagamentos():
         
         if busca:
             query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
-        ativos = query.order_by(User.nome.asc()).all()
+        ativos_brutos = query.order_by(User.nome.asc()).all()
         
         if ciclo:
             try:
@@ -226,6 +233,13 @@ def pagamentos():
             if data_atual.weekday() < 5:
                 dias_uteis.append(data_atual)
             data_atual += timedelta(days=1)
+            
+        # FRENTE 3: Oculta clientes do admin cujas gavetas são muito antigas (antes de entrarem)
+        ativos = []
+        for c in ativos_brutos:
+            data_cad = c.data_cadastro.date() if c.data_cadastro else datetime.min.date()
+            if data_cad <= (inicio_ciclo + timedelta(days=6)):
+                ativos.append(c)
         
         auto_gerar_ciclos_em_lote(ativos, data_base=inicio_ciclo)
             
@@ -244,8 +258,9 @@ def pagamentos():
             fatura_atual = mapa_faturas.get(c.id)
             detalhes_corretoras = {}
             
-            data_cadastro = c.data_cadastro.date() if c.data_cadastro else datetime.min.date()
-            total_esperado = sum(1 for d_util in dias_uteis if d_util >= data_cadastro)
+            # FRENTE 4: A nova regra da Fatura gera SEMPRE os 5 dias. 
+            # A expectativa pura base (o lado direito da barrinha) passa a ser SEMPRE 5 menos os dias isentos.
+            total_dias_brutos_da_semana = len(dias_uteis)
             
             if fatura_atual:
                 status_atual = fatura_atual.status
@@ -254,14 +269,15 @@ def pagamentos():
                     dias_enviados = sum(1 for d in dias_corretora if d.status == 'relatorio_enviado')
                     dias_isentos = sum(1 for d in dias_corretora if d.status == 'isento')
                     
-                    total_exigido = total_esperado - dias_isentos
+                    total_exigido = total_dias_brutos_da_semana - dias_isentos
                     if total_exigido < 0: total_exigido = 0
                     
                     detalhes_corretoras[aloc.nome_corretora] = f"{dias_enviados}/{total_exigido}"
             else:
                 status_atual = 'sem_fatura'
                 for aloc in c.alocacoes:
-                    detalhes_corretoras[aloc.nome_corretora] = f"0/{total_esperado}"
+                    # Se não gerou fatura (e não deveria ser isento total), assume-se a mesma matemática da regra de negócio normal
+                    detalhes_corretoras[aloc.nome_corretora] = f"0/{total_dias_brutos_da_semana}"
                 
             clientes_dados.append({
                 'info': c, 
@@ -307,7 +323,8 @@ def licencas():
 def exportar_pendencias():
     ativos = User.query.filter(
         User.role == 'cliente', 
-        User.status_acesso == 'ativo'
+        User.status_acesso == 'ativo',
+        db.or_(User.is_isento == False, User.is_isento.is_(None))
     ).options(joinedload(User.faturas).joinedload(Fatura.dias)).order_by(User.nome.asc()).all()
     
     from app.utils.processador_xlsx import gerar_relatorio_pendencias
@@ -473,37 +490,25 @@ def documentos():
     templates = DocumentoTemplate.query.all()
     clientes = User.query.filter_by(role='cliente', status_acesso='ativo').order_by(User.nome.asc()).all()
     
-    # Carrega uma janela ampla do histórico do banco de dados
-    todos_docs = DocumentoCliente.query.join(DocumentoTemplate).options(
+    page = request.args.get('page', 1, type=int)
+
+    query = DocumentoCliente.query.join(User).join(DocumentoTemplate).options(
         joinedload(DocumentoCliente.cliente), 
         joinedload(DocumentoCliente.template)
+    ).filter(
+        db.or_(
+            User.data_cadastro.is_(None),
+            DocumentoCliente.data_envio.is_(None),
+            DocumentoCliente.data_envio > User.data_cadastro + timedelta(seconds=60)
+        )
     ).order_by(
         DocumentoCliente.status.desc(),
         DocumentoCliente.data_envio.desc()
-    ).limit(500).all()
+    )
     
-    historico = []
-    for doc in todos_docs:
-        if doc.data_envio and doc.cliente.data_cadastro:
-            # Removemos a fuso-horário para poder subtrair sem dar erro de compatibilidade
-            data_envio_clean = doc.data_envio.replace(tzinfo=None)
-            data_cadastro_clean = doc.cliente.data_cadastro.replace(tzinfo=None)
-            
-            diferenca_segundos = (data_envio_clean - data_cadastro_clean).total_seconds()
-            
-            # LÓGICA DO AVULSO:
-            # Se o documento foi emitido mais de 60 segundos APÓS o cliente ser criado,
-            # então foi um disparo feito por você (Admin), e não pelo sistema automático.
-            if diferenca_segundos > 60:
-                historico.append(doc)
-        else:
-            # Garante que registros antigos sem data sejam mostrados para você poder gerenciar
-            historico.append(doc)
-            
-        if len(historico) >= 100:
-            break
+    pagination_docs = query.paginate(page=page, per_page=20, error_out=False)
     
-    return render_template('admin/documentos.html', templates=templates, clientes=clientes, historico=historico)
+    return render_template('admin/documentos.html', templates=templates, clientes=clientes, pagination_docs=pagination_docs)
 
 @admin_bp.route('/documentos/cadastrar_template', methods=['POST'])
 @admin_required
@@ -520,6 +525,22 @@ def cadastrar_template():
     db.session.commit()
     
     flash(f'Modelo "{nome}" registrado! Certifique-se de que o arquivo "{arquivo_local}" esteja na pasta static/documentos/.', 'success')
+    return redirect(url_for('admin.documentos'))
+
+@admin_bp.route('/documentos/excluir_template/<int:id>', methods=['POST'])
+@admin_required
+def excluir_template(id):
+    template = DocumentoTemplate.query.get_or_404(id)
+    nome_temp = template.nome
+    
+    # Removemos todos os DocumentoCliente atrelados para não quebrar a integridade no DB
+    DocumentoCliente.query.filter_by(template_id=template.id).delete()
+    
+    db.session.delete(template)
+    registrar_log(f"Excluiu o Modelo de Documento e todas as suas pendências: {nome_temp}.", "Assinaturas")
+    db.session.commit()
+    
+    flash(f'Modelo de contrato "{nome_temp}" excluído com sucesso!', 'success')
     return redirect(url_for('admin.documentos'))
 
 @admin_bp.route('/documentos/disparar', methods=['POST'])
@@ -578,6 +599,10 @@ def excluir_documento_cliente(doc_id):
         flash('Não é possível excluir ou cancelar um documento que já foi assinado pelo parceiro.', 'error')
         return redirect(url_for('admin.documentos'))
     
+    if doc.template.is_onboarding:
+        cliente = doc.cliente
+        cliente.termo_assinado = False
+    
     nome_doc = doc.template.nome
     nome_cliente = doc.cliente.nome
     
@@ -585,7 +610,7 @@ def excluir_documento_cliente(doc_id):
     registrar_log(f"Cancelou e excluiu o documento '{nome_doc}' da fila do parceiro {nome_cliente}.", "Assinaturas")
     db.session.commit()
     
-    flash('Documento removido e cancelado com sucesso!', 'success')
+    flash(f'Documento "{nome_doc}" removido com sucesso e obrigatoriedade resetada!', 'success')
     return redirect(url_for('admin.documentos'))
 
 @admin_bp.route('/documentos/excluir_pendentes', methods=['POST'])
