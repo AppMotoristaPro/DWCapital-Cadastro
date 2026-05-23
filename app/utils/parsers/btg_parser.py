@@ -53,7 +53,7 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
         
         prompt = """
         Você é um auditor financeiro especialista na extração de dados de notas de corretagem da BTG Pactual.
-        O texto recebido contém apenas o cabeçalho e o rodapé do PDF. A letra 'D' (Débito) pode estar colada no número.
+        O texto recebido contém apenas o cabeçalho e o rodapé do PDF.
         
         Encontre 3 informações exatas:
         1. Data do Pregão (DD/MM/AAAA).
@@ -61,12 +61,12 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
         3. Total Líquido: Procure por 'Total líquido da nota' (Geralmente no final do documento).
         
         REGRA MATEMÁTICA CRÍTICA:
-        Sempre verifique se há um 'D' (Débito) ou 'C' (Crédito) atrelado ao valor. Se houver 'D', o valor DEVE TER SINAL NEGATIVO (-).
+        Sempre verifique se há um 'D' (Débito) ou 'C' (Crédito) atrelado ao valor. A letra 'D' pode aparecer em uma coluna separada logo abaixo ou à frente do número devido ao desalinhamento do PDF. Se houver 'D' indicando débito para aquele valor, o valor DEVE TER SINAL NEGATIVO (-).
         
         Retorne EXCLUSIVAMENTE um JSON válido. Use o campo 'raciocinio' para explicar a captura antes dos valores finais.
         Estrutura obrigatória de exemplo:
         {
-            "raciocinio": "Achei Ajuste day trade 820,00D (Sinal negativo). O líquido é 847,00 com D no final (Sinal negativo).",
+            "raciocinio": "Achei Ajuste day trade 820,00 e logo abaixo/frente tem um D (Sinal negativo). O líquido é 847,00 com D no final (Sinal negativo).",
             "data_pregao": "06/05/2026",
             "bruto": -820.00,
             "liquido_nota": -847.00
@@ -114,9 +114,21 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
         
         if v_custos_unificados < 0:
             print(f"    [!] Anomalia BTG: Custos negativos detectados ({v_custos_unificados}). O PDF inverteu o sinal de loss.")
-            v_liquido_pregao = -abs(v_liquido_pregao)
-            v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
-            print(f"    [!] Correção aplicada. Novo Líquido: {v_liquido_pregao} | Novos Custos: {v_custos_unificados}")
+            
+            # Se o Líquido for maior que o Bruto matematicamente e der custos negativos, 
+            # é porque a IA perdeu o sinal de "D" e ambos devem ser forçados como LOSS (negativos).
+            if abs(v_liquido_pregao) > abs(v_bruto):
+                v_bruto = -abs(v_bruto)
+                v_liquido_pregao = -abs(v_liquido_pregao)
+                v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+                print(f"    [!] Correção Dupla (Loss) aplicada. Novo Bruto: {v_bruto} | Novo Líquido: {v_liquido_pregao} | Novos Custos: {v_custos_unificados}")
+            else:
+                v_liquido_pregao = -abs(v_liquido_pregao)
+                v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+                print(f"    [!] Correção Parcial aplicada. Novo Líquido: {v_liquido_pregao} | Novos Custos: {v_custos_unificados}")
+                
+        # Garante segurança matemática absoluta (taxa da b3 e corretagem nunca são negativas)
+        v_custos_unificados = abs(v_custos_unificados)
             
         print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
         
@@ -150,3 +162,4 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
         if "PDF_INCOMPATIVEL" in str(e):
             raise e
         return None
+
