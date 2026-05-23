@@ -318,12 +318,15 @@ def pagamentos():
                 User.status_acesso == 'ativo'
             ).all()
             
-            # 3) Repasse Total exclusivo de cada Gaveta (Ignora 'compra' e 'isento')
-            repasse_gaveta = sum(f.repasse for f in todas_faturas if getattr(f.cliente, 'modelo_negocio', 'comissao') == 'comissao' and not getattr(f.cliente, 'is_isento', False))
+            # FRENTE 2: Base Ativa e Status nas gavetas IGNORA isentos
+            faturas_reais = [f for f in todas_faturas if not getattr(f.cliente, 'is_isento', False)]
             
-            total = len(todas_faturas)
+            # Repasse Total exclusivo de cada Gaveta (Ignora 'compra' e 'isento')
+            repasse_gaveta = sum(f.repasse for f in faturas_reais if getattr(f.cliente, 'modelo_negocio', 'comissao') == 'comissao')
+            
+            total = len(faturas_reais)
             if total > 0:
-                pendentes = sum(1 for f in todas_faturas if f.status in ['pendente', 'parcial'])
+                pendentes = sum(1 for f in faturas_reais if f.status in ['pendente', 'parcial'])
                 gavetas.append({
                     'data_inicio': dt_ini,
                     'data_fim': dt_fim,

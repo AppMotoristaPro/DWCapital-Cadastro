@@ -9,7 +9,7 @@
             <p class="text-gray-500 mt-2 font-medium">Selecione o ciclo de faturamento para realizar o fechamento e repasse.</p>
         </div>
         
-        <div class="bg-gradient-to-br from-royal to-royal-dark px-6 py-4 rounded-2xl shadow-lg border border-royal-dark text-right min-w-[220px]">
+        <div class="bg-gradient-to-br from-royal to-royal-dark px-6 py-4 rounded-2xl shadow-lg border border-royal-dark text-right w-max ml-auto shrink-0">
             <p class="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1">Repasse Global (30%)</p>
             <p class="text-2xl font-black text-white leading-none">R$ {{ repasse_global|format_brl }}</p>
         </div>
@@ -75,7 +75,7 @@
             <h2 class="text-3xl font-black text-navy tracking-tight">Ciclo: <span class="text-royal">{{ ciclo_data.strftime('%d/%m/%Y') }}</span></h2>
         </div>
         
-        <div class="bg-gradient-to-br from-royal to-royal-dark px-6 py-4 rounded-2xl shadow-lg border border-royal-dark text-right min-w-[220px]">
+        <div class="bg-gradient-to-br from-royal to-royal-dark px-6 py-4 rounded-2xl shadow-lg border border-royal-dark text-right w-max ml-auto shrink-0">
             <p class="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1">Repasse do Ciclo (30%)</p>
             <p class="text-2xl font-black text-white leading-none">R$ {{ repasse_ciclo|format_brl }}</p>
         </div>
@@ -87,7 +87,13 @@
       {% endfor %}{% endif %}
     {% endwith %}
 
-    <div class="flex flex-col xl:flex-row xl:items-center gap-6 mb-10">
+    <div class="flex flex-col xl:flex-row xl:items-center gap-4 mb-10">
+        <div class="flex items-center gap-1 bg-white/60 backdrop-blur-xl p-1.5 rounded-2xl shadow-sm border border-white shrink-0">
+            <button type="button" onclick="filtrarTabela('todos')" id="filtro-todos" class="btn-filtro px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-navy text-white shadow-md">Todos</button>
+            <button type="button" onclick="filtrarTabela('normais')" id="filtro-normais" class="btn-filtro px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-transparent text-gray-500 hover:bg-gray-100">Normais</button>
+            <button type="button" onclick="filtrarTabela('isentos')" id="filtro-isentos" class="btn-filtro px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-transparent text-gray-500 hover:bg-gray-100">Isentos</button>
+        </div>
+
         <form method="GET" action="{{ url_for('admin.pagamentos') }}" class="flex gap-3 bg-white/60 backdrop-blur-xl p-3 rounded-[2rem] shadow-sm border border-white flex-1">
             <input type="hidden" name="ciclo" value="{{ ciclo_data.strftime('%Y-%m-%d') }}">
             <input type="text" name="q" value="{{ busca }}" placeholder="Filtrar parceiro neste ciclo..." class="flex-1 px-5 py-3 outline-none text-sm font-bold text-navy bg-white rounded-xl border border-gray-100 shadow-inner">
@@ -129,7 +135,7 @@
                 </thead>
                 <tbody class="divide-y divide-gray-50">
                     {% for item in clientes_dados %}
-                    <tr class="hover:bg-gray-50/50 transition-colors">
+                    <tr class="hover:bg-gray-50/50 transition-colors linha-cliente" data-isento="{{ 'true' if item.info.is_isento else 'false' }}">
                         <td class="px-8 py-6">
                             <div class="font-black text-navy text-sm flex items-center gap-2">
                                 {{ item.info.nome }}
@@ -184,6 +190,30 @@
     </div>
 
     <script>
+        function filtrarTabela(tipo) {
+            // Atualiza botões
+            document.querySelectorAll('.btn-filtro').forEach(b => {
+                b.classList.remove('bg-navy', 'text-white', 'shadow-md');
+                b.classList.add('bg-transparent', 'text-gray-500');
+            });
+            const ativo = document.getElementById('filtro-' + tipo);
+            ativo.classList.remove('bg-transparent', 'text-gray-500');
+            ativo.classList.add('bg-navy', 'text-white', 'shadow-md');
+
+            // Filtra linhas
+            const linhas = document.querySelectorAll('.linha-cliente');
+            linhas.forEach(linha => {
+                const isIsento = linha.getAttribute('data-isento') === 'true';
+                if (tipo === 'todos') {
+                    linha.style.display = '';
+                } else if (tipo === 'normais') {
+                    linha.style.display = isIsento ? 'none' : '';
+                } else if (tipo === 'isentos') {
+                    linha.style.display = isIsento ? '' : 'none';
+                }
+            });
+        }
+
         document.getElementById('select-dia-isencao')?.addEventListener('change', function() {
             var select = this;
             var form = document.getElementById('form-isentar-global');
