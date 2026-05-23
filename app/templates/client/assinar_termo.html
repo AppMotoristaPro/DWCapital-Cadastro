@@ -9,6 +9,15 @@
         </div>
 
         <div class="p-10">
+            <div class="mb-8 p-5 bg-blue-50 border border-blue-200 rounded-2xl flex items-start gap-4 shadow-sm">
+                <div class="w-10 h-10 bg-white border border-blue-100 text-royal rounded-xl flex items-center justify-center shrink-0 shadow-sm mt-0.5">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                </div>
+                <div>
+                    <h4 class="text-sm font-black text-navy uppercase tracking-widest mb-1">Verifique seu E-mail</h4>
+                    <p class="text-xs text-gray-600 font-medium leading-relaxed">Nós enviamos um link seguro da Autentique para o seu e-mail cadastrado. Por favor, <b>acesse sua caixa de entrada (ou pasta de Spam)</b> para assinar os documentos digitalmente.</p>
+                </div>
+            </div>
             <h3 class="text-lg font-black text-navy mb-6 text-center">Documentos Pendentes ({{ documentos|length }})</h3>
             <div class="space-y-4">
                 {% for doc in documentos %}

@@ -312,9 +312,11 @@ def licencas():
 @admin_bp.route('/pagamentos/exportar_pendencias')
 @admin_required
 def exportar_pendencias():
+    # EXPORTAÇÃO CORRIGIDA: Inclui clientes 'comissao' e 'compra', mas IGNORA os 'isentos'
     ativos = User.query.filter(
         User.role == 'cliente', 
-        User.status_acesso == 'ativo'
+        User.status_acesso == 'ativo',
+        db.or_(User.is_isento == False, User.is_isento.is_(None))
     ).options(joinedload(User.faturas).joinedload(Fatura.dias)).order_by(User.nome.asc()).all()
     
     from app.utils.processador_xlsx import gerar_relatorio_pendencias
@@ -480,37 +482,26 @@ def documentos():
     templates = DocumentoTemplate.query.all()
     clientes = User.query.filter_by(role='cliente', status_acesso='ativo').order_by(User.nome.asc()).all()
     
-    # Carrega uma janela ampla do histórico do banco de dados
-    todos_docs = DocumentoCliente.query.join(DocumentoTemplate).options(
+    page = request.args.get('page', 1, type=int)
+
+    # Nova Lógica de Paginação DB-side (Calcula o avulso > 60s direto na query)
+    query = DocumentoCliente.query.join(User).join(DocumentoTemplate).options(
         joinedload(DocumentoCliente.cliente), 
         joinedload(DocumentoCliente.template)
+    ).filter(
+        db.or_(
+            User.data_cadastro.is_(None),
+            DocumentoCliente.data_envio.is_(None),
+            DocumentoCliente.data_envio > User.data_cadastro + timedelta(seconds=60)
+        )
     ).order_by(
         DocumentoCliente.status.desc(),
         DocumentoCliente.data_envio.desc()
-    ).limit(500).all()
+    )
     
-    historico = []
-    for doc in todos_docs:
-        if doc.data_envio and doc.cliente.data_cadastro:
-            # Removemos a fuso-horário para poder subtrair sem dar erro de compatibilidade
-            data_envio_clean = doc.data_envio.replace(tzinfo=None)
-            data_cadastro_clean = doc.cliente.data_cadastro.replace(tzinfo=None)
-            
-            diferenca_segundos = (data_envio_clean - data_cadastro_clean).total_seconds()
-            
-            # LÓGICA DO AVULSO:
-            # Se o documento foi emitido mais de 60 segundos APÓS o cliente ser criado,
-            # então foi um disparo feito por você (Admin), e não pelo sistema automático.
-            if diferenca_segundos > 60:
-                historico.append(doc)
-        else:
-            # Garante que registros antigos sem data sejam mostrados para você poder gerenciar
-            historico.append(doc)
-            
-        if len(historico) >= 100:
-            break
+    pagination_docs = query.paginate(page=page, per_page=20, error_out=False)
     
-    return render_template('admin/documentos.html', templates=templates, clientes=clientes, historico=historico)
+    return render_template('admin/documentos.html', templates=templates, clientes=clientes, pagination_docs=pagination_docs)
 
 @admin_bp.route('/documentos/cadastrar_template', methods=['POST'])
 @admin_required

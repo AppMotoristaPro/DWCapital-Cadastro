@@ -119,7 +119,6 @@
                                 Excluir Todos Pendentes
                             </button>
                         </form>
-                        <span class="px-4 py-2 bg-gray-50 border border-gray-200 text-gray-500 text-[9px] font-black uppercase tracking-widest rounded-lg shadow-sm">Top 100</span>
                     </div>
                 </div>
                 
@@ -135,7 +134,7 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-50 bg-white">
-                            {% for doc in historico %}
+                            {% for doc in pagination_docs.items %}
                             <tr class="hover:bg-gray-50/50 transition-colors">
                                 <td class="px-8 py-6">
                                     <span class="text-sm font-black text-navy">{{ doc.template.nome }}</span>
@@ -145,8 +144,8 @@
                                 </td>
                                 <td class="px-6 py-6">
                                     {% if doc.data_envio %}
-                                        <span class="text-[10px] font-bold text-gray-500 tracking-widest uppercase block">{{ doc.data_envio.strftime('%d/%m/%Y') }}</span>
-                                        <span class="text-[9px] font-black text-gray-400">{{ doc.data_envio.strftime('%H:%M') }}</span>
+                                        <span class="text-[10px] font-bold text-gray-500 tracking-widest uppercase block">{{ (doc.data_envio | to_tz_br).strftime('%d/%m/%Y') }}</span>
+                                        <span class="text-[9px] font-black text-gray-400">{{ (doc.data_envio | to_tz_br).strftime('%H:%M') }}</span>
                                     {% else %}
                                         <span class="text-[10px] font-bold text-gray-500 tracking-widest uppercase block">Recém criado</span>
                                     {% endif %}
@@ -187,6 +186,26 @@
                         </tbody>
                     </table>
                 </div>
+
+                {% if pagination_docs.pages > 1 %}
+                <div class="px-8 py-5 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Página {{ pagination_docs.page }} de {{ pagination_docs.pages }}</span>
+                    <div class="flex items-center gap-2">
+                        {% if pagination_docs.has_prev %}
+                        <a href="{{ url_for('admin.documentos', page=pagination_docs.prev_num) }}" class="px-4 py-2 bg-white border border-gray-200 text-gray-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition shadow-sm">Anterior</a>
+                        {% else %}
+                        <span class="px-4 py-2 bg-gray-50 border border-gray-100 text-gray-300 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-not-allowed">Anterior</span>
+                        {% endif %}
+
+                        {% if pagination_docs.has_next %}
+                        <a href="{{ url_for('admin.documentos', page=pagination_docs.next_num) }}" class="px-4 py-2 bg-white border border-gray-200 text-navy rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition shadow-sm">Próxima</a>
+                        {% else %}
+                        <span class="px-4 py-2 bg-gray-50 border border-gray-100 text-gray-300 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-not-allowed">Próxima</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
             </div>
         </div>
 
