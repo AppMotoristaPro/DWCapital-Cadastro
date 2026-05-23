@@ -484,7 +484,6 @@ def documentos():
     
     page = request.args.get('page', 1, type=int)
 
-    # Nova Lógica de Paginação DB-side (Calcula o avulso > 60s direto na query)
     query = DocumentoCliente.query.join(User).join(DocumentoTemplate).options(
         joinedload(DocumentoCliente.cliente), 
         joinedload(DocumentoCliente.template)
@@ -576,6 +575,10 @@ def excluir_documento_cliente(doc_id):
         flash('Não é possível excluir ou cancelar um documento que já foi assinado pelo parceiro.', 'error')
         return redirect(url_for('admin.documentos'))
     
+    if doc.template.is_onboarding:
+        cliente = doc.cliente
+        cliente.termo_assinado = False
+    
     nome_doc = doc.template.nome
     nome_cliente = doc.cliente.nome
     
@@ -583,7 +586,7 @@ def excluir_documento_cliente(doc_id):
     registrar_log(f"Cancelou e excluiu o documento '{nome_doc}' da fila do parceiro {nome_cliente}.", "Assinaturas")
     db.session.commit()
     
-    flash('Documento removido e cancelado com sucesso!', 'success')
+    flash(f'Documento "{nome_doc}" removido com sucesso e obrigatoriedade resetada!', 'success')
     return redirect(url_for('admin.documentos'))
 
 @admin_bp.route('/documentos/excluir_pendentes', methods=['POST'])
