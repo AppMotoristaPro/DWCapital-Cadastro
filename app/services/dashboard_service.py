@@ -11,12 +11,13 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
     Processa toda a matemática do dashboard admin: filtros de data, 
     faturamento bruto/líquido, cálculo de ROI Diário Médio e agregação do gráfico.
     """
+    # FRENTE 1: Retirado o filtro db.or_(User.is_isento == False, User.is_isento.is_(None)) 
+    # para que o Bruto Consolidado puxe TODOS os usuários (normais, isentos e compras).
     faturas_base = Fatura.query.join(User).options(
         contains_eager(Fatura.cliente),
         joinedload(Fatura.dias)
     ).filter(
-        Fatura.status.in_(['parcial', 'completo', 'pago', 'inadimplente']),
-        db.or_(User.is_isento == False, User.is_isento.is_(None))
+        Fatura.status.in_(['parcial', 'completo', 'pago', 'inadimplente'])
     )
     
     ano_atual = datetime.now(tz_br).year
@@ -60,6 +61,7 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
     for f in faturas_filtradas:
         capital_cliente = f.cliente.capital_alocado or 0.0
         modelo_cliente = getattr(f.cliente, 'modelo_negocio', 'comissao')
+        is_isento_cliente = getattr(f.cliente, 'is_isento', False)
         
         if f.user_id not in rois_clientes:
             rois_clientes[f.user_id] = {
@@ -73,7 +75,8 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
                 'nome': f.cliente.nome,
                 'bruto': 0.0,
                 'repasse': 0.0,
-                'modelo': modelo_cliente
+                'modelo': modelo_cliente,
+                'is_isento': is_isento_cliente
             }
             
         for d in f.dias:
@@ -84,18 +87,19 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
 
             if d.status == 'relatorio_enviado':
                 # Só calcula repasse DW se for modelo Comissão e não isento
-                if modelo_cliente == 'comissao' and not getattr(f.cliente, 'is_isento', False):
+                if modelo_cliente == 'comissao' and not is_isento_cliente:
                     faturamento_total += d.repasse
                     ranking_clientes[f.user_id]['repasse'] += d.repasse
                 
-                # Bruto Global contabiliza de todos (Compra e Comissão)
+                # Bruto Global contabiliza de todos (Compra e Comissão e Isentos)
                 if d.bruto > 0:
                     faturamento_bruto_total += d.bruto
                     ranking_clientes[f.user_id]['bruto'] += d.bruto
                     rois_clientes[f.user_id]['bruto_acumulado'] += d.bruto
                     rois_clientes[f.user_id]['dias_operados'].add(d.data_pregao)
                     
-                dados_grafico_raw[d.data_pregao] = dados_grafico_raw.get(d.data_pregao, 0.0) + d.bruto
+                    # Gráfico foca apenas em dias de GAIN
+                    dados_grafico_raw[d.data_pregao] = dados_grafico_raw.get(d.data_pregao, 0.0) + d.bruto
 
     datas_ordenadas = sorted(dados_grafico_raw.keys())
     chart_labels = [dt.strftime('%d/%m') for dt in datas_ordenadas]
@@ -225,3 +229,4 @@ def obter_dados_dashboard_cliente(user_id, filtro_dia, filtro_semana_dia, filtro
         'chart_labels': chart_labels,
         'chart_data': chart_data
     }
+

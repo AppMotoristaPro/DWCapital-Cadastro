@@ -41,7 +41,7 @@
         </div>
     </form>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         
         <div onclick="abrirModalRanking()" class="cursor-pointer bg-gradient-to-br from-gray-900 to-navy p-8 rounded-[2rem] shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden flex flex-col justify-between group">
             <div class="absolute -right-6 -top-6 w-32 h-32 bg-white/5 rounded-full blur-2xl pointer-events-none transition-transform group-hover:scale-110"></div>
@@ -50,15 +50,6 @@
                 <p class="text-3xl font-black text-white mt-1 relative z-10 leading-none group-hover:text-blue-200 transition-colors">R$ {{ faturamento_bruto_total|format_brl }}</p>
             </div>
             <p class="text-xs text-gray-400 font-bold mt-3 relative z-10">Performance Global</p>
-        </div>
-
-        <div onclick="abrirModalRanking()" class="cursor-pointer bg-gradient-to-br from-royal to-royal-dark p-8 rounded-[2rem] shadow-xl shadow-royal/30 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden flex flex-col justify-between group">
-            <div class="absolute -right-6 -top-6 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none transition-transform group-hover:scale-110"></div>
-            <div>
-                <p class="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1 relative z-10 flex items-center gap-2">Repasse DW (30%) <svg class="w-3 h-3 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg></p>
-                <p class="text-3xl font-black text-white mt-1 relative z-10 leading-none group-hover:text-blue-100 transition-colors">R$ {{ faturamento_total|format_brl }}</p>
-            </div>
-            <p class="text-xs text-blue-200 font-bold mt-3 relative z-10">Apenas Clientes (Comissão)</p>
         </div>
 
         <div class="bg-white/80 backdrop-blur-xl p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white flex flex-col justify-between">
@@ -130,6 +121,8 @@
                             <p class="text-base font-black text-navy">{{ cliente.nome.split()[0] }} {{ cliente.nome.split()[-1] if cliente.nome.split()|length > 1 else '' }}</p>
                             {% if cliente.modelo == 'compra' %}
                                 <span class="px-1.5 py-0.5 bg-blue-100 text-royal border border-blue-200 rounded text-[8px] font-black uppercase tracking-widest shadow-sm">Licença</span>
+                            {% elif cliente.is_isento %}
+                                <span class="px-1.5 py-0.5 bg-purple-50 text-purple-600 border border-purple-200 rounded text-[8px] font-black uppercase tracking-widest shadow-sm">Isento</span>
                             {% endif %}
                         </div>
                         <p class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-0.5">Bruto: R$ {{ cliente.bruto|format_brl }}</p>
@@ -141,6 +134,8 @@
                     <p class="text-lg font-black text-green-600">
                         {% if cliente.modelo == 'compra' %}
                             <span class="text-gray-400 text-sm">--</span>
+                        {% elif cliente.is_isento %}
+                            <span class="text-gray-400 text-[10px] uppercase tracking-widest">Dispensado</span>
                         {% else %}
                             R$ {{ cliente.repasse|format_brl }}
                         {% endif %}
@@ -150,7 +145,7 @@
             {% else %}
             <div class="text-center py-16">
                 <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300">
-                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2-2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
                 </div>
                 <p class="text-gray-400 font-bold uppercase tracking-widest text-xs">Nenhum dado consolidado no período.</p>
             </div>
@@ -220,3 +215,4 @@
     });
 </script>
 {% endblock %}
+
