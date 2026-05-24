@@ -188,12 +188,15 @@ def verificar_status_autentique(doc_id):
         return False
     return False
 
+# =====================================================
+# FUNÇÃO CORRIGIDA: SEMPRE USA painel.autentique.com.br
+# =====================================================
 def obter_url_visualizacao_autentique(autentique_document_id):
     """
     Retorna a URL pública do documento no painel da Autentique.
-    Remove os hífens do UUID, pois o link funciona sem eles.
+    Remove os hífens do UUID.
     Exemplo: https://painel.autentique.com.br/documentos/f4f9b30380e6d20c946a00943a2040489d44a8f88161bc603
     """
-    # Remove os hífens do UUID
+    # Remove os hífens do UUID (formato: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
     uuid_sem_hifen = autentique_document_id.replace('-', '')
     return f"https://painel.autentique.com.br/documentos/{uuid_sem_hifen}"
