@@ -21,7 +21,7 @@ def sanitizar_texto(texto, cpf_cliente):
 
 def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
     print(f"\n" + "="*50)
-    print(f"[GENIAL_PARSER] INICIANDO ROBÔ GENIAL V4 (POWERED BY GROQ & LLAMA 3)")
+    print(f"[GENIAL_PARSER] INICIANDO ROBÔ GENIAL V4 (POWERED BY GROQ & FALLBACKS)")
     print(f"="*50)
     print(f"[GENIAL_PARSER] Arquivo alvo: {caminho_arquivo}")
     try:
@@ -47,52 +47,67 @@ def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
             raise Exception("Chave GROQ_API_KEY não encontrada no ambiente (.env ou Render).")
         
         client = Groq(api_key=api_key)
-        modelo_alvo = "llama-3.3-70b-versatile"
-        
-        print("\n  [GROQ DIAGNÓSTICO] Verificando ambiente de integração...")
-        print(f"    -> Modelo acionado para leitura ultrarrápida: {modelo_alvo}\n")
         
         prompt = """
         Você é um auditor financeiro especialista na extração de dados de notas de corretagem da Genial Investimentos.
         O texto recebido contém apenas o cabeçalho e o rodapé do PDF. Palavras, números e as letras 'C' (Crédito) e 'D' (Débito) estão misturados.
-        A letra 'D' pode estar colada no número (ex: 820,00D) ou solta.
+        A letra 'D' ou 'C' pode estar colada no número (ex: 820,00D ou 500,00C) ou solta.
         
         Encontre 3 informações exatas:
         1. Data do Pregão (DD/MM/AAAA).
         2. Valor Bruto: Procure por 'Ajuste day trade' ou 'Valor dos negócios'. Pegue o valor correspondente não zerado.
         3. Total Líquido: Procure por 'Total líquido da nota' ou 'Total líquido (#)'.
         
-        REGRA MATEMÁTICA CRÍTICA:
-        Sempre verifique se há um 'D' (Débito) ou 'C' (Crédito) atrelado ao valor. Se houver 'D', o valor DEVE TER SINAL NEGATIVO (-).
+        REGRA MATEMÁTICA CRÍTICA SOBRE SINAIS:
+        A letra 'C' significa CRÉDITO (POSITIVO). A letra 'D' significa DÉBITO (NEGATIVO).
+        Verifique ATENTAMENTE a letra que está colada ou logo após o número. 
+        Se houver 'C', o valor é ESTRITAMENTE POSITIVO.
+        Só use sinal negativo (-) se houver certeza da letra 'D' atrelada ao valor. Não assuma ou invente 'D' onde existe 'C'.
         
-        Retorne EXCLUSIVAMENTE um JSON válido. Use o campo 'raciocinio' para explicar a captura antes dos valores finais.
+        Retorne EXCLUSIVAMENTE um JSON válido. Use o campo 'raciocinio' para explicar a captura (mostre o número e a letra que encontrou).
         Estrutura obrigatória de exemplo:
         {
-            "raciocinio": "Achei Ajuste day trade 820,00D (Sinal negativo). O líquido é 847,00 com um D por perto (Sinal negativo).",
+            "raciocinio": "Achei Ajuste day trade 820,00 C (Positivo). O líquido é 847,00 C (Positivo).",
             "data_pregao": "06/05/2026",
-            "bruto": -820.00,
-            "liquido_nota": -847.00
+            "bruto": 820.00,
+            "liquido_nota": 847.00
         }
         """
         
         print("  [GROQ REQUEST] Despachando nota mascarada para a nuvem Groq...")
-        print("  --- INÍCIO DO TEXTO ENVIADO (MÁXIMO ENXUTO) ---")
-        print(texto_seguro)
-        print("  --- FIM DO TEXTO ENVIADO ---\n")
         
-        response = client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": texto_seguro}
-            ],
-            model=modelo_alvo,
-            temperature=0.0,
-            response_format={"type": "json_object"}
-        )
+        # ROLETA DE MODELOS (FALLBACK) PARA DRIBLAR O LIMITE DE TOKENS (ERROR 429)
+        modelos_para_tentar = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"]
+        texto_json = None
         
-        texto_json = response.choices[0].message.content.strip()
+        for modelo_alvo in modelos_para_tentar:
+            try:
+                print(f"  [GROQ DIAGNÓSTICO] Tentando alocação no modelo: {modelo_alvo}...")
+                response = client.chat.completions.create(
+                    messages=[
+                        {"role": "system", "content": prompt},
+                        {"role": "user", "content": texto_seguro}
+                    ],
+                    model=modelo_alvo,
+                    temperature=0.0,
+                    response_format={"type": "json_object"}
+                )
+                texto_json = response.choices[0].message.content.strip()
+                print(f"    -> Sucesso no modelo {modelo_alvo}!")
+                break # Sai do loop se o modelo funcionar
+                
+            except Exception as e:
+                print(f"    [!] Falha no modelo {modelo_alvo}: {str(e)}")
+                if "429" in str(e) or "rate limit" in str(e).lower():
+                    print("    -> Cota diária excedida. Pulando para o modelo reserva...")
+                    continue # Tenta o próximo modelo
+                else:
+                    raise e # Se for outro erro, aborta.
+                    
+        if not texto_json:
+            raise Exception("Limites diários excedidos em todos os modelos de fallback do Groq. Tente novamente mais tarde.")
         
-        print("  [GROQ RESPONSE] Resposta bruta devolvida pela IA:")
+        print("\n  [GROQ RESPONSE] Resposta bruta devolvida pela IA:")
         print("  --- INÍCIO DO RETORNO ---")
         print(texto_json)
         print("  --- FIM DO RETORNO ---\n")
@@ -116,10 +131,28 @@ def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
         v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
         
         if v_custos_unificados < 0:
-            print(f"    [!] Anomalia Genial: Custos negativos detectados ({v_custos_unificados}). O PDF inverteu o sinal de loss.")
-            v_liquido_pregao = -abs(v_liquido_pregao)
-            v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
-            print(f"    [!] Correção aplicada. Novo Líquido: {v_liquido_pregao} | Novos Custos: {v_custos_unificados}")
+            print(f"    [!] Anomalia Genial: Custos negativos detectados ({v_custos_unificados}). O PDF ou a IA inverteu os sinais.")
+            
+            # FILTRO ANTI-ALUCINAÇÃO
+            if v_bruto < 0 and v_liquido_pregao < 0:
+                print("    [!] A IA negativou indevidamente um Gain. Forçando valores para POSITIVO.")
+                v_bruto = abs(v_bruto)
+                v_liquido_pregao = abs(v_liquido_pregao)
+                v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+                
+            elif abs(v_liquido_pregao) > abs(v_bruto):
+                v_bruto = -abs(v_bruto)
+                v_liquido_pregao = -abs(v_liquido_pregao)
+                v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+                print(f"    [!] Correção Dupla (Loss) aplicada. Novo Bruto: {v_bruto} | Novo Líquido: {v_liquido_pregao}")
+                
+            else:
+                v_liquido_pregao = -abs(v_liquido_pregao)
+                v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+                print(f"    [!] Correção Parcial aplicada. Novo Líquido: {v_liquido_pregao}")
+                
+        # Garante segurança matemática absoluta
+        v_custos_unificados = abs(v_custos_unificados)
             
         print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
         
@@ -154,3 +187,4 @@ def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
         if "PDF_INCOMPATIVEL" in str(e):
             raise e
         return None
+
