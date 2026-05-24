@@ -122,7 +122,10 @@ async function solicitarRecuperacao() {
     try {
         const res = await fetch("/portal/api/buscar_dados_whatsapp", {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
             body: JSON.stringify({cpf: cpf})
         });
         
