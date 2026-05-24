@@ -7,7 +7,7 @@ from flask_login import login_required, current_user
 import cloudinary.uploader
 from werkzeug.utils import secure_filename
 from app import db
-from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, DocumentoTemplate
+from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, DocumentoTemplate, User
 from app.utils.parsers.gerenciador_pdf import processar_pdf
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
@@ -21,6 +21,10 @@ client_bp = Blueprint('client', __name__, url_prefix='/portal')
 
 @client_bp.before_request
 def check_paywall():
+    # Ignora rotas abertas como a API do WhatsApp
+    if request.endpoint == 'client.buscar_dados_whatsapp':
+        return
+
     if not current_user.is_authenticated:
         return
     if getattr(current_user, 'precisa_trocar_senha', False):
@@ -47,6 +51,22 @@ def check_paywall():
             
             if parcela_pendente:
                 return redirect(url_for('client.bloqueio_pagamento'))
+
+# ==========================================
+# ROTA ABERTA: Geração Link WhatsApp
+# ==========================================
+@client_bp.route('/api/buscar_dados_whatsapp', methods=['POST'])
+def buscar_dados_whatsapp():
+    data = request.get_json()
+    cpf_puro = ''.join(filter(str.isdigit, data.get('cpf', '')))
+    
+    user = User.query.filter_by(cpf=cpf_puro).first()
+    if user:
+        msg = f"Olá, me chamo {user.nome}. Preciso alterar minha senha, segue minhas informações:\nID: {user.id}\nCPF: {user.cpf}"
+        link = f"https://wa.me/5511991167709?text={urllib.parse.quote(msg)}"
+        return jsonify({"success": True, "link": link})
+        
+    return jsonify({"success": False, "message": "O CPF informado não foi encontrado em nossa base de dados."})
 
 @client_bp.route('/bloqueio_pagamento')
 @login_required
@@ -188,7 +208,6 @@ def faturas():
             datas_da_semana = []
             data_atual = fatura.data_inicio
             
-            # FRENTE 1: Cria sempre 5 dias sem ignorar/pular datas para não quebrar o layout
             while len(datas_da_semana) < 5 and data_atual <= fatura.data_fim:
                 if data_atual.weekday() < 5:
                     datas_da_semana.append(data_atual)
@@ -199,7 +218,6 @@ def faturas():
             for data in datas_da_semana:
                 for alocacao in current_user.alocacoes:
                     if (data, alocacao.nome_corretora) not in dias_existentes:
-                        # FRENTE 2: Determina isenção para dias passados
                         is_isento = data < data_cadastro
                         status_dia = 'isento' if is_isento else 'pendente'
                         
@@ -299,11 +317,10 @@ def api_status_documento(doc_id):
 @client_bp.route('/ajuda')
 @login_required
 def ajuda():
-    msg_suporte = f"Olá, sou {current_user.nome}. Preciso de suporte técnico no portal DW Capital."
+    msg_suporte = f"Olá, me chamo {current_user.nome}. Preciso de ajuda, segue minhas informações:\nID: {current_user.id}\nCPF: {current_user.cpf}"
     msg_suporte_encoded = urllib.parse.quote(msg_suporte)
-    msg_comercial = f"Olá, sou {current_user.nome}. Preciso de atendimento comercial/financeiro."
-    msg_comercial_encoded = urllib.parse.quote(msg_comercial)
+    
     return render_template('client/ajuda.html', 
                            link_suporte=f"https://wa.me/5511991167709?text={msg_suporte_encoded}",
-                           link_comercial=f"https://wa.me/5511920504850?text={msg_comercial_encoded}")
+                           link_comercial=f"https://wa.me/5511920504850?text={msg_suporte_encoded}")
 

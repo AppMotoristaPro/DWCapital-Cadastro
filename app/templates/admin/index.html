@@ -11,19 +11,23 @@
         </button>
     </div>
 
-    <form method="GET" action="{{ url_for('admin.clientes_list') }}" class="mb-8 flex flex-wrap gap-4 bg-white/60 backdrop-blur-xl p-3 rounded-3xl shadow-sm border border-white w-full max-w-3xl">
-        <input type="text" name="q" value="{{ busca }}" placeholder="Buscar por nome, CPF ou ID..." class="flex-1 px-5 py-3 outline-none text-sm font-bold text-navy bg-white rounded-xl border border-gray-100 min-w-[200px]">
-        <select name="status" class="px-5 py-3 outline-none text-sm font-bold text-gray-500 bg-white rounded-xl border border-gray-100 cursor-pointer">
+    <div class="mb-8 flex flex-wrap gap-4 bg-white/60 backdrop-blur-xl p-3 rounded-3xl shadow-sm border border-white w-full max-w-4xl">
+        <input type="text" id="filtro-texto" placeholder="Buscar por nome, CPF ou ID..." class="flex-1 px-5 py-3 outline-none text-sm font-bold text-navy bg-white rounded-xl border border-gray-100 min-w-[200px]" onkeyup="filtrarClientes()">
+        
+        <select id="filtro-status" class="px-5 py-3 outline-none text-sm font-bold text-gray-500 bg-white rounded-xl border border-gray-100 cursor-pointer" onchange="filtrarClientes()">
             <option value="">Todos os Status</option>
-            <option value="ativo" {% if status_filtro == 'ativo' %}selected{% endif %}>Ativos</option>
-            <option value="inativo" {% if status_filtro == 'inativo' %}selected{% endif %}>Inativos</option>
-            <option value="pendente_cadastro" {% if status_filtro == 'pendente_cadastro' %}selected{% endif %}>Pendentes</option>
+            <option value="ativo">Ativos</option>
+            <option value="inativo">Inativos</option>
+            <option value="pendente_cadastro">Pendentes</option>
         </select>
-        <button type="submit" class="px-8 py-3 bg-navy text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition">Filtrar</button>
-        {% if busca or status_filtro %}
-        <a href="{{ url_for('admin.clientes_list') }}" class="px-4 py-3 text-gray-400 hover:text-red-500 font-bold text-xs flex items-center">Limpar</a>
-        {% endif %}
-    </form>
+
+        <select id="filtro-corretora" class="px-5 py-3 outline-none text-sm font-bold text-gray-500 bg-white rounded-xl border border-gray-100 cursor-pointer" onchange="filtrarClientes()">
+            <option value="">Todas as Corretoras</option>
+            <option value="btg">BTG</option>
+            <option value="xp">XP</option>
+            <option value="genial">GENIAL</option>
+        </select>
+    </div>
 
     <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden">
         <div class="overflow-x-auto">
@@ -37,8 +41,13 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50">
-                    {% for cliente in pagination.items %}
-                    <tr class="hover:bg-gray-50/50 transition-colors {% if cliente.status_acesso == 'inativo' %}opacity-60{% endif %}">
+                    {% for cliente in clientes %}
+                    <tr class="hover:bg-gray-50/50 transition-colors linha-cliente {% if cliente.status_acesso == 'inativo' %}opacity-60{% endif %}" 
+                        data-nome="{{ cliente.nome }}" 
+                        data-cpf="{{ cliente.cpf }}" 
+                        data-id="{{ cliente.id }}" 
+                        data-status="{{ cliente.status_acesso }}"
+                        data-corretoras="{% for a in cliente.alocacoes %}{{ a.nome_corretora }} {% endfor %}">
                         <td class="px-8 py-6">
                             <div class="font-black text-navy text-sm flex flex-wrap items-center gap-2">
                                 <span>{{ cliente.nome }}</span>
@@ -136,31 +145,12 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="4" class="px-8 py-16 text-center text-gray-400 font-medium">Nenhum cliente encontrado.</td>
+                        <td colspan="4" class="px-8 py-16 text-center text-gray-400 font-medium">Nenhum cliente encontrado na base de dados.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
-
-        {% if pagination.pages > 1 %}
-        <div class="px-8 py-5 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
-            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Página {{ pagination.page }} de {{ pagination.pages }}</span>
-            <div class="flex items-center gap-2">
-                {% if pagination.has_prev %}
-                <a href="{{ url_for('admin.clientes_list', page=pagination.prev_num, q=busca, status=status_filtro) }}" class="px-4 py-2 bg-white border border-gray-200 text-gray-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition shadow-sm">Anterior</a>
-                {% else %}
-                <span class="px-4 py-2 bg-gray-50 border border-gray-100 text-gray-300 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-not-allowed">Anterior</span>
-                {% endif %}
-
-                {% if pagination.has_next %}
-                <a href="{{ url_for('admin.clientes_list', page=pagination.next_num, q=busca, status=status_filtro) }}" class="px-4 py-2 bg-white border border-gray-200 text-navy rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition shadow-sm">Próxima</a>
-                {% else %}
-                <span class="px-4 py-2 bg-gray-50 border border-gray-100 text-gray-300 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-not-allowed">Próxima</span>
-                {% endif %}
-            </div>
-        </div>
-        {% endif %}
     </div>
 </div>
 
@@ -218,6 +208,31 @@ function abrirModalFicha(templateId) {
         document.getElementById('modal-ficha-conteudo').innerHTML = templateContent.innerHTML;
         document.getElementById('modal-ficha-global').classList.remove('hidden');
     }
+}
+
+// MOTOR JS DE BUSCA EM TEMPO REAL
+function filtrarClientes() {
+    const texto = document.getElementById('filtro-texto').value.toLowerCase();
+    const status = document.getElementById('filtro-status').value.toLowerCase();
+    const corretora = document.getElementById('filtro-corretora').value.toLowerCase();
+    
+    document.querySelectorAll('.linha-cliente').forEach(linha => {
+        const nome = linha.getAttribute('data-nome').toLowerCase();
+        const cpf = linha.getAttribute('data-cpf').toLowerCase();
+        const id = linha.getAttribute('data-id').toLowerCase();
+        const cliStatus = linha.getAttribute('data-status').toLowerCase();
+        const cliCorretoras = linha.getAttribute('data-corretoras').toLowerCase();
+        
+        const matchTexto = nome.includes(texto) || cpf.includes(texto) || id.includes(texto);
+        const matchStatus = status === "" || cliStatus === status;
+        const matchCorretora = corretora === "" || cliCorretoras.includes(corretora);
+        
+        if (matchTexto && matchStatus && matchCorretora) {
+            linha.style.display = '';
+        } else {
+            linha.style.display = 'none';
+        }
+    });
 }
 </script>
 {% endblock %}
