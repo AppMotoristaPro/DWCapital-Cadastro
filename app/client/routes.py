@@ -317,15 +317,13 @@ def visualizar_documento(doc_id):
         flash('Este documento ainda não foi assinado.', 'warning')
         return redirect(url_for('client.documentos'))
 
-    # Se já tem link salvo (pode ser da criação ou de visualização anterior), usa ele
+    # Se já tem link salvo (da criação ou de visualização anterior), usa ele
     if doc.link_assinatura:
-        logger.info(f"Link já existente para doc {doc_id}: {doc.link_assinatura}")
         return redirect(doc.link_assinatura)
 
-    # Se não tem link, monta a URL pública da Autentique usando o ID
+    # Se não tem link, monta a URL usando o autentique_document_id
     if doc.autentique_document_id:
         url = obter_url_visualizacao_autentique(doc.autentique_document_id)
-        logger.info(f"URL montada para doc {doc_id}: {url}")
         # Salva para próximas visualizações
         doc.link_assinatura = url
         db.session.commit()

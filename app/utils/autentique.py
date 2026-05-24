@@ -188,9 +188,10 @@ def verificar_status_autentique(doc_id):
         return False
     return False
 
+# NOVA FUNÇÃO SIMPLES: monta a URL de visualização usando o autentique_document_id
 def obter_url_visualizacao_autentique(autentique_document_id):
     """
-    Retorna a URL pública do documento na plataforma Autentique.
-    (O domínio é sempre app.autentique.com.br, tanto para sandbox quanto produção)
+    Retorna a URL pública do documento no painel da Autentique.
+    Exemplo: https://painel.autentique.com.br/documentos/f4f9b303-80e6-d20c-946a-00943a204048
     """
-    return f"https://app.autentique.com.br/documentos/{autentique_document_id}"
+    return f"https://painel.autentique.com.br/documentos/{autentique_document_id}"
