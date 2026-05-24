@@ -188,7 +188,6 @@ def verificar_status_autentique(doc_id):
         return False
     return False
 
-# NOVA FUNÇÃO COM LOGS E TRATAMENTO ROBUSTO
 def obter_link_assinatura_autentique(autentique_document_id):
     import logging
     logger = logging.getLogger(__name__)
@@ -220,21 +219,28 @@ def obter_link_assinatura_autentique(autentique_document_id):
             if "errors" in data:
                 logger.error(f"[Autentique] Erro GraphQL: {data['errors']}")
                 return None
-            # Navegação segura
+            
             document = data.get('data', {}).get('document')
             if not document:
                 logger.warning("[Autentique] Campo 'document' não encontrado ou é nulo")
                 return None
+            
             signatures = document.get('signatures')
-            if not signatures or len(signatures) == 0:
-                logger.warning("[Autentique] Nenhuma assinatura encontrada")
+            if not signatures or not isinstance(signatures, list) or len(signatures) == 0:
+                logger.warning("[Autentique] Nenhuma assinatura encontrada ou formato inválido")
                 return None
-            link = signatures[0].get('link', {}).get('short_link')
-            if link:
-                logger.info(f"[Autentique] Link obtido: {link}")
-            else:
-                logger.warning("[Autentique] Link não encontrado na resposta")
-            return link
+            
+            for sig in signatures:
+                if sig and isinstance(sig, dict):
+                    link_obj = sig.get('link')
+                    if link_obj and isinstance(link_obj, dict):
+                        short_link = link_obj.get('short_link')
+                        if short_link:
+                            logger.info(f"[Autentique] Link encontrado: {short_link}")
+                            return short_link
+            
+            logger.warning("[Autentique] Nenhum link válido encontrado nas assinaturas")
+            return None
         else:
             logger.error(f"[Autentique] HTTP {response.status_code}: {response.text}")
             return None
