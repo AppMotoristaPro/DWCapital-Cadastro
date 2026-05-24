@@ -249,9 +249,16 @@ def pagamentos():
                     dias_isentos = sum(1 for d in dias_corretora if d.status == 'isento')
                     
                     total_exigido = total_dias_brutos_da_semana - dias_isentos
-                    if total_exigido < 0: total_exigido = 0
+                    if total_exigido < 0: 
+                        total_exigido = 0
                     
-                    detalhes_corretoras[aloc.nome_corretora] = f"{dias_enviados}/{total_exigido}"
+                    # 🔥 CORREÇÃO: Se não há dias exigidos, exibir "Isento" ao invés de "0/0"
+                    if total_exigido == 0:
+                        progresso_display = "Isento"
+                    else:
+                        progresso_display = f"{dias_enviados}/{total_exigido}"
+                    
+                    detalhes_corretoras[aloc.nome_corretora] = progresso_display
             else:
                 status_atual = 'sem_fatura'
                 for aloc in c.alocacoes:
