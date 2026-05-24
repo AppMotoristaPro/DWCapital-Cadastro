@@ -43,7 +43,6 @@ def dashboard():
 @admin_bp.route('/clientes')
 @admin_required
 def clientes_list():
-    # Retorna TODOS os clientes e deixa o Front-end fazer a filtragem instantânea em JS
     clientes = User.query.filter_by(role='cliente').options(joinedload(User.alocacoes)).order_by(User.nome.asc()).all()
     return render_template('admin/index.html', clientes=clientes)
 
@@ -288,7 +287,6 @@ def pagamentos():
                 User.status_acesso == 'ativo'
             ).all()
             
-            # FRENTE 3: Filtro Exato usando Set() para garantir contagem de parceiros unicos não-isentos
             faturas_unicas = {f.user_id: f for f in todas_faturas}
             faturas_reais = [f for f in faturas_unicas.values() if not getattr(f.cliente, 'is_isento', False)]
             
@@ -506,25 +504,24 @@ def documentos():
     templates = DocumentoTemplate.query.all()
     clientes = User.query.filter_by(role='cliente', status_acesso='ativo').order_by(User.nome.asc()).all()
     
-    page = request.args.get('page', 1, type=int)
-
-    query = DocumentoCliente.query.join(User).join(DocumentoTemplate).options(
-        joinedload(DocumentoCliente.cliente), 
-        joinedload(DocumentoCliente.template)
-    ).filter(
-        db.or_(
-            User.data_cadastro.is_(None),
-            DocumentoCliente.data_envio.is_(None),
-            DocumentoCliente.data_envio > User.data_cadastro + timedelta(seconds=60)
-        )
-    ).order_by(
-        DocumentoCliente.status.desc(),
-        DocumentoCliente.data_envio.desc()
-    )
+    # Agrupa os documentos por template
+    grupos = []
+    for template in templates:
+        docs = DocumentoCliente.query.filter_by(template_id=template.id)\
+            .join(User)\
+            .options(joinedload(DocumentoCliente.cliente))\
+            .order_by(DocumentoCliente.status.desc(), DocumentoCliente.data_envio.desc())\
+            .all()
+        if docs:
+            grupos.append({
+                'template': template,
+                'documentos': docs
+            })
     
-    pagination_docs = query.paginate(page=page, per_page=20, error_out=False)
-    
-    return render_template('admin/documentos.html', templates=templates, clientes=clientes, pagination_docs=pagination_docs)
+    return render_template('admin/documentos.html', 
+                           templates=templates, 
+                           clientes=clientes,
+                           grupos=grupos)
 
 @admin_bp.route('/documentos/cadastrar_template', methods=['POST'])
 @admin_required
@@ -717,4 +714,3 @@ def reprocessar_genial():
 @admin_required
 def reprocessar_xp():
     return _executar_reprocessamento_por_corretora('XP')
-

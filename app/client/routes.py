@@ -2,7 +2,7 @@ import os
 import urllib.parse
 from datetime import datetime, timedelta
 import pytz
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify, session
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify, session, abort
 from flask_login import login_required, current_user
 import cloudinary.uploader
 from werkzeug.utils import secure_filename
@@ -15,13 +15,13 @@ from app.services.fatura_service import atualizar_totais_semana, auto_gerar_cicl
 from app.services.documento_service import disparar_unico, verificar_status_documento_cliente, enviar_documento_local_com_link
 from app.services.dashboard_service import obter_dados_dashboard_cliente
 from app.services.pix_service import PixService
+from app.utils.autentique import obter_link_pdf_assinado
 
 tz_br = pytz.timezone('America/Sao_Paulo')
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
 
 @client_bp.before_request
 def check_paywall():
-    # Ignora rotas abertas como a API do WhatsApp
     if request.endpoint == 'client.buscar_dados_whatsapp':
         return
 
@@ -52,9 +52,6 @@ def check_paywall():
             if parcela_pendente:
                 return redirect(url_for('client.bloqueio_pagamento'))
 
-# ==========================================
-# ROTA ABERTA: Geração Link WhatsApp
-# ==========================================
 @client_bp.route('/api/buscar_dados_whatsapp', methods=['POST'])
 def buscar_dados_whatsapp():
     data = request.get_json()
@@ -304,8 +301,29 @@ def remover_fatura(dia_id):
 @client_bp.route('/documentos')
 @login_required
 def documentos():
-    meus_docs = DocumentoCliente.query.filter_by(user_id=current_user.id, status='assinado').options(joinedload(DocumentoCliente.template)).order_by(DocumentoCliente.data_envio.desc()).all()
+    meus_docs = DocumentoCliente.query.filter_by(user_id=current_user.id, status='assinado').options(joinedload(DocumentoCliente.template)).order_by(DocumentoCliente.data_assinatura.desc()).all()
     return render_template('client/documentos.html', documentos=meus_docs)
+
+@client_bp.route('/documentos/download/<int:doc_id>')
+@login_required
+def download_documento_asssinado(doc_id):
+    doc = DocumentoCliente.query.get_or_404(doc_id)
+    if doc.user_id != current_user.id:
+        abort(403)
+
+    if doc.status != 'assinado':
+        flash('Este documento ainda não foi assinado.', 'warning')
+        return redirect(url_for('client.documentos'))
+
+    pdf_url = None
+    if doc.autentique_document_id:
+        pdf_url = obter_link_pdf_assinado(doc.autentique_document_id)
+
+    if not pdf_url:
+        flash('Não foi possível recuperar o PDF assinado. Entre em contato com o suporte.', 'error')
+        return redirect(url_for('client.documentos'))
+
+    return redirect(pdf_url)
 
 @client_bp.route('/api/status_documento/<int:doc_id>')
 @login_required
@@ -323,4 +341,3 @@ def ajuda():
     return render_template('client/ajuda.html', 
                            link_suporte=f"https://wa.me/5511991167709?text={msg_suporte_encoded}",
                            link_comercial=f"https://wa.me/5511920504850?text={msg_suporte_encoded}")
-

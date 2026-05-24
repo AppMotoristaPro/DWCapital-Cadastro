@@ -7,7 +7,6 @@ AUTENTIQUE_SANDBOX = os.getenv('AUTENTIQUE_SANDBOX', 'true').lower() == 'true'
 
 URL = "https://api.autentique.com.br/v2/graphql"
 
-# Mantida intacta para não quebrar o "Termo de Adesão" do Primeiro Acesso
 def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
     query = """
     mutation CreateDocumentMutation(
@@ -74,7 +73,6 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
     else:
         raise Exception(f"Falha de comunicação HTTP: {response.text}")
 
-# NOVA FUNÇÃO (FASE 4): Sobe o PDF local e captura o Link de Assinatura para a DW Capital
 def enviar_documento_local_com_link(nome_signer, email_signer, caminho_pdf, nome_documento):
     query = """
     mutation CreateDocumentMutation(
@@ -142,13 +140,11 @@ def enviar_documento_local_com_link(nome_signer, email_signer, caminho_pdf, nome
         
         doc = data.get('data', {}).get('createDocument', {})
         doc_id = doc.get('id')
-        
         link = None
         try:
             link = doc.get('signatures', [])[0].get('link', {}).get('short_link')
         except:
             pass
-            
         return doc_id, link
     else:
         raise Exception(f"Falha de comunicação HTTP: {response.text}")
@@ -191,3 +187,35 @@ def verificar_status_autentique(doc_id):
         return False
     return False
 
+# NOVA FUNÇÃO: obter link do PDF assinado
+def obter_link_pdf_assinado(doc_id):
+    """
+    Busca na API da Autentique o link público do documento assinado.
+    Retorna URL ou None.
+    """
+    query = """
+    query GetDocument($id: UUID!) {
+        document(id: $id) {
+            pdf {
+                url
+            }
+        }
+    }
+    """
+    headers = {
+        "Authorization": f"Bearer {AUTENTIQUE_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "query": query,
+        "variables": {"id": str(doc_id)}
+    }
+    try:
+        response = requests.post(URL, headers=headers, json=payload)
+        if response.status_code == 200:
+            data = response.json()
+            pdf_url = data.get('data', {}).get('document', {}).get('pdf', {}).get('url')
+            return pdf_url
+    except Exception:
+        pass
+    return None
