@@ -188,11 +188,9 @@ def verificar_status_autentique(doc_id):
         return False
     return False
 
-# NOVA FUNÇÃO: monta a URL pública do documento na plataforma Autentique
 def obter_url_visualizacao_autentique(autentique_document_id):
-    """Retorna a URL pública do documento na plataforma Autentique (sem depender da API)."""
-    if AUTENTIQUE_SANDBOX:
-        base = "https://sandbox.autentique.com.br"
-    else:
-        base = "https://app.autentique.com.br"
-    return f"{base}/documentos/{autentique_document_id}"
+    """
+    Retorna a URL pública do documento na plataforma Autentique.
+    (O domínio é sempre app.autentique.com.br, tanto para sandbox quanto produção)
+    """
+    return f"https://app.autentique.com.br/documentos/{autentique_document_id}"

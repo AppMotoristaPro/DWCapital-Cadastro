@@ -16,7 +16,7 @@ from app.services.fatura_service import atualizar_totais_semana, auto_gerar_cicl
 from app.services.documento_service import disparar_unico, verificar_status_documento_cliente, enviar_documento_local_com_link
 from app.services.dashboard_service import obter_dados_dashboard_cliente
 from app.services.pix_service import PixService
-from app.utils.autentique import obter_url_visualizacao_autentique  # <-- NOVA IMPORTAÇÃO
+from app.utils.autentique import obter_url_visualizacao_autentique
 
 logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
