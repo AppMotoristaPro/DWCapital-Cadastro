@@ -188,62 +188,11 @@ def verificar_status_autentique(doc_id):
         return False
     return False
 
-def obter_link_assinatura_autentique(autentique_document_id):
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info(f"[Autentique] Buscando link para document_id: {autentique_document_id}")
-    
-    query = """
-    query GetSignerLink($id: UUID!) {
-        document(id: $id) {
-            signatures {
-                link { short_link }
-            }
-        }
-    }
-    """
-    headers = {
-        "Authorization": f"Bearer {AUTENTIQUE_TOKEN}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "query": query,
-        "variables": {"id": str(autentique_document_id)}
-    }
-    try:
-        response = requests.post(URL, headers=headers, json=payload, timeout=10)
-        logger.info(f"[Autentique] Resposta status: {response.status_code}")
-        if response.status_code == 200:
-            data = response.json()
-            logger.info(f"[Autentique] Resposta JSON: {json.dumps(data, indent=2)}")
-            if "errors" in data:
-                logger.error(f"[Autentique] Erro GraphQL: {data['errors']}")
-                return None
-            
-            document = data.get('data', {}).get('document')
-            if not document:
-                logger.warning("[Autentique] Campo 'document' não encontrado ou é nulo")
-                return None
-            
-            signatures = document.get('signatures')
-            if not signatures or not isinstance(signatures, list) or len(signatures) == 0:
-                logger.warning("[Autentique] Nenhuma assinatura encontrada ou formato inválido")
-                return None
-            
-            for sig in signatures:
-                if sig and isinstance(sig, dict):
-                    link_obj = sig.get('link')
-                    if link_obj and isinstance(link_obj, dict):
-                        short_link = link_obj.get('short_link')
-                        if short_link:
-                            logger.info(f"[Autentique] Link encontrado: {short_link}")
-                            return short_link
-            
-            logger.warning("[Autentique] Nenhum link válido encontrado nas assinaturas")
-            return None
-        else:
-            logger.error(f"[Autentique] HTTP {response.status_code}: {response.text}")
-            return None
-    except Exception as e:
-        logger.exception(f"[Autentique] Exceção: {e}")
-        return None
+# NOVA FUNÇÃO: monta a URL pública do documento na plataforma Autentique
+def obter_url_visualizacao_autentique(autentique_document_id):
+    """Retorna a URL pública do documento na plataforma Autentique (sem depender da API)."""
+    if AUTENTIQUE_SANDBOX:
+        base = "https://sandbox.autentique.com.br"
+    else:
+        base = "https://app.autentique.com.br"
+    return f"{base}/documentos/{autentique_document_id}"

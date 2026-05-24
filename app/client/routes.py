@@ -16,7 +16,7 @@ from app.services.fatura_service import atualizar_totais_semana, auto_gerar_cicl
 from app.services.documento_service import disparar_unico, verificar_status_documento_cliente, enviar_documento_local_com_link
 from app.services.dashboard_service import obter_dados_dashboard_cliente
 from app.services.pix_service import PixService
-from app.utils.autentique import obter_link_assinatura_autentique
+from app.utils.autentique import obter_url_visualizacao_autentique  # <-- NOVA IMPORTAÇÃO
 
 logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
@@ -317,25 +317,21 @@ def visualizar_documento(doc_id):
         flash('Este documento ainda não foi assinado.', 'warning')
         return redirect(url_for('client.documentos'))
 
+    # Se já tem link salvo (pode ser da criação ou de visualização anterior), usa ele
     if doc.link_assinatura:
         logger.info(f"Link já existente para doc {doc_id}: {doc.link_assinatura}")
         return redirect(doc.link_assinatura)
 
-    # Tenta buscar o link sob demanda
+    # Se não tem link, monta a URL pública da Autentique usando o ID
     if doc.autentique_document_id:
-        logger.info(f"Buscando link para doc {doc_id} com autentique_id {doc.autentique_document_id}")
-        link = obter_link_assinatura_autentique(doc.autentique_document_id)
-        if link:
-            doc.link_assinatura = link
-            db.session.commit()
-            logger.info(f"Link obtido e salvo: {link}")
-            return redirect(link)
-        else:
-            logger.warning(f"Não foi possível obter link para doc {doc_id}")
-    else:
-        logger.warning(f"Documento {doc_id} não possui autentique_document_id")
+        url = obter_url_visualizacao_autentique(doc.autentique_document_id)
+        logger.info(f"URL montada para doc {doc_id}: {url}")
+        # Salva para próximas visualizações
+        doc.link_assinatura = url
+        db.session.commit()
+        return redirect(url)
 
-    flash('Link de visualização não disponível. Entre em contato com o suporte.', 'error')
+    flash('Não foi possível localizar o documento. Entre em contato com o suporte.', 'error')
     return redirect(url_for('client.documentos'))
 
 @client_bp.route('/api/status_documento/<int:doc_id>')
