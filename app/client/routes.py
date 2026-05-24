@@ -303,7 +303,7 @@ def remover_fatura(dia_id):
 @client_bp.route('/documentos')
 @login_required
 def documentos():
-    meus_docs = DocumentoCliente.query.filter_by(user_id=current_user.id, status='assinado').options(joinedload(DocumentoCliente.template)).order_by(DocumentoCliente.data_assinatura.desc()).all()
+    meus_docs = DocumentoCliente.query.filter_by(user_id=current_user.id, status='assinado').options(joinedload(DocumentoCliente.template)).order_by(DocumentoCliente.data_envio.desc()).all()
     return render_template('client/documentos.html', documentos=meus_docs)
 
 @client_bp.route('/documentos/visualizar/<int:doc_id>')
@@ -317,16 +317,14 @@ def visualizar_documento(doc_id):
         flash('Este documento ainda não foi assinado.', 'warning')
         return redirect(url_for('client.documentos'))
 
-    # Se já tem link salvo (da criação ou de visualização anterior), usa ele
-    if doc.link_assinatura:
-        return redirect(doc.link_assinatura)
-
-    # Se não tem link, monta a URL usando o autentique_document_id
+    # Para documentos assinados, sempre forçamos a URL de visualização oficial baseada no ID real,
+    # ignorando links antigos ou temporários de assinatura que possam conter o prefixo sandbox
     if doc.autentique_document_id:
         url = obter_url_visualizacao_autentique(doc.autentique_document_id)
-        # Salva para próximas visualizações
-        doc.link_assinatura = url
-        db.session.commit()
+        # Sincroniza o banco com a URL real e limpa resíduos de sandbox
+        if doc.link_assinatura != url:
+            doc.link_assinatura = url
+            db.session.commit()
         return redirect(url)
 
     flash('Não foi possível localizar o documento. Entre em contato com o suporte.', 'error')
@@ -348,3 +346,4 @@ def ajuda():
     return render_template('client/ajuda.html', 
                            link_suporte=f"https://wa.me/5511991167709?text={msg_suporte_encoded}",
                            link_comercial=f"https://wa.me/5511920504850?text={msg_suporte_encoded}")
+
