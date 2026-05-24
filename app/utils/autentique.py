@@ -187,3 +187,38 @@ def verificar_status_autentique(doc_id):
     except Exception:
         return False
     return False
+
+# NOVA FUNÇÃO: obter o link de assinatura (short_link) de um documento já existente
+def obter_link_assinatura_autentique(autentique_document_id):
+    """Consulta a API da Autentique para obter o short_link do documento (mesmo após assinado)."""
+    query = """
+    query GetSignerLink($id: UUID!) {
+        document(id: $id) {
+            signatures {
+                link { short_link }
+            }
+        }
+    }
+    """
+    headers = {
+        "Authorization": f"Bearer {AUTENTIQUE_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "query": query,
+        "variables": {"id": str(autentique_document_id)}
+    }
+    try:
+        response = requests.post(URL, headers=headers, json=payload, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if "errors" in data:
+                print(f"Erro GraphQL: {data['errors']}")
+                return None
+            signatures = data.get('data', {}).get('document', {}).get('signatures', [])
+            if signatures and len(signatures) > 0:
+                link = signatures[0].get('link', {}).get('short_link')
+                return link
+    except Exception as e:
+        print(f"Exceção ao obter link da Autentique: {e}")
+    return None

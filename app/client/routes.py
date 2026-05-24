@@ -15,6 +15,7 @@ from app.services.fatura_service import atualizar_totais_semana, auto_gerar_cicl
 from app.services.documento_service import disparar_unico, verificar_status_documento_cliente, enviar_documento_local_com_link
 from app.services.dashboard_service import obter_dados_dashboard_cliente
 from app.services.pix_service import PixService
+from app.utils.autentique import obter_link_assinatura_autentique
 
 tz_br = pytz.timezone('America/Sao_Paulo')
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
@@ -314,11 +315,22 @@ def visualizar_documento(doc_id):
         flash('Este documento ainda não foi assinado.', 'warning')
         return redirect(url_for('client.documentos'))
 
-    if not doc.link_assinatura:
-        flash('Link de visualização não disponível. Entre em contato com o suporte.', 'error')
-        return redirect(url_for('client.documentos'))
+    # Se já tem link salvo, redireciona direto
+    if doc.link_assinatura:
+        return redirect(doc.link_assinatura)
 
-    return redirect(doc.link_assinatura)
+    # Tenta buscar o link sob demanda via API da Autentique
+    if doc.autentique_document_id:
+        link = obter_link_assinatura_autentique(doc.autentique_document_id)
+        if link:
+            # Salva o link no banco para próximas vezes
+            doc.link_assinatura = link
+            db.session.commit()
+            return redirect(link)
+
+    # Se não conseguiu obter o link
+    flash('Link de visualização não disponível. Entre em contato com o suporte.', 'error')
+    return redirect(url_for('client.documentos'))
 
 @client_bp.route('/api/status_documento/<int:doc_id>')
 @login_required
