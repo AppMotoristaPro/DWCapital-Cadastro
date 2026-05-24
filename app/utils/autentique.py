@@ -145,6 +145,7 @@ def enviar_documento_local_com_link(nome_signer, email_signer, caminho_pdf, nome
             link = doc.get('signatures', [])[0].get('link', {}).get('short_link')
         except:
             pass
+            
         return doc_id, link
     else:
         raise Exception(f"Falha de comunicação HTTP: {response.text}")
@@ -186,36 +187,3 @@ def verificar_status_autentique(doc_id):
     except Exception:
         return False
     return False
-
-# NOVA FUNÇÃO: obter link do PDF assinado
-def obter_link_pdf_assinado(doc_id):
-    """
-    Busca na API da Autentique o link público do documento assinado.
-    Retorna URL ou None.
-    """
-    query = """
-    query GetDocument($id: UUID!) {
-        document(id: $id) {
-            pdf {
-                url
-            }
-        }
-    }
-    """
-    headers = {
-        "Authorization": f"Bearer {AUTENTIQUE_TOKEN}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "query": query,
-        "variables": {"id": str(doc_id)}
-    }
-    try:
-        response = requests.post(URL, headers=headers, json=payload)
-        if response.status_code == 200:
-            data = response.json()
-            pdf_url = data.get('data', {}).get('document', {}).get('pdf', {}).get('url')
-            return pdf_url
-    except Exception:
-        pass
-    return None

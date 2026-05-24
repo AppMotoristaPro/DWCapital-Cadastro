@@ -4,7 +4,7 @@
     <div class="flex justify-between items-end mb-8">
         <div>
             <h1 class="text-4xl font-black text-navy tracking-tight">Meus Documentos Assinados</h1>
-            <p class="text-gray-500 mt-2 font-medium">Todos os contratos que você já assinou eletronicamente.</p>
+            <p class="text-gray-500 mt-2 font-medium">Clique em "Visualizar" para acessar o documento na plataforma Autentique.</p>
         </div>
     </div>
 
@@ -23,9 +23,10 @@
                     <td class="px-8 py-6 font-black text-navy text-sm">{{ doc.template.nome }}</td>
                     <td class="px-8 py-6 text-[10px] font-bold text-gray-500">{{ doc.data_assinatura.strftime('%d/%m/%Y') }}</td>
                     <td class="px-8 py-6 text-right">
-                        <a href="{{ url_for('client.download_documento_asssinado', doc_id=doc.id) }}" 
+                        <a href="{{ url_for('client.visualizar_documento', doc_id=doc.id) }}" 
+                           target="_blank"
                            class="px-4 py-2 bg-royal text-white text-[10px] font-black uppercase rounded-lg hover:bg-royal-dark transition shadow-sm">
-                            Baixar PDF
+                            Visualizar
                         </a>
                     </td>
                 </tr>

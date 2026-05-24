@@ -15,7 +15,6 @@ from app.services.fatura_service import atualizar_totais_semana, auto_gerar_cicl
 from app.services.documento_service import disparar_unico, verificar_status_documento_cliente, enviar_documento_local_com_link
 from app.services.dashboard_service import obter_dados_dashboard_cliente
 from app.services.pix_service import PixService
-from app.utils.autentique import obter_link_pdf_assinado
 
 tz_br = pytz.timezone('America/Sao_Paulo')
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
@@ -304,9 +303,9 @@ def documentos():
     meus_docs = DocumentoCliente.query.filter_by(user_id=current_user.id, status='assinado').options(joinedload(DocumentoCliente.template)).order_by(DocumentoCliente.data_assinatura.desc()).all()
     return render_template('client/documentos.html', documentos=meus_docs)
 
-@client_bp.route('/documentos/download/<int:doc_id>')
+@client_bp.route('/documentos/visualizar/<int:doc_id>')
 @login_required
-def download_documento_asssinado(doc_id):
+def visualizar_documento(doc_id):
     doc = DocumentoCliente.query.get_or_404(doc_id)
     if doc.user_id != current_user.id:
         abort(403)
@@ -315,15 +314,11 @@ def download_documento_asssinado(doc_id):
         flash('Este documento ainda não foi assinado.', 'warning')
         return redirect(url_for('client.documentos'))
 
-    pdf_url = None
-    if doc.autentique_document_id:
-        pdf_url = obter_link_pdf_assinado(doc.autentique_document_id)
-
-    if not pdf_url:
-        flash('Não foi possível recuperar o PDF assinado. Entre em contato com o suporte.', 'error')
+    if not doc.link_assinatura:
+        flash('Link de visualização não disponível. Entre em contato com o suporte.', 'error')
         return redirect(url_for('client.documentos'))
 
-    return redirect(pdf_url)
+    return redirect(doc.link_assinatura)
 
 @client_bp.route('/api/status_documento/<int:doc_id>')
 @login_required
