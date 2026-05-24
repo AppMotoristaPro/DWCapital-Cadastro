@@ -94,20 +94,23 @@
             <button type="button" onclick="filtrarTabela('isentos')" id="filtro-isentos" class="btn-filtro px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-transparent text-gray-500 hover:bg-gray-100">Isentos</button>
         </div>
 
-        <form method="GET" action="{{ url_for('admin.pagamentos') }}" class="flex gap-3 bg-white/60 backdrop-blur-xl p-3 rounded-[2rem] shadow-sm border border-white flex-1">
-            <input type="hidden" name="ciclo" value="{{ ciclo_data.strftime('%Y-%m-%d') }}">
-            <input type="text" name="q" value="{{ busca }}" placeholder="Filtrar parceiro neste ciclo..." class="flex-1 px-5 py-3 outline-none text-sm font-bold text-navy bg-white rounded-xl border border-gray-100 shadow-inner">
-            <button type="submit" class="px-8 py-3 bg-navy text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition shadow-md">Buscar</button>
-        </form>
+        <div class="flex gap-3 bg-white/60 backdrop-blur-xl p-3 rounded-[2rem] shadow-sm border border-white flex-1">
+            <input type="text" id="filtro-texto-pagamentos" placeholder="Filtrar por nome ou CPF..." class="flex-1 px-5 py-3 outline-none text-sm font-bold text-navy bg-white rounded-xl border border-gray-100 shadow-inner" onkeyup="filtrarTabela()">
+            
+            <select id="filtro-corretora-pagamentos" class="px-5 py-3 outline-none text-sm font-bold text-gray-500 bg-white rounded-xl border border-gray-100 cursor-pointer shadow-inner hidden md:block" onchange="filtrarTabela()">
+                <option value="">Todas as Corretoras</option>
+                <option value="btg">BTG</option>
+                <option value="xp">XP</option>
+                <option value="genial">GENIAL</option>
+            </select>
+        </div>
 
-        {% if not busca %}
         <div class="flex flex-wrap items-center gap-4 shrink-0">
             <div class="flex items-center gap-5 bg-white/80 backdrop-blur-xl rounded-[1.5rem] border border-white p-3 shadow-sm shrink-0">
                 <div class="pl-4 hidden sm:block">
                     <p class="text-[10px] font-black text-purple-600 uppercase tracking-widest">Ação Global em Lote</p>
                     <p class="text-[9px] text-gray-500 font-bold mt-0.5">Isentar dia (Feriado)</p>
                 </div>
-                
                 <form action="{{ url_for('admin.isentar_dia_global') }}" method="POST" id="form-isentar-global" class="flex items-center m-0 gap-2">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                     <input type="hidden" name="ciclo_atual" value="{{ ciclo_data.strftime('%Y-%m-%d') }}">
@@ -120,7 +123,6 @@
                 </form>
             </div>
         </div>
-        {% endif %}
     </div>
 
     <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden">
@@ -135,7 +137,11 @@
                 </thead>
                 <tbody class="divide-y divide-gray-50">
                     {% for item in clientes_dados %}
-                    <tr class="hover:bg-gray-50/50 transition-colors linha-cliente" data-isento="{{ 'true' if item.info.is_isento else 'false' }}">
+                    <tr class="hover:bg-gray-50/50 transition-colors linha-cliente" 
+                        data-isento="{{ 'true' if item.info.is_isento else 'false' }}"
+                        data-nome="{{ item.info.nome }}"
+                        data-cpf="{{ item.info.cpf }}"
+                        data-corretoras="{% for a in item.info.alocacoes %}{{ a.nome_corretora }} {% endfor %}">
                         <td class="px-8 py-6">
                             <div class="font-black text-navy text-sm flex items-center gap-2">
                                 {{ item.info.nome }}
@@ -176,7 +182,15 @@
                             {% endif %}
                         </td>
                         <td class="px-8 py-6 text-right">
-                            <a href="{{ url_for('admin.pagamentos_cliente', id=item.info.id, ciclo=ciclo_data.strftime('%Y-%m-%d')) }}" class="px-5 py-3 bg-white text-[10px] font-black text-royal uppercase tracking-widest rounded-xl hover:bg-blue-50 transition border border-blue-100 shadow-sm inline-block">Auditar Notas -></a>
+                            <div class="flex items-center justify-end gap-2">
+                                {% if item.fatura_id %}
+                                <form action="{{ url_for('admin.isentar_ciclo', fatura_id=item.fatura_id) }}" method="POST" class="inline" onsubmit="return confirm('Deseja transformar TODOS os dias deste ciclo em Isentos para este cliente?')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="px-4 py-3 bg-purple-50 text-[10px] font-black text-purple-600 uppercase tracking-widest rounded-xl hover:bg-purple-100 transition border border-purple-100 shadow-sm inline-block">Isentar Ciclo</button>
+                                </form>
+                                {% endif %}
+                                <a href="{{ url_for('admin.pagamentos_cliente', id=item.info.id, ciclo=ciclo_data.strftime('%Y-%m-%d')) }}" class="px-5 py-3 bg-white text-[10px] font-black text-royal uppercase tracking-widest rounded-xl hover:bg-blue-50 transition border border-blue-100 shadow-sm inline-block">Visualizar</a>
+                            </div>
                         </td>
                     </tr>
                     {% else %}
@@ -190,26 +204,42 @@
     </div>
 
     <script>
-        function filtrarTabela(tipo) {
-            // Atualiza botões
-            document.querySelectorAll('.btn-filtro').forEach(b => {
-                b.classList.remove('bg-navy', 'text-white', 'shadow-md');
-                b.classList.add('bg-transparent', 'text-gray-500');
-            });
-            const ativo = document.getElementById('filtro-' + tipo);
-            ativo.classList.remove('bg-transparent', 'text-gray-500');
-            ativo.classList.add('bg-navy', 'text-white', 'shadow-md');
+        let currentFilterType = 'todos';
 
-            // Filtra linhas
-            const linhas = document.querySelectorAll('.linha-cliente');
-            linhas.forEach(linha => {
+        function filtrarTabela(tipo) {
+            if (tipo) {
+                currentFilterType = tipo;
+                document.querySelectorAll('.btn-filtro').forEach(b => {
+                    b.classList.remove('bg-navy', 'text-white', 'shadow-md');
+                    b.classList.add('bg-transparent', 'text-gray-500');
+                });
+                const ativo = document.getElementById('filtro-' + tipo);
+                if (ativo) {
+                    ativo.classList.remove('bg-transparent', 'text-gray-500');
+                    ativo.classList.add('bg-navy', 'text-white', 'shadow-md');
+                }
+            }
+
+            const texto = document.getElementById('filtro-texto-pagamentos') ? document.getElementById('filtro-texto-pagamentos').value.toLowerCase() : '';
+            const corretora = document.getElementById('filtro-corretora-pagamentos') ? document.getElementById('filtro-corretora-pagamentos').value.toLowerCase() : '';
+
+            document.querySelectorAll('.linha-cliente').forEach(linha => {
                 const isIsento = linha.getAttribute('data-isento') === 'true';
-                if (tipo === 'todos') {
+                const nome = (linha.getAttribute('data-nome') || '').toLowerCase();
+                const cpf = (linha.getAttribute('data-cpf') || '').toLowerCase();
+                const cliCorretoras = (linha.getAttribute('data-corretoras') || '').toLowerCase();
+                
+                let matchTipo = true;
+                if (currentFilterType === 'normais' && isIsento) matchTipo = false;
+                if (currentFilterType === 'isentos' && !isIsento) matchTipo = false;
+                
+                const matchTexto = nome.includes(texto) || cpf.includes(texto);
+                const matchCorretora = corretora === "" || cliCorretoras.includes(corretora);
+
+                if (matchTipo && matchTexto && matchCorretora) {
                     linha.style.display = '';
-                } else if (tipo === 'normais') {
-                    linha.style.display = isIsento ? 'none' : '';
-                } else if (tipo === 'isentos') {
-                    linha.style.display = isIsento ? '' : 'none';
+                } else {
+                    linha.style.display = 'none';
                 }
             });
         }

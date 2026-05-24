@@ -43,26 +43,9 @@ def dashboard():
 @admin_bp.route('/clientes')
 @admin_required
 def clientes_list():
-    busca = request.args.get('q', '')
-    status_filtro = request.args.get('status', '')
-    page = request.args.get('page', 1, type=int)
-    
-    query = User.query.filter_by(role='cliente').options(joinedload(User.alocacoes))
-    
-    if busca:
-        busca_limpa = ''.join(filter(str.isdigit, busca))
-        filtros = [User.nome.ilike(f'%{busca}%')]
-        if busca_limpa:
-            filtros.append(User.cpf.ilike(f'%{busca_limpa}%'))
-        if busca.isdigit():
-            filtros.append(User.id == int(busca))
-        query = query.filter(db.or_(*filtros))
-        
-    if status_filtro:
-        query = query.filter_by(status_acesso=status_filtro)
-        
-    pagination = query.order_by(User.nome.asc()).paginate(page=page, per_page=20, error_out=False)
-    return render_template('admin/index.html', pagination=pagination, busca=busca, status_filtro=status_filtro)
+    # Retorna TODOS os clientes e deixa o Front-end fazer a filtragem instantânea em JS
+    clientes = User.query.filter_by(role='cliente').options(joinedload(User.alocacoes)).order_by(User.nome.asc()).all()
+    return render_template('admin/index.html', clientes=clientes)
 
 @admin_bp.route('/liberar_cliente', methods=['POST'])
 @admin_required
@@ -203,7 +186,6 @@ def excluir_cliente(id):
 @admin_bp.route('/pagamentos')
 @admin_required
 def pagamentos():
-    busca = request.args.get('q', '')
     ciclo = request.args.get('ciclo')
     
     repasse_global = db.session.query(db.func.sum(Fatura.repasse)).join(User).filter(
@@ -211,23 +193,12 @@ def pagamentos():
         db.or_(User.is_isento == False, User.is_isento.is_(None))
     ).scalar() or 0.0
     
-    if ciclo or busca:
-        query = User.query.filter_by(role='cliente', status_acesso='ativo').options(joinedload(User.alocacoes))
-        
-        if busca:
-            query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
-        ativos_brutos = query.order_by(User.nome.asc()).all()
-        
-        if ciclo:
-            try:
-                data_selecionada = datetime.strptime(ciclo, '%Y-%m-%d').date()
-                dias_para_sexta = (data_selecionada.weekday() - 4) % 7
-                inicio_ciclo = data_selecionada - timedelta(days=dias_para_sexta)
-            except ValueError:
-                hoje = datetime.now(tz_br).date()
-                dias_para_sexta = (hoje.weekday() - 4) % 7
-                inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
-        else:
+    if ciclo:
+        try:
+            data_selecionada = datetime.strptime(ciclo, '%Y-%m-%d').date()
+            dias_para_sexta = (data_selecionada.weekday() - 4) % 7
+            inicio_ciclo = data_selecionada - timedelta(days=dias_para_sexta)
+        except ValueError:
             hoje = datetime.now(tz_br).date()
             dias_para_sexta = (hoje.weekday() - 4) % 7
             inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
@@ -239,6 +210,7 @@ def pagamentos():
                 dias_uteis.append(data_atual)
             data_atual += timedelta(days=1)
             
+        ativos_brutos = User.query.filter_by(role='cliente', status_acesso='ativo').options(joinedload(User.alocacoes)).order_by(User.nome.asc()).all()
         ativos = []
         for c in ativos_brutos:
             data_cad = c.data_cadastro.date() if c.data_cadastro else datetime.min.date()
@@ -290,13 +262,13 @@ def pagamentos():
                 'info': c, 
                 'status_semana': status_atual, 
                 'inicio_ciclo': inicio_ciclo,
-                'detalhes_corretoras': detalhes_corretoras
+                'detalhes_corretoras': detalhes_corretoras,
+                'fatura_id': fatura_atual.id if fatura_atual else None
             })
             
         return render_template(
             'admin/pagamentos.html', 
             clientes_dados=clientes_dados, 
-            busca=busca, 
             exibe_clientes=True, 
             ciclo_data=inicio_ciclo, 
             dias_uteis=dias_uteis,
@@ -316,7 +288,9 @@ def pagamentos():
                 User.status_acesso == 'ativo'
             ).all()
             
-            faturas_reais = [f for f in todas_faturas if not getattr(f.cliente, 'is_isento', False)]
+            # FRENTE 3: Filtro Exato usando Set() para garantir contagem de parceiros unicos não-isentos
+            faturas_unicas = {f.user_id: f for f in todas_faturas}
+            faturas_reais = [f for f in faturas_unicas.values() if not getattr(f.cliente, 'is_isento', False)]
             
             repasse_gaveta = sum(f.repasse for f in faturas_reais if getattr(f.cliente, 'modelo_negocio', 'comissao') == 'comissao')
             
@@ -443,6 +417,22 @@ def isentar_dia(dia_id):
     atualizar_totais_semana(dia.fatura_semanal)
     flash('Dia marcado como isento! O cliente não precisará enviar nota para esta data.', 'success')
     return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id, ciclo=dia.fatura_semanal.data_inicio.strftime('%Y-%m-%d')))
+
+@admin_bp.route('/pagamentos/isentar_ciclo/<int:fatura_id>', methods=['POST'])
+@admin_required
+def isentar_ciclo(fatura_id):
+    fatura = Fatura.query.get_or_404(fatura_id)
+    
+    for dia in fatura.dias:
+        dia.zerar_valores(isentar=True)
+        
+    fatura.recalcular_totais()
+    db.session.commit()
+    
+    registrar_log(f"Isentou todos os dias do ciclo {fatura.data_inicio.strftime('%d/%m')} do cliente {fatura.cliente.nome}.", "Pagamentos")
+    flash(f'O ciclo inteiro foi isentado com sucesso para {fatura.cliente.nome}.', 'success')
+    
+    return redirect(url_for('admin.pagamentos', ciclo=fatura.data_inicio.strftime('%Y-%m-%d')))
 
 @admin_bp.route('/pagamentos/remover_isencao/<int:dia_id>', methods=['POST'])
 @admin_required
@@ -653,12 +643,7 @@ def excluir_todos_pendentes():
         
     return redirect(url_for('admin.documentos'))
 
-# ==========================================
-# NOVO MOTOR DE REPROCESSAMENTO SEGMENTADO
-# ==========================================
-
 def _executar_reprocessamento_por_corretora(corretora_nome):
-    """Função privada que varre o banco e reprocessa PDFs apenas da corretora informada."""
     dias_enviados = FaturaDiaria.query.options(
         joinedload(FaturaDiaria.fatura_semanal).joinedload(Fatura.cliente)
     ).filter(
@@ -718,22 +703,18 @@ def _executar_reprocessamento_por_corretora(corretora_nome):
     
     return redirect(url_for('admin.dashboard'))
 
-
 @admin_bp.route('/reprocessar_btg', methods=['GET'])
 @admin_required
 def reprocessar_btg():
     return _executar_reprocessamento_por_corretora('BTG')
-
 
 @admin_bp.route('/reprocessar_genial', methods=['GET'])
 @admin_required
 def reprocessar_genial():
     return _executar_reprocessamento_por_corretora('GENIAL')
 
-
 @admin_bp.route('/reprocessar_xp', methods=['GET'])
 @admin_required
 def reprocessar_xp():
     return _executar_reprocessamento_por_corretora('XP')
-
 

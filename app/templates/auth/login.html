@@ -58,7 +58,7 @@
                     <div class="relative">
                         <div class="flex justify-between items-end mb-1.5 ml-1 mr-1">
                             <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Senha de Segurança</label>
-                            <a href="https://wa.me/5511991167709?text=Ol%C3%A1%2C%20esqueci%20a%20minha%20senha%20da%20plataforma%20DW%20Capital" target="_blank" class="text-[10px] font-bold text-royal hover:text-white transition duration-200">Esqueci a senha</a>
+                            <button type="button" onclick="document.getElementById('modal-esqueci-senha').classList.remove('hidden');" class="text-[10px] font-bold text-royal hover:text-white transition duration-200 outline-none">Esqueci a senha</button>
                         </div>
                         <input name="senha" id="login-senha" type="password" required class="w-full px-5 py-4 bg-navy/40 border border-white/5 rounded-xl focus:bg-navy/80 focus:border-royal text-white placeholder-gray-500 font-medium transition duration-300 outline-none shadow-inner" placeholder="••••••••">
                         <button type="button" onclick="toggleLoginPassword()" class="absolute right-4 bottom-3.5 text-gray-500 hover:text-white transition-colors outline-none p-1">
@@ -79,6 +79,21 @@
     </div>
 </div>
 
+<div id="modal-esqueci-senha" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-navy/90 backdrop-blur-sm p-4">
+    <div class="bg-white w-full max-w-sm rounded-[2rem] shadow-2xl p-10 relative text-center border border-gray-100">
+        <div class="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-royal">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+        </div>
+        <h3 class="text-xl font-black text-navy mb-2">Recuperar Senha</h3>
+        <p class="text-xs text-gray-500 font-medium mb-8">Digite seu CPF para localizarmos seu cadastro e redirecionarmos ao WhatsApp do suporte.</p>
+        
+        <input type="text" id="input-cpf-recuperacao" placeholder="000.000.000-00" class="block w-full rounded-2xl px-5 py-4 bg-gray-50 border border-gray-200 text-center text-sm font-black tracking-widest focus:bg-white focus:border-royal mb-6 outline-none transition">
+        
+        <button id="btn-recuperacao" onclick="solicitarRecuperacao()" class="w-full py-4 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg transition">Solicitar Suporte</button>
+        <button onclick="document.getElementById('modal-esqueci-senha').classList.add('hidden')" class="mt-4 text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-navy transition w-full py-2 outline-none">Cancelar</button>
+    </div>
+</div>
+
 <script>
 function toggleLoginPassword() {
     const input = document.getElementById('login-senha');
@@ -89,6 +104,41 @@ function toggleLoginPassword() {
     } else {
         input.type = "password";
         icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>';
+    }
+}
+
+async function solicitarRecuperacao() {
+    const cpf = document.getElementById('input-cpf-recuperacao').value;
+    const btn = document.getElementById('btn-recuperacao');
+    
+    if(!cpf) {
+        alert("Por favor, digite seu CPF.");
+        return;
+    }
+    
+    btn.innerText = "Buscando...";
+    btn.disabled = true;
+    
+    try {
+        const res = await fetch("/portal/api/buscar_dados_whatsapp", {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cpf: cpf})
+        });
+        
+        const data = await res.json();
+        
+        if(data.success) {
+            window.location.href = data.link;
+        } else {
+            alert(data.message);
+            btn.innerText = "Solicitar Suporte";
+            btn.disabled = false;
+        }
+    } catch(e) {
+        alert("Erro de conexão. Tente novamente.");
+        btn.innerText = "Solicitar Suporte";
+        btn.disabled = false;
     }
 }
 </script>
