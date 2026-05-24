@@ -2,7 +2,8 @@ import os
 import urllib.parse
 from datetime import datetime, timedelta
 import pytz
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify, session
+import logging
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify, session, abort
 from flask_login import login_required, current_user
 import cloudinary.uploader
 from werkzeug.utils import secure_filename
@@ -15,13 +16,14 @@ from app.services.fatura_service import atualizar_totais_semana, auto_gerar_cicl
 from app.services.documento_service import disparar_unico, verificar_status_documento_cliente, enviar_documento_local_com_link
 from app.services.dashboard_service import obter_dados_dashboard_cliente
 from app.services.pix_service import PixService
+from app.utils.autentique import obter_url_visualizacao_autentique
 
+logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
 
 @client_bp.before_request
 def check_paywall():
-    # Ignora rotas abertas como a API do WhatsApp
     if request.endpoint == 'client.buscar_dados_whatsapp':
         return
 
@@ -52,9 +54,6 @@ def check_paywall():
             if parcela_pendente:
                 return redirect(url_for('client.bloqueio_pagamento'))
 
-# ==========================================
-# ROTA ABERTA: Geração Link WhatsApp
-# ==========================================
 @client_bp.route('/api/buscar_dados_whatsapp', methods=['POST'])
 def buscar_dados_whatsapp():
     data = request.get_json()
@@ -306,6 +305,30 @@ def remover_fatura(dia_id):
 def documentos():
     meus_docs = DocumentoCliente.query.filter_by(user_id=current_user.id, status='assinado').options(joinedload(DocumentoCliente.template)).order_by(DocumentoCliente.data_envio.desc()).all()
     return render_template('client/documentos.html', documentos=meus_docs)
+
+@client_bp.route('/documentos/visualizar/<int:doc_id>')
+@login_required
+def visualizar_documento(doc_id):
+    doc = DocumentoCliente.query.get_or_404(doc_id)
+    if doc.user_id != current_user.id:
+        abort(403)
+
+    if doc.status != 'assinado':
+        flash('Este documento ainda não foi assinado.', 'warning')
+        return redirect(url_for('client.documentos'))
+
+    # Para documentos assinados, sempre forçamos a URL de visualização oficial baseada no ID real,
+    # ignorando links antigos ou temporários de assinatura que possam conter o prefixo sandbox
+    if doc.autentique_document_id:
+        url = obter_url_visualizacao_autentique(doc.autentique_document_id)
+        # Sincroniza o banco com a URL real e limpa resíduos de sandbox
+        if doc.link_assinatura != url:
+            doc.link_assinatura = url
+            db.session.commit()
+        return redirect(url)
+
+    flash('Não foi possível localizar o documento. Entre em contato com o suporte.', 'error')
+    return redirect(url_for('client.documentos'))
 
 @client_bp.route('/api/status_documento/<int:doc_id>')
 @login_required

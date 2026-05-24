@@ -7,7 +7,6 @@ AUTENTIQUE_SANDBOX = os.getenv('AUTENTIQUE_SANDBOX', 'true').lower() == 'true'
 
 URL = "https://api.autentique.com.br/v2/graphql"
 
-# Mantida intacta para não quebrar o "Termo de Adesão" do Primeiro Acesso
 def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
     query = """
     mutation CreateDocumentMutation(
@@ -74,7 +73,6 @@ def criar_documento_autentique(nome_signer, email_signer, caminho_pdf):
     else:
         raise Exception(f"Falha de comunicação HTTP: {response.text}")
 
-# NOVA FUNÇÃO (FASE 4): Sobe o PDF local e captura o Link de Assinatura para a DW Capital
 def enviar_documento_local_com_link(nome_signer, email_signer, caminho_pdf, nome_documento):
     query = """
     mutation CreateDocumentMutation(
@@ -142,7 +140,6 @@ def enviar_documento_local_com_link(nome_signer, email_signer, caminho_pdf, nome
         
         doc = data.get('data', {}).get('createDocument', {})
         doc_id = doc.get('id')
-        
         link = None
         try:
             link = doc.get('signatures', [])[0].get('link', {}).get('short_link')
@@ -191,3 +188,15 @@ def verificar_status_autentique(doc_id):
         return False
     return False
 
+# =====================================================
+# FUNÇÃO CORRIGIDA: SEMPRE USA painel.autentique.com.br
+# =====================================================
+def obter_url_visualizacao_autentique(autentique_document_id):
+    """
+    Retorna a URL pública do documento no painel da Autentique.
+    Remove os hífens do UUID.
+    Exemplo: https://painel.autentique.com.br/documentos/f4f9b30380e6d20c946a00943a2040489d44a8f88161bc603
+    """
+    # Remove os hífens do UUID (formato: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+    uuid_sem_hifen = autentique_document_id.replace('-', '')
+    return f"https://painel.autentique.com.br/documentos/{uuid_sem_hifen}"

@@ -18,7 +18,6 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         <div class="lg:col-span-1 space-y-8">
-            
             <div class="bg-white/80 backdrop-blur-xl p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white">
                 <div class="flex items-center gap-4 mb-6 border-b border-gray-100 pb-6">
                     <div class="w-12 h-12 bg-purple-50 border border-purple-100 text-purple-600 rounded-xl flex items-center justify-center shadow-sm">
@@ -40,7 +39,7 @@
                                     <input type="checkbox" name="template_ids[]" form="form-disparo-lote" value="{{ temp.id }}" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer temp-checkbox">
                                     <span class="ml-3 text-xs font-bold text-navy transition">{{ temp.nome }}</span>
                                 </label>
-                                <form action="{{ url_for('admin.excluir_template', id=temp.id) }}" method="POST" class="ml-2" onsubmit="return confirm('Tem certeza que deseja excluir o modelo de contrato ({{ temp.nome }}) e cancelar todas as assinaturas pendentes atreladas a ele? Esta ação limpa registros na fila.')">
+                                <form action="{{ url_for('admin.excluir_template', id=temp.id) }}" method="POST" class="ml-2" onsubmit="return confirm('Tem certeza que deseja excluir o modelo de contrato ({{ temp.nome }}) e cancelar todas as assinaturas pendentes atreladas a ele?')">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                     <button type="submit" class="text-red-400 hover:text-red-600 p-1.5 rounded-md hover:bg-red-50 border border-transparent hover:border-red-100 transition shadow-sm" title="Excluir Modelo">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
@@ -59,14 +58,12 @@
                         <div>
                             <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Selecionar Parceiros</label>
                             <div class="bg-white border border-gray-200 rounded-xl h-48 overflow-y-auto p-3 space-y-1 custom-scrollbar shadow-inner relative">
-                                
                                 {% if clientes %}
                                 <label class="flex items-center p-3 mb-2 bg-purple-50 rounded-lg cursor-pointer border border-purple-100 hover:border-purple-300 transition group sticky top-0 z-10 shadow-sm">
                                     <input type="checkbox" id="check-todos" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer">
                                     <span class="ml-3 text-[10px] font-black text-navy uppercase tracking-widest group-hover:text-purple-700 transition">Selecionar Todos</span>
                                 </label>
                                 {% endif %}
-                                
                                 {% for cliente in clientes %}
                                 <label class="flex items-center p-3 hover:bg-gray-50 rounded-lg cursor-pointer border border-transparent hover:border-gray-200 transition group">
                                     <input type="checkbox" name="clientes[]" value="{{ cliente.id }}" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer cli-checkbox">
@@ -77,7 +74,6 @@
                                 {% endfor %}
                             </div>
                         </div>
-
                         <button type="submit" class="w-full py-4 bg-gradient-to-r from-purple-600 to-royal text-white font-black uppercase tracking-widest rounded-xl text-xs shadow-md hover:shadow-lg hover:-translate-y-0.5 transition border border-purple-700">Disparar Lote</button>
                     </form>
                 </div>
@@ -95,7 +91,6 @@
                         <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 block mb-1">Arquivo Físico (.pdf)</label>
                         <input type="text" name="arquivo_local" placeholder="Ex: aditivo_v1.pdf" required class="w-full px-5 py-3.5 bg-white border border-gray-200 rounded-xl outline-none font-bold text-xs text-navy focus:border-gray-400 transition font-mono shadow-sm">
                     </div>
-                    
                     <div class="mt-4 p-4 bg-purple-50/50 border border-purple-100 rounded-xl flex items-center justify-between shadow-sm">
                         <div>
                             <p class="text-[10px] font-black text-purple-900 uppercase tracking-widest">Obrigatório (Onboarding)</p>
@@ -106,248 +101,131 @@
                             <div class="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600 shadow-inner"></div>
                         </label>
                     </div>
-
                     <button type="submit" class="w-full py-4 bg-white text-gray-600 hover:bg-navy hover:text-white border border-gray-200 font-black uppercase tracking-widest rounded-xl text-[10px] transition shadow-sm mt-2">Salvar Modelo no Banco</button>
                 </form>
             </div>
-            
         </div>
 
         <div class="lg:col-span-2">
             <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden">
-                <div class="p-8 border-b border-gray-100 bg-white/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div class="p-8 border-b border-gray-100 bg-white/50 flex justify-between items-center">
                     <div>
-                        <h2 class="text-xl font-black text-navy tracking-tight">Histórico de Disparos Avulsos</h2>
-                        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Cofre Administrativo</p>
+                        <h2 class="text-xl font-black text-navy tracking-tight">Contratos por Modelo</h2>
+                        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Agrupados por tipo de documento</p>
                     </div>
-                    
-                    <div class="flex items-center gap-3">
-                        <form action="{{ url_for('admin.excluir_todos_pendentes') }}" method="POST" onsubmit="return confirm('ATENÇÃO EXTREMA: Deseja cancelar e excluir TODOS os documentos que estão na fila ou pendentes de assinatura de TODOS os parceiros? Essa ação não pode ser desfeita.')">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                            <button type="submit" class="px-4 py-2 bg-red-50 hover:bg-red-500 text-red-600 hover:text-white border border-red-200 hover:border-transparent text-[9px] font-black uppercase tracking-widest rounded-lg shadow-sm transition">
-                                Excluir Todos Pendentes
-                            </button>
-                        </form>
-                    </div>
-                </div>
-                
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse">
-                        <thead class="bg-gray-50/50 border-b border-gray-100 text-gray-400 text-[10px] font-black uppercase tracking-wider">
-                            <tr>
-                                <th class="px-8 py-5">Identificação do Documento</th>
-                                <th class="px-6 py-5">Parceiro Destino</th>
-                                <th class="px-6 py-5">Data da Emissão</th>
-                                <th class="px-6 py-5 text-center">Status</th>
-                                <th class="px-8 py-5 text-right">Ação</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-50 bg-white">
-                            {% for doc in pagination_docs.items %}
-                            <tr class="hover:bg-gray-50/50 transition-colors">
-                                <td class="px-8 py-6">
-                                    <div class="flex items-center gap-2">
-                                        <span class="text-sm font-black text-navy">{{ doc.template.nome }}</span>
-                                        {% if doc.template.is_onboarding %}
-                                        <span class="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded text-[9px] font-black uppercase tracking-widest border border-purple-100">Onboarding</span>
-                                        {% endif %}
-                                    </div>
-                                </td>
-                                <td class="px-6 py-6">
-                                    <span class="text-xs font-bold text-gray-600">{{ doc.cliente.nome }}</span>
-                                </td>
-                                <td class="px-6 py-6">
-                                    {% if doc.data_envio %}
-                                        <span class="text-[10px] font-bold text-gray-500 tracking-widest uppercase block">{{ (doc.data_envio | to_tz_br).strftime('%d/%m/%Y') }}</span>
-                                        <span class="text-[9px] font-black text-gray-400">{{ (doc.data_envio | to_tz_br).strftime('%H:%M') }}</span>
-                                    {% else %}
-                                        <span class="text-[10px] font-bold text-gray-500 tracking-widest uppercase block">Recém criado</span>
-                                    {% endif %}
-                                </td>
-                                <td class="px-6 py-6 text-center">
-                                    {% if doc.status == 'assinado' %}
-                                        <span class="inline-flex items-center px-3 py-1.5 bg-green-50 text-green-600 border border-green-200 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm gap-1.5">
-                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> Assinado
-                                        </span>
-                                    {% elif doc.status == 'pendente' %}
-                                        <span class="inline-flex items-center px-3 py-1.5 bg-yellow-50 text-yellow-600 border border-yellow-200 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm gap-1.5">
-                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Pendente
-                                        </span>
-                                    {% else %}
-                                        <span class="inline-flex items-center px-3 py-1.5 bg-gray-50 text-gray-500 border border-gray-200 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm gap-1.5">
-                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Na Fila
-                                        </span>
-                                    {% endif %}
-                                </td>
-                                <td class="px-8 py-6 text-right">
-                                    {% if doc.status in ['na_fila', 'pendente'] %}
-                                    <form action="{{ url_for('admin.excluir_documento_cliente', doc_id=doc.id) }}" method="POST" class="inline" onsubmit="return confirm('ATENÇÃO: Deseja cancelar e excluir o envio deste documento para este parceiro?')">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                        <button type="submit" class="text-[10px] font-black text-red-500 hover:text-red-700 uppercase tracking-widest transition border border-red-200 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg shadow-sm">Excluir</button>
-                                    </form>
-                                    {% else %}
-                                    <span class="text-[10px] font-black text-gray-300 uppercase tracking-widest">Trancado</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% else %}
-                            <tr>
-                                <td colspan="5" class="px-8 py-16 text-center text-gray-400 font-medium">
-                                    Nenhum contrato disparado pela mesa.
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                    <form action="{{ url_for('admin.excluir_todos_pendentes') }}" method="POST" onsubmit="return confirm('Excluir TODOS os documentos pendentes?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <button type="submit" class="px-4 py-2 bg-red-50 hover:bg-red-500 text-red-600 hover:text-white border border-red-200 text-[9px] font-black uppercase rounded-lg">Excluir Todos Pendentes</button>
+                    </form>
                 </div>
 
-                {% if pagination_docs.pages > 1 %}
-                <div class="px-8 py-5 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
-                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Página {{ pagination_docs.page }} de {{ pagination_docs.pages }}</span>
-                    <div class="flex items-center gap-2">
-                        {% if pagination_docs.has_prev %}
-                        <a href="{{ url_for('admin.documentos', page=pagination_docs.prev_num) }}" class="px-4 py-2 bg-white border border-gray-200 text-gray-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition shadow-sm">Anterior</a>
-                        {% else %}
-                        <span class="px-4 py-2 bg-gray-50 border border-gray-100 text-gray-300 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-not-allowed">Anterior</span>
-                        {% endif %}
-
-                        {% if pagination_docs.has_next %}
-                        <a href="{{ url_for('admin.documentos', page=pagination_docs.next_num) }}" class="px-4 py-2 bg-white border border-gray-200 text-navy rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition shadow-sm">Próxima</a>
-                        {% else %}
-                        <span class="px-4 py-2 bg-gray-50 border border-gray-100 text-gray-300 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-not-allowed">Próxima</span>
-                        {% endif %}
+                <div class="p-6 space-y-8">
+                    {% for grupo in grupos %}
+                    <div class="border border-gray-200 rounded-2xl bg-white overflow-hidden shadow-sm">
+                        <div class="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                            <div>
+                                <h3 class="text-md font-black text-navy">{{ grupo.template.nome }}</h3>
+                                <p class="text-[10px] text-gray-400">Enviado para {{ grupo.documentos|length }} parceiro(s)</p>
+                            </div>
+                            {% if grupo.template.is_onboarding %}
+                            <span class="px-2 py-1 bg-purple-100 text-purple-700 text-[9px] font-black rounded-lg">Onboarding</span>
+                            {% endif %}
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full text-sm">
+                                <thead class="bg-white text-[10px] font-black text-gray-400 uppercase">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left">Parceiro</th>
+                                        <th class="px-6 py-3 text-left">Data de envio</th>
+                                        <th class="px-6 py-3 text-left">Status</th>
+                                        <th class="px-6 py-3 text-right">Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    {% for doc in grupo.documentos %}
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="px-6 py-4 font-bold text-navy text-sm">{{ doc.cliente.nome }}</td>
+                                        <td class="px-6 py-4 text-[10px] text-gray-500">
+                                            {% if doc.data_envio %}
+                                                {{ doc.data_envio.strftime('%d/%m/%Y %H:%M') }}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                        <td class="px-6 py-4">
+                                            {% if doc.status == 'assinado' %}
+                                                <span class="px-2 py-1 bg-green-100 text-green-700 text-[9px] font-black rounded-lg">Assinado</span>
+                                            {% elif doc.status == 'pendente' %}
+                                                <span class="px-2 py-1 bg-yellow-100 text-yellow-700 text-[9px] font-black rounded-lg">Pendente</span>
+                                            {% else %}
+                                                <span class="px-2 py-1 bg-gray-100 text-gray-500 text-[9px] font-black rounded-lg">Na fila</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="px-6 py-4 text-right">
+                                            {% if doc.status in ['na_fila', 'pendente'] %}
+                                            <form action="{{ url_for('admin.excluir_documento_cliente', doc_id=doc.id) }}" method="POST" class="inline" onsubmit="return confirm('Cancelar este envio?')">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                <button type="submit" class="text-red-500 hover:text-red-700 text-[10px] font-black uppercase">Excluir</button>
+                                            </form>
+                                            {% else %}
+                                            <span class="text-gray-300 text-[10px]">Finalizado</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
+                    {% else %}
+                    <div class="text-center py-12 text-gray-400">Nenhum contrato disparado ainda.</div>
+                    {% endfor %}
                 </div>
-                {% endif %}
-
             </div>
         </div>
-
-    </div>
-</div>
-
-<div id="modal-progresso-disparo" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-navy/80 backdrop-blur-md p-4">
-    <div class="bg-white w-full max-w-md rounded-[2rem] shadow-2xl p-10 relative text-center border border-gray-100">
-        
-        <div class="w-16 h-16 bg-purple-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-purple-600 border border-purple-100 shadow-sm">
-            <svg class="w-8 h-8 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
-        </div>
-        
-        <h3 class="text-xl font-black text-navy mb-2">Enfileirando Lote...</h3>
-        <p id="progresso-texto" class="text-xs text-gray-500 font-medium mb-6">Reservando contratos na base de dados (Just-in-Time)...</p>
-        
-        <div class="h-3 w-full bg-gray-100 rounded-full overflow-hidden shadow-inner mb-4">
-            <div id="barra-progresso" class="h-full bg-gradient-to-r from-purple-600 to-royal transition-all duration-300 w-0"></div>
-        </div>
-        <p id="progresso-contador" class="text-[10px] font-black text-gray-400 uppercase tracking-widest">0 de 0 concluídos</p>
-        
-        <div id="progresso-erros" class="hidden mt-6 text-left bg-red-50 p-4 rounded-xl border border-red-100 max-h-32 overflow-y-auto custom-scrollbar">
-            <p class="text-[9px] font-black text-red-500 uppercase tracking-widest mb-2">Avisos e Erros:</p>
-            <ul id="lista-erros" class="text-[10px] font-bold text-red-400 space-y-1"></ul>
-        </div>
-
-        <button id="btn-fechar-progresso" onclick="window.location.reload()" class="hidden w-full py-4 mt-8 bg-navy text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg hover:-translate-y-1 transition">Concluir e Atualizar</button>
     </div>
 </div>
 
 <script>
-// ==========================================
-// LÓGICA DO CHECKBOX "SELECIONAR TODOS"
-// ==========================================
 document.getElementById('check-todos')?.addEventListener('change', function() {
     const isChecked = this.checked;
-    const checkboxes = document.querySelectorAll('.cli-checkbox');
-    checkboxes.forEach(cb => {
-        cb.checked = isChecked;
-    });
+    document.querySelectorAll('.cli-checkbox').forEach(cb => cb.checked = isChecked);
 });
 
-// ==========================================
-// MOTOR DE FILA NO NAVEGADOR (FASE 3 - PLANO A)
-// ==========================================
 document.getElementById('form-disparo-lote').addEventListener('submit', async function(e) {
     e.preventDefault(); 
-    
     const tempCheckboxes = document.querySelectorAll('.temp-checkbox:checked');
-    if(tempCheckboxes.length === 0) {
-        alert('Selecione ao menos um modelo de documento.');
-        return;
-    }
+    if(tempCheckboxes.length === 0) { alert('Selecione ao menos um modelo.'); return; }
     const templates = Array.from(tempCheckboxes).map(cb => cb.value);
-    
     const cliCheckboxes = document.querySelectorAll('.cli-checkbox:checked');
-    if(cliCheckboxes.length === 0) {
-        alert('Selecione ao menos um parceiro na lista para efetuar o disparo.');
-        return;
-    }
-    
-    if(!confirm(`Você está prestes a enfileirar ${templates.length} documento(s) para ${cliCheckboxes.length} parceiro(s) (Total: ${templates.length * cliCheckboxes.length} envios).\nDeseja iniciar a esteira?`)) return;
+    if(cliCheckboxes.length === 0) { alert('Selecione ao menos um parceiro.'); return; }
+    if(!confirm(`Enfileirar ${templates.length} documento(s) para ${cliCheckboxes.length} parceiro(s)?`)) return;
 
-    const modal = document.getElementById('modal-progresso-disparo');
-    const barra = document.getElementById('barra-progresso');
-    const texto = document.getElementById('progresso-texto');
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 z-[200] flex items-center justify-center bg-navy/80 backdrop-blur-md p-4';
+    modal.innerHTML = `<div class="bg-white w-full max-w-md rounded-[2rem] shadow-2xl p-10 text-center"><div class="w-16 h-16 mx-auto mb-6 animate-spin rounded-full border-4 border-royal border-t-transparent"></div><p class="text-sm font-black">Processando lotes...</p><p id="progresso-contador" class="text-[10px] text-gray-400 mt-2">0 de 0</p></div>`;
+    document.body.appendChild(modal);
     const contador = document.getElementById('progresso-contador');
-    const divErros = document.getElementById('progresso-erros');
-    const listaErros = document.getElementById('lista-erros');
-    const btnFechar = document.getElementById('btn-fechar-progresso');
     
-    modal.classList.remove('hidden');
-    listaErros.innerHTML = '';
-    divErros.classList.add('hidden');
-    btnFechar.classList.add('hidden');
-    barra.style.width = '0%';
-    
-    let sucesso = 0;
-    let falha = 0;
-    const total = templates.length * cliCheckboxes.length;
-    let processados = 0;
-    
+    let sucesso = 0, total = templates.length * cliCheckboxes.length, processados = 0;
     for(let tId of templates) {
-        for(let i = 0; i < cliCheckboxes.length; i++) {
-            const userId = cliCheckboxes[i].value;
-            const clientName = cliCheckboxes[i].nextElementSibling.innerText;
-            
-            texto.innerText = `Processando a fila: ${clientName}...`;
-            
+        for(let cb of cliCheckboxes) {
+            const userId = cb.value;
             try {
-                const response = await fetch("{{ url_for('admin.api_disparar_unico') }}", {
+                const res = await fetch("{{ url_for('admin.api_disparar_unico') }}", {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': '{{ csrf_token() }}'
-                    },
-                    body: JSON.stringify({
-                        template_id: tId,
-                        user_id: userId
-                    })
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
+                    body: JSON.stringify({ template_id: tId, user_id: userId })
                 });
-                
-                const data = await response.json();
-                
-                if(data.success) {
-                    sucesso++;
-                } else {
-                    falha++;
-                    divErros.classList.remove('hidden');
-                    listaErros.innerHTML += `<li>• ${clientName}: ${data.message}</li>`;
-                }
-            } catch(error) {
-                falha++;
-                divErros.classList.remove('hidden');
-                listaErros.innerHTML += `<li>• ${clientName}: Timeout / Queda de Conexão.</li>`;
-            }
-            
+                const data = await res.json();
+                if(data.success) sucesso++;
+            } catch(e) {}
             processados++;
-            const perc = Math.round((processados / total) * 100);
-            barra.style.width = perc + '%';
             contador.innerText = `${processados} de ${total} processados`;
         }
     }
-    
-    texto.innerText = `Esteira finalizada! ${sucesso} contratos colocados na fila com sucesso.`;
-    texto.classList.add('text-green-500', 'font-bold');
-    btnFechar.classList.remove('hidden');
+    modal.innerHTML = `<div class="bg-white w-full max-w-md rounded-[2rem] shadow-2xl p-10 text-center"><p class="text-sm font-black text-green-600">✅ ${sucesso} documentos enfileirados!</p><button onclick="location.reload()" class="mt-4 bg-royal text-white px-6 py-2 rounded-xl">Fechar</button></div>`;
+    setTimeout(() => modal.remove(), 3000);
 });
 </script>
 {% endblock %}
-

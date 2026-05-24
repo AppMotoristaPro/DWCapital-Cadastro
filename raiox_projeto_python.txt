@@ -510,8 +510,7 @@ class User(db.Model, UserMixin):
     
     is_isento = db.Column(db.Boolean, default=False)
     
-    # NOVO: Define se o cliente divide lucros ou comprou o robô
-    modelo_negocio = db.Column(db.String(20), default='comissao') # 'comissao' ou 'compra'
+    modelo_negocio = db.Column(db.String(20), default='comissao')
     
     endereco = db.Column(db.Text)
     email = db.Column(db.String(120))
@@ -532,27 +531,19 @@ class User(db.Model, UserMixin):
     logs = db.relationship('LogAuditoria', backref='admin', lazy=True)
     documentos_extras = db.relationship('DocumentoCliente', backref='cliente', lazy=True, cascade="all, delete-orphan")
     
-    # NOVO: Relação com as parcelas de compra do robô
     parcelas_licenca = db.relationship('ParcelaCompra', backref='cliente', lazy=True, cascade="all, delete-orphan", order_by="ParcelaCompra.ordem")
 
 class ParcelaCompra(db.Model):
-    """
-    NOVO: Tabela dedicada para gerenciar as 3 parcelas de quem comprou a licença do robô.
-    Ordem 1: R$ 5.000 (Imediato)
-    Ordem 2: R$ 2.500 (+30 dias)
-    Ordem 3: R$ 2.500 (+60 dias)
-    """
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     ordem = db.Column(db.Integer, nullable=False)
     valor = db.Column(db.Float, nullable=False)
     data_vencimento = db.Column(db.Date, nullable=False)
     
-    # Dados para o Gateway de Pagamento PIX
     txid_pix = db.Column(db.String(100), nullable=True)
     payload_pix = db.Column(db.Text, nullable=True)
     
-    status = db.Column(db.String(20), default='pendente') # 'pendente' ou 'pago'
+    status = db.Column(db.String(20), default='pendente')
     data_pagamento = db.Column(db.DateTime, nullable=True)
     data_criacao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
 
@@ -576,10 +567,8 @@ class Fatura(db.Model):
     liquido = db.Column(db.Float, default=0.0)
     repasse = db.Column(db.Float, default=0.0)
     
-    # Upload manual (será substituído gradativamente pela automação PIX)
     comprovante_pix = db.Column(db.String(255), nullable=True)
     
-    # NOVO: Dados para o Gateway de Pagamento PIX (Automação de Repasse 30%)
     txid_pix = db.Column(db.String(100), nullable=True)
     payload_pix = db.Column(db.Text, nullable=True)
     
@@ -587,7 +576,6 @@ class Fatura(db.Model):
     data_criacao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     dias = db.relationship('FaturaDiaria', backref='fatura_semanal', lazy=True, cascade="all, delete-orphan", order_by="FaturaDiaria.data_pregao")
 
-    # INTELIGÊNCIA EMBUTIDA NO MODELO (Fat Model)
     def recalcular_totais(self):
         self.bruto = sum((d.bruto if d.bruto > 0 else 0.0) for d in self.dias if d.status == 'relatorio_enviado')
         self.taxas_b3 = sum((d.taxas_b3 if d.taxas_b3 > 0 else 0.0) for d in self.dias if d.status == 'relatorio_enviado')
@@ -629,7 +617,6 @@ class FaturaDiaria(db.Model):
     arquivo_pdf = db.Column(db.String(255), nullable=True)
     status = db.Column(db.String(20), default='pendente')
 
-    # INTELIGÊNCIA EMBUTIDA NO MODELO (Fat Model)
     def zerar_valores(self, isentar=False):
         self.arquivo_pdf = None
         self.bruto = 0.0
@@ -658,7 +645,7 @@ class DocumentoTemplate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(100), nullable=False) 
     arquivo_local = db.Column(db.String(100), nullable=False)
-    is_onboarding = db.Column(db.Boolean, default=False) # FASE 1: Etiqueta Inteligente
+    is_onboarding = db.Column(db.Boolean, default=False)
     data_criacao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     
 class DocumentoCliente(db.Model):
@@ -666,7 +653,6 @@ class DocumentoCliente(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     template_id = db.Column(db.Integer, db.ForeignKey('documento_template.id'), nullable=False)
     
-    # FASE 1 e 3: Agora aceitam vazio (None), pois serão preenchidos apenas no Login pelo motor Just-in-Time
     autentique_document_id = db.Column(db.String(100), nullable=True)
     link_assinatura = db.Column(db.String(255), nullable=True) 
     status = db.Column(db.String(20), default='na_fila') 
@@ -890,19 +876,9 @@ def dashboard():
 @admin_bp.route('/clientes')
 @admin_required
 def clientes_list():
-    busca = request.args.get('q', '')
-    status_filtro = request.args.get('status', '')
-    page = request.args.get('page', 1, type=int)
-    
-    query = User.query.filter_by(role='cliente').options(joinedload(User.alocacoes))
-    
-    if busca:
-        query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
-    if status_filtro:
-        query = query.filter_by(status_acesso=status_filtro)
-        
-    pagination = query.order_by(User.nome.asc()).paginate(page=page, per_page=20, error_out=False)
-    return render_template('admin/index.html', pagination=pagination, busca=busca, status_filtro=status_filtro)
+    # Retorna TODOS os clientes e deixa o Front-end fazer a filtragem instantânea em JS
+    clientes = User.query.filter_by(role='cliente').options(joinedload(User.alocacoes)).order_by(User.nome.asc()).all()
+    return render_template('admin/index.html', clientes=clientes)
 
 @admin_bp.route('/liberar_cliente', methods=['POST'])
 @admin_required
@@ -1043,26 +1019,19 @@ def excluir_cliente(id):
 @admin_bp.route('/pagamentos')
 @admin_required
 def pagamentos():
-    busca = request.args.get('q', '')
     ciclo = request.args.get('ciclo')
     
-    if ciclo or busca:
-        query = User.query.filter_by(role='cliente', status_acesso='ativo').options(joinedload(User.alocacoes))
-        
-        if busca:
-            query = query.filter((User.nome.ilike(f'%{busca}%')) | (User.matricula.ilike(f'%{busca}%')))
-        ativos = query.order_by(User.nome.asc()).all()
-        
-        if ciclo:
-            try:
-                data_selecionada = datetime.strptime(ciclo, '%Y-%m-%d').date()
-                dias_para_sexta = (data_selecionada.weekday() - 4) % 7
-                inicio_ciclo = data_selecionada - timedelta(days=dias_para_sexta)
-            except ValueError:
-                hoje = datetime.now(tz_br).date()
-                dias_para_sexta = (hoje.weekday() - 4) % 7
-                inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
-        else:
+    repasse_global = db.session.query(db.func.sum(Fatura.repasse)).join(User).filter(
+        User.modelo_negocio == 'comissao',
+        db.or_(User.is_isento == False, User.is_isento.is_(None))
+    ).scalar() or 0.0
+    
+    if ciclo:
+        try:
+            data_selecionada = datetime.strptime(ciclo, '%Y-%m-%d').date()
+            dias_para_sexta = (data_selecionada.weekday() - 4) % 7
+            inicio_ciclo = data_selecionada - timedelta(days=dias_para_sexta)
+        except ValueError:
             hoje = datetime.now(tz_br).date()
             dias_para_sexta = (hoje.weekday() - 4) % 7
             inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
@@ -1073,6 +1042,13 @@ def pagamentos():
             if data_atual.weekday() < 5:
                 dias_uteis.append(data_atual)
             data_atual += timedelta(days=1)
+            
+        ativos_brutos = User.query.filter_by(role='cliente', status_acesso='ativo').options(joinedload(User.alocacoes)).order_by(User.nome.asc()).all()
+        ativos = []
+        for c in ativos_brutos:
+            data_cad = c.data_cadastro.date() if c.data_cadastro else datetime.min.date()
+            if data_cad <= (inicio_ciclo + timedelta(days=6)):
+                ativos.append(c)
         
         auto_gerar_ciclos_em_lote(ativos, data_base=inicio_ciclo)
             
@@ -1086,13 +1062,18 @@ def pagamentos():
             
         mapa_faturas = {f.user_id: f for f in faturas_do_ciclo}
         
+        repasse_ciclo = db.session.query(db.func.sum(Fatura.repasse)).join(User).filter(
+            Fatura.data_inicio == inicio_ciclo,
+            User.modelo_negocio == 'comissao',
+            db.or_(User.is_isento == False, User.is_isento.is_(None))
+        ).scalar() or 0.0
+        
         clientes_dados = []
         for c in ativos:
             fatura_atual = mapa_faturas.get(c.id)
             detalhes_corretoras = {}
             
-            data_cadastro = c.data_cadastro.date() if c.data_cadastro else datetime.min.date()
-            total_esperado = sum(1 for d_util in dias_uteis if d_util >= data_cadastro)
+            total_dias_brutos_da_semana = len(dias_uteis)
             
             if fatura_atual:
                 status_atual = fatura_atual.status
@@ -1101,23 +1082,32 @@ def pagamentos():
                     dias_enviados = sum(1 for d in dias_corretora if d.status == 'relatorio_enviado')
                     dias_isentos = sum(1 for d in dias_corretora if d.status == 'isento')
                     
-                    total_exigido = total_esperado - dias_isentos
+                    total_exigido = total_dias_brutos_da_semana - dias_isentos
                     if total_exigido < 0: total_exigido = 0
                     
                     detalhes_corretoras[aloc.nome_corretora] = f"{dias_enviados}/{total_exigido}"
             else:
                 status_atual = 'sem_fatura'
                 for aloc in c.alocacoes:
-                    detalhes_corretoras[aloc.nome_corretora] = f"0/{total_esperado}"
+                    detalhes_corretoras[aloc.nome_corretora] = f"0/{total_dias_brutos_da_semana}"
                 
             clientes_dados.append({
                 'info': c, 
                 'status_semana': status_atual, 
                 'inicio_ciclo': inicio_ciclo,
-                'detalhes_corretoras': detalhes_corretoras
+                'detalhes_corretoras': detalhes_corretoras,
+                'fatura_id': fatura_atual.id if fatura_atual else None
             })
             
-        return render_template('admin/pagamentos.html', clientes_dados=clientes_dados, busca=busca, exibe_clientes=True, ciclo_data=inicio_ciclo, dias_uteis=dias_uteis)
+        return render_template(
+            'admin/pagamentos.html', 
+            clientes_dados=clientes_dados, 
+            exibe_clientes=True, 
+            ciclo_data=inicio_ciclo, 
+            dias_uteis=dias_uteis,
+            repasse_global=repasse_global,
+            repasse_ciclo=repasse_ciclo
+        )
     
     else:
         ciclos_db = db.session.query(
@@ -1131,17 +1121,29 @@ def pagamentos():
                 User.status_acesso == 'ativo'
             ).all()
             
-            total = len(todas_faturas)
+            # FRENTE 3: Filtro Exato usando Set() para garantir contagem de parceiros unicos não-isentos
+            faturas_unicas = {f.user_id: f for f in todas_faturas}
+            faturas_reais = [f for f in faturas_unicas.values() if not getattr(f.cliente, 'is_isento', False)]
+            
+            repasse_gaveta = sum(f.repasse for f in faturas_reais if getattr(f.cliente, 'modelo_negocio', 'comissao') == 'comissao')
+            
+            total = len(faturas_reais)
             if total > 0:
-                pendentes = sum(1 for f in todas_faturas if f.status in ['pendente', 'parcial'])
+                pendentes = sum(1 for f in faturas_reais if f.status in ['pendente', 'parcial'])
                 gavetas.append({
                     'data_inicio': dt_ini,
                     'data_fim': dt_fim,
                     'total_clientes': total,
-                    'pendentes': pendentes
+                    'pendentes': pendentes,
+                    'repasse_total': repasse_gaveta
                 })
                 
-        return render_template('admin/pagamentos.html', gavetas=gavetas, exibe_clientes=False)
+        return render_template(
+            'admin/pagamentos.html', 
+            gavetas=gavetas, 
+            exibe_clientes=False,
+            repasse_global=repasse_global
+        )
 
 @admin_bp.route('/licencas')
 @admin_required
@@ -1154,7 +1156,8 @@ def licencas():
 def exportar_pendencias():
     ativos = User.query.filter(
         User.role == 'cliente', 
-        User.status_acesso == 'ativo'
+        User.status_acesso == 'ativo',
+        db.or_(User.is_isento == False, User.is_isento.is_(None))
     ).options(joinedload(User.faturas).joinedload(Fatura.dias)).order_by(User.nome.asc()).all()
     
     from app.utils.processador_xlsx import gerar_relatorio_pendencias
@@ -1248,6 +1251,22 @@ def isentar_dia(dia_id):
     flash('Dia marcado como isento! O cliente não precisará enviar nota para esta data.', 'success')
     return redirect(url_for('admin.pagamentos_cliente', id=dia.fatura_semanal.user_id, ciclo=dia.fatura_semanal.data_inicio.strftime('%Y-%m-%d')))
 
+@admin_bp.route('/pagamentos/isentar_ciclo/<int:fatura_id>', methods=['POST'])
+@admin_required
+def isentar_ciclo(fatura_id):
+    fatura = Fatura.query.get_or_404(fatura_id)
+    
+    for dia in fatura.dias:
+        dia.zerar_valores(isentar=True)
+        
+    fatura.recalcular_totais()
+    db.session.commit()
+    
+    registrar_log(f"Isentou todos os dias do ciclo {fatura.data_inicio.strftime('%d/%m')} do cliente {fatura.cliente.nome}.", "Pagamentos")
+    flash(f'O ciclo inteiro foi isentado com sucesso para {fatura.cliente.nome}.', 'success')
+    
+    return redirect(url_for('admin.pagamentos', ciclo=fatura.data_inicio.strftime('%Y-%m-%d')))
+
 @admin_bp.route('/pagamentos/remover_isencao/<int:dia_id>', methods=['POST'])
 @admin_required
 def remover_isencao_dia(dia_id):
@@ -1320,37 +1339,25 @@ def documentos():
     templates = DocumentoTemplate.query.all()
     clientes = User.query.filter_by(role='cliente', status_acesso='ativo').order_by(User.nome.asc()).all()
     
-    # Carrega uma janela ampla do histórico do banco de dados
-    todos_docs = DocumentoCliente.query.join(DocumentoTemplate).options(
+    page = request.args.get('page', 1, type=int)
+
+    query = DocumentoCliente.query.join(User).join(DocumentoTemplate).options(
         joinedload(DocumentoCliente.cliente), 
         joinedload(DocumentoCliente.template)
+    ).filter(
+        db.or_(
+            User.data_cadastro.is_(None),
+            DocumentoCliente.data_envio.is_(None),
+            DocumentoCliente.data_envio > User.data_cadastro + timedelta(seconds=60)
+        )
     ).order_by(
         DocumentoCliente.status.desc(),
         DocumentoCliente.data_envio.desc()
-    ).limit(500).all()
+    )
     
-    historico = []
-    for doc in todos_docs:
-        if doc.data_envio and doc.cliente.data_cadastro:
-            # Removemos a fuso-horário para poder subtrair sem dar erro de compatibilidade
-            data_envio_clean = doc.data_envio.replace(tzinfo=None)
-            data_cadastro_clean = doc.cliente.data_cadastro.replace(tzinfo=None)
-            
-            diferenca_segundos = (data_envio_clean - data_cadastro_clean).total_seconds()
-            
-            # LÓGICA DO AVULSO:
-            # Se o documento foi emitido mais de 60 segundos APÓS o cliente ser criado,
-            # então foi um disparo feito por você (Admin), e não pelo sistema automático.
-            if diferenca_segundos > 60:
-                historico.append(doc)
-        else:
-            # Garante que registros antigos sem data sejam mostrados para você poder gerenciar
-            historico.append(doc)
-            
-        if len(historico) >= 100:
-            break
+    pagination_docs = query.paginate(page=page, per_page=20, error_out=False)
     
-    return render_template('admin/documentos.html', templates=templates, clientes=clientes, historico=historico)
+    return render_template('admin/documentos.html', templates=templates, clientes=clientes, pagination_docs=pagination_docs)
 
 @admin_bp.route('/documentos/cadastrar_template', methods=['POST'])
 @admin_required
@@ -1367,6 +1374,21 @@ def cadastrar_template():
     db.session.commit()
     
     flash(f'Modelo "{nome}" registrado! Certifique-se de que o arquivo "{arquivo_local}" esteja na pasta static/documentos/.', 'success')
+    return redirect(url_for('admin.documentos'))
+
+@admin_bp.route('/documentos/excluir_template/<int:id>', methods=['POST'])
+@admin_required
+def excluir_template(id):
+    template = DocumentoTemplate.query.get_or_404(id)
+    nome_temp = template.nome
+    
+    DocumentoCliente.query.filter_by(template_id=template.id).delete()
+    
+    db.session.delete(template)
+    registrar_log(f"Excluiu o Modelo de Documento e todas as suas pendências: {nome_temp}.", "Assinaturas")
+    db.session.commit()
+    
+    flash(f'Modelo de contrato "{nome_temp}" excluído com sucesso!', 'success')
     return redirect(url_for('admin.documentos'))
 
 @admin_bp.route('/documentos/disparar', methods=['POST'])
@@ -1425,6 +1447,10 @@ def excluir_documento_cliente(doc_id):
         flash('Não é possível excluir ou cancelar um documento que já foi assinado pelo parceiro.', 'error')
         return redirect(url_for('admin.documentos'))
     
+    if doc.template.is_onboarding:
+        cliente = doc.cliente
+        cliente.termo_assinado = False
+    
     nome_doc = doc.template.nome
     nome_cliente = doc.cliente.nome
     
@@ -1432,7 +1458,7 @@ def excluir_documento_cliente(doc_id):
     registrar_log(f"Cancelou e excluiu o documento '{nome_doc}' da fila do parceiro {nome_cliente}.", "Assinaturas")
     db.session.commit()
     
-    flash('Documento removido e cancelado com sucesso!', 'success')
+    flash(f'Documento "{nome_doc}" removido com sucesso e obrigatoriedade resetada!', 'success')
     return redirect(url_for('admin.documentos'))
 
 @admin_bp.route('/documentos/excluir_pendentes', methods=['POST'])
@@ -1450,14 +1476,13 @@ def excluir_todos_pendentes():
         
     return redirect(url_for('admin.documentos'))
 
-@admin_bp.route('/reprocessar_notas_antigas', methods=['GET'])
-@admin_required
-def reprocessar_notas_antigas():
+def _executar_reprocessamento_por_corretora(corretora_nome):
     dias_enviados = FaturaDiaria.query.options(
         joinedload(FaturaDiaria.fatura_semanal).joinedload(Fatura.cliente)
     ).filter(
         FaturaDiaria.status == 'relatorio_enviado',
-        FaturaDiaria.arquivo_pdf.isnot(None)
+        FaturaDiaria.arquivo_pdf.isnot(None),
+        FaturaDiaria.nome_corretora == corretora_nome
     ).all()
     
     sucesso = 0
@@ -1506,10 +1531,25 @@ def reprocessar_notas_antigas():
         
     db.session.commit()
     
-    registrar_log(f"Executou Batch Job: Reprocessou e corrigiu {sucesso} notas antigas (Falhas: {erros}).", "Sistema")
-    flash(f'Reprocessamento concluído com sucesso! {sucesso} notas financeiras foram corrigidas com o novo motor unificado ({erros} não puderam ser lidas).', 'success')
+    registrar_log(f"Executou Batch Job: Reprocessou notas antigas ({corretora_nome}) (Sucesso: {sucesso}, Falhas: {erros}).", "Sistema")
+    flash(f'Reprocessamento {corretora_nome} concluído! {sucesso} notas corrigidas ({erros} falhas).', 'success')
     
     return redirect(url_for('admin.dashboard'))
+
+@admin_bp.route('/reprocessar_btg', methods=['GET'])
+@admin_required
+def reprocessar_btg():
+    return _executar_reprocessamento_por_corretora('BTG')
+
+@admin_bp.route('/reprocessar_genial', methods=['GET'])
+@admin_required
+def reprocessar_genial():
+    return _executar_reprocessamento_por_corretora('GENIAL')
+
+@admin_bp.route('/reprocessar_xp', methods=['GET'])
+@admin_required
+def reprocessar_xp():
+    return _executar_reprocessamento_por_corretora('XP')
 
 
 
@@ -1916,7 +1956,7 @@ def sanitizar_texto(texto, cpf_cliente):
 
 def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
     print(f"\n" + "="*50)
-    print(f"[BTG_PARSER] INICIANDO ROBÔ BTG V4 (POWERED BY GROQ & LLAMA 3)")
+    print(f"[BTG_PARSER] INICIANDO ROBÔ BTG V4 (POWERED BY GROQ & FALLBACKS)")
     print(f"="*50)
     try:
         leitor = PdfReader(caminho_arquivo)
@@ -1941,51 +1981,66 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
             raise Exception("Chave GROQ_API_KEY não encontrada no ambiente (.env ou Render).")
         
         client = Groq(api_key=api_key)
-        modelo_alvo = "llama-3.3-70b-versatile"
-        
-        print("\n  [GROQ DIAGNÓSTICO] Verificando ambiente de integração...")
-        print(f"    -> Modelo validado e acionado para leitura: {modelo_alvo}\n")
         
         prompt = """
         Você é um auditor financeiro especialista na extração de dados de notas de corretagem da BTG Pactual.
-        O texto recebido contém apenas o cabeçalho e o rodapé do PDF. A letra 'D' (Débito) pode estar colada no número.
+        O texto recebido contém apenas o cabeçalho e o rodapé do PDF.
         
         Encontre 3 informações exatas:
         1. Data do Pregão (DD/MM/AAAA).
         2. Valor Bruto: Procure por 'Ajuste day trade' ou 'Valor dos negócios'. Pegue o valor não zerado.
         3. Total Líquido: Procure por 'Total líquido da nota' (Geralmente no final do documento).
         
-        REGRA MATEMÁTICA CRÍTICA:
-        Sempre verifique se há um 'D' (Débito) ou 'C' (Crédito) atrelado ao valor. Se houver 'D', o valor DEVE TER SINAL NEGATIVO (-).
+        REGRA MATEMÁTICA CRÍTICA SOBRE SINAIS:
+        A letra 'C' significa CRÉDITO (POSITIVO). A letra 'D' significa DÉBITO (NEGATIVO).
+        Verifique ATENTAMENTE a letra que está colada ou logo após o número. 
+        Se houver 'C', o valor é ESTRITAMENTE POSITIVO.
+        Só use sinal negativo (-) se houver certeza da letra 'D' atrelada ao valor. Não assuma ou invente 'D' onde existe 'C'.
         
-        Retorne EXCLUSIVAMENTE um JSON válido. Use o campo 'raciocinio' para explicar a captura antes dos valores finais.
+        Retorne EXCLUSIVAMENTE um JSON válido. Use o campo 'raciocinio' para explicar a captura (mostre o número e a letra que encontrou).
         Estrutura obrigatória de exemplo:
         {
-            "raciocinio": "Achei Ajuste day trade 820,00D (Sinal negativo). O líquido é 847,00 com D no final (Sinal negativo).",
+            "raciocinio": "Achei Ajuste day trade 598,00 C (Positivo). O líquido é 554,96 C (Positivo).",
             "data_pregao": "06/05/2026",
-            "bruto": -820.00,
-            "liquido_nota": -847.00
+            "bruto": 598.00,
+            "liquido_nota": 554.96
         }
         """
         
         print("  [GROQ REQUEST] Despachando nota mascarada para a nuvem Groq...")
-        print("  --- INÍCIO DO TEXTO ENVIADO (MÁXIMO ENXUTO) ---")
-        print(texto_seguro)
-        print("  --- FIM DO TEXTO ENVIADO ---\n")
         
-        response = client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": texto_seguro}
-            ],
-            model=modelo_alvo,
-            temperature=0.0,
-            response_format={"type": "json_object"}
-        )
+        # ROLETA DE MODELOS (FALLBACK) PARA DRIBLAR O LIMITE DE TOKENS (ERROR 429)
+        modelos_para_tentar = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"]
+        texto_json = None
         
-        texto_json = response.choices[0].message.content.strip()
-        
-        print("  [GROQ RESPONSE] Resposta bruta devolvida pela IA:")
+        for modelo_alvo in modelos_para_tentar:
+            try:
+                print(f"  [GROQ DIAGNÓSTICO] Tentando alocação no modelo: {modelo_alvo}...")
+                response = client.chat.completions.create(
+                    messages=[
+                        {"role": "system", "content": prompt},
+                        {"role": "user", "content": texto_seguro}
+                    ],
+                    model=modelo_alvo,
+                    temperature=0.0,
+                    response_format={"type": "json_object"}
+                )
+                texto_json = response.choices[0].message.content.strip()
+                print(f"    -> Sucesso no modelo {modelo_alvo}!")
+                break # Sai do loop se o modelo funcionar
+                
+            except Exception as e:
+                print(f"    [!] Falha no modelo {modelo_alvo}: {str(e)}")
+                if "429" in str(e) or "rate limit" in str(e).lower():
+                    print("    -> Cota diária excedida. Pulando para o modelo reserva...")
+                    continue # Tenta o próximo modelo
+                else:
+                    raise e # Se for outro erro (como falha de API key), aborta tudo.
+                    
+        if not texto_json:
+            raise Exception("Limites diários excedidos em todos os modelos de fallback do Groq. Tente novamente mais tarde.")
+
+        print("\n  [GROQ RESPONSE] Resposta bruta devolvida pela IA:")
         print("  --- INÍCIO DO RETORNO ---")
         print(texto_json)
         print("  --- FIM DO RETORNO ---\n")
@@ -2008,10 +2063,30 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
         v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
         
         if v_custos_unificados < 0:
-            print(f"    [!] Anomalia BTG: Custos negativos detectados ({v_custos_unificados}). O PDF inverteu o sinal de loss.")
-            v_liquido_pregao = -abs(v_liquido_pregao)
-            v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
-            print(f"    [!] Correção aplicada. Novo Líquido: {v_liquido_pregao} | Novos Custos: {v_custos_unificados}")
+            print(f"    [!] Anomalia BTG: Custos negativos detectados ({v_custos_unificados}). O PDF ou a IA inverteu os sinais.")
+            
+            # FILTRO ANTI-ALUCINAÇÃO
+            # Se Custos deu negativo e a IA mandou valores negativos, ela transformou um GAIN em LOSS indevidamente.
+            if v_bruto < 0 and v_liquido_pregao < 0:
+                print("    [!] A IA negativou indevidamente um Gain. Forçando valores para POSITIVO.")
+                v_bruto = abs(v_bruto)
+                v_liquido_pregao = abs(v_liquido_pregao)
+                v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+                
+            # Tratamento de Loss verdadeiro onde a IA esqueceu os sinais
+            elif abs(v_liquido_pregao) > abs(v_bruto):
+                v_bruto = -abs(v_bruto)
+                v_liquido_pregao = -abs(v_liquido_pregao)
+                v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+                print(f"    [!] Correção Dupla (Loss) aplicada. Novo Bruto: {v_bruto} | Novo Líquido: {v_liquido_pregao}")
+                
+            else:
+                v_liquido_pregao = -abs(v_liquido_pregao)
+                v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+                print(f"    [!] Correção Parcial aplicada. Novo Líquido: {v_liquido_pregao}")
+                
+        # Garante segurança matemática absoluta (taxa da b3 e corretagem nunca são negativas)
+        v_custos_unificados = abs(v_custos_unificados)
             
         print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
         
@@ -2046,6 +2121,8 @@ def extrair_dados_btg(caminho_arquivo, cpf_cliente=None):
             raise e
         return None
 
+
+
 ==================================================
 ARQUIVO: ./app/utils/parsers/genial_parser.py
 ==================================================
@@ -2072,7 +2149,7 @@ def sanitizar_texto(texto, cpf_cliente):
 
 def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
     print(f"\n" + "="*50)
-    print(f"[GENIAL_PARSER] INICIANDO ROBÔ GENIAL V4 (POWERED BY GROQ & LLAMA 3)")
+    print(f"[GENIAL_PARSER] INICIANDO ROBÔ GENIAL V4 (POWERED BY GROQ & FALLBACKS)")
     print(f"="*50)
     print(f"[GENIAL_PARSER] Arquivo alvo: {caminho_arquivo}")
     try:
@@ -2098,52 +2175,67 @@ def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
             raise Exception("Chave GROQ_API_KEY não encontrada no ambiente (.env ou Render).")
         
         client = Groq(api_key=api_key)
-        modelo_alvo = "llama-3.3-70b-versatile"
-        
-        print("\n  [GROQ DIAGNÓSTICO] Verificando ambiente de integração...")
-        print(f"    -> Modelo acionado para leitura ultrarrápida: {modelo_alvo}\n")
         
         prompt = """
         Você é um auditor financeiro especialista na extração de dados de notas de corretagem da Genial Investimentos.
         O texto recebido contém apenas o cabeçalho e o rodapé do PDF. Palavras, números e as letras 'C' (Crédito) e 'D' (Débito) estão misturados.
-        A letra 'D' pode estar colada no número (ex: 820,00D) ou solta.
+        A letra 'D' ou 'C' pode estar colada no número (ex: 820,00D ou 500,00C) ou solta.
         
         Encontre 3 informações exatas:
         1. Data do Pregão (DD/MM/AAAA).
         2. Valor Bruto: Procure por 'Ajuste day trade' ou 'Valor dos negócios'. Pegue o valor correspondente não zerado.
         3. Total Líquido: Procure por 'Total líquido da nota' ou 'Total líquido (#)'.
         
-        REGRA MATEMÁTICA CRÍTICA:
-        Sempre verifique se há um 'D' (Débito) ou 'C' (Crédito) atrelado ao valor. Se houver 'D', o valor DEVE TER SINAL NEGATIVO (-).
+        REGRA MATEMÁTICA CRÍTICA SOBRE SINAIS:
+        A letra 'C' significa CRÉDITO (POSITIVO). A letra 'D' significa DÉBITO (NEGATIVO).
+        Verifique ATENTAMENTE a letra que está colada ou logo após o número. 
+        Se houver 'C', o valor é ESTRITAMENTE POSITIVO.
+        Só use sinal negativo (-) se houver certeza da letra 'D' atrelada ao valor. Não assuma ou invente 'D' onde existe 'C'.
         
-        Retorne EXCLUSIVAMENTE um JSON válido. Use o campo 'raciocinio' para explicar a captura antes dos valores finais.
+        Retorne EXCLUSIVAMENTE um JSON válido. Use o campo 'raciocinio' para explicar a captura (mostre o número e a letra que encontrou).
         Estrutura obrigatória de exemplo:
         {
-            "raciocinio": "Achei Ajuste day trade 820,00D (Sinal negativo). O líquido é 847,00 com um D por perto (Sinal negativo).",
+            "raciocinio": "Achei Ajuste day trade 820,00 C (Positivo). O líquido é 847,00 C (Positivo).",
             "data_pregao": "06/05/2026",
-            "bruto": -820.00,
-            "liquido_nota": -847.00
+            "bruto": 820.00,
+            "liquido_nota": 847.00
         }
         """
         
         print("  [GROQ REQUEST] Despachando nota mascarada para a nuvem Groq...")
-        print("  --- INÍCIO DO TEXTO ENVIADO (MÁXIMO ENXUTO) ---")
-        print(texto_seguro)
-        print("  --- FIM DO TEXTO ENVIADO ---\n")
         
-        response = client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": texto_seguro}
-            ],
-            model=modelo_alvo,
-            temperature=0.0,
-            response_format={"type": "json_object"}
-        )
+        # ROLETA DE MODELOS (FALLBACK) PARA DRIBLAR O LIMITE DE TOKENS (ERROR 429)
+        modelos_para_tentar = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"]
+        texto_json = None
         
-        texto_json = response.choices[0].message.content.strip()
+        for modelo_alvo in modelos_para_tentar:
+            try:
+                print(f"  [GROQ DIAGNÓSTICO] Tentando alocação no modelo: {modelo_alvo}...")
+                response = client.chat.completions.create(
+                    messages=[
+                        {"role": "system", "content": prompt},
+                        {"role": "user", "content": texto_seguro}
+                    ],
+                    model=modelo_alvo,
+                    temperature=0.0,
+                    response_format={"type": "json_object"}
+                )
+                texto_json = response.choices[0].message.content.strip()
+                print(f"    -> Sucesso no modelo {modelo_alvo}!")
+                break # Sai do loop se o modelo funcionar
+                
+            except Exception as e:
+                print(f"    [!] Falha no modelo {modelo_alvo}: {str(e)}")
+                if "429" in str(e) or "rate limit" in str(e).lower():
+                    print("    -> Cota diária excedida. Pulando para o modelo reserva...")
+                    continue # Tenta o próximo modelo
+                else:
+                    raise e # Se for outro erro, aborta.
+                    
+        if not texto_json:
+            raise Exception("Limites diários excedidos em todos os modelos de fallback do Groq. Tente novamente mais tarde.")
         
-        print("  [GROQ RESPONSE] Resposta bruta devolvida pela IA:")
+        print("\n  [GROQ RESPONSE] Resposta bruta devolvida pela IA:")
         print("  --- INÍCIO DO RETORNO ---")
         print(texto_json)
         print("  --- FIM DO RETORNO ---\n")
@@ -2167,10 +2259,28 @@ def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
         v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
         
         if v_custos_unificados < 0:
-            print(f"    [!] Anomalia Genial: Custos negativos detectados ({v_custos_unificados}). O PDF inverteu o sinal de loss.")
-            v_liquido_pregao = -abs(v_liquido_pregao)
-            v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
-            print(f"    [!] Correção aplicada. Novo Líquido: {v_liquido_pregao} | Novos Custos: {v_custos_unificados}")
+            print(f"    [!] Anomalia Genial: Custos negativos detectados ({v_custos_unificados}). O PDF ou a IA inverteu os sinais.")
+            
+            # FILTRO ANTI-ALUCINAÇÃO
+            if v_bruto < 0 and v_liquido_pregao < 0:
+                print("    [!] A IA negativou indevidamente um Gain. Forçando valores para POSITIVO.")
+                v_bruto = abs(v_bruto)
+                v_liquido_pregao = abs(v_liquido_pregao)
+                v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+                
+            elif abs(v_liquido_pregao) > abs(v_bruto):
+                v_bruto = -abs(v_bruto)
+                v_liquido_pregao = -abs(v_liquido_pregao)
+                v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+                print(f"    [!] Correção Dupla (Loss) aplicada. Novo Bruto: {v_bruto} | Novo Líquido: {v_liquido_pregao}")
+                
+            else:
+                v_liquido_pregao = -abs(v_liquido_pregao)
+                v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+                print(f"    [!] Correção Parcial aplicada. Novo Líquido: {v_liquido_pregao}")
+                
+        # Garante segurança matemática absoluta
+        v_custos_unificados = abs(v_custos_unificados)
             
         print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
         
@@ -2205,6 +2315,8 @@ def extrair_dados_genial(caminho_arquivo, cpf_cliente=None):
         if "PDF_INCOMPATIVEL" in str(e):
             raise e
         return None
+
+
 
 ==================================================
 ARQUIVO: ./app/utils/parsers/gerenciador_pdf.py
@@ -2259,7 +2371,7 @@ def sanitizar_texto(texto, cpf_cliente):
 
 def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
     print(f"\n" + "="*50)
-    print(f"[XP_PARSER] INICIANDO ROBÔ XP V4 (DECRYPT + POWERED BY GROQ & LLAMA 3)")
+    print(f"[XP_PARSER] INICIANDO ROBÔ XP V4 (DECRYPT + POWERED BY GROQ & FALLBACKS)")
     print(f"="*50)
     try:
         if senha_manual:
@@ -2310,51 +2422,66 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
             raise Exception("Chave GROQ_API_KEY não encontrada.")
         
         client = Groq(api_key=api_key)
-        modelo_alvo = "llama-3.3-70b-versatile"
-        
-        print("\n  [GROQ DIAGNÓSTICO] Verificando ambiente de integração...")
-        print(f"    -> Modelo validado e acionado para leitura: {modelo_alvo}\n")
         
         prompt = """
         Você é um auditor financeiro especialista na extração de dados de notas de corretagem da XP Investimentos.
-        O texto recebido contém apenas o cabeçalho e o rodapé do PDF. A letra 'D' pode estar colada no número (ex: 820,00D).
+        O texto recebido contém apenas o cabeçalho e o rodapé do PDF. A letra 'D' ou 'C' pode estar colada no número (ex: 820,00D ou 500,00C).
         
         Encontre 3 informações exatas:
         1. Data do Pregão (DD/MM/AAAA).
         2. Valor Bruto: Procure por 'Ajuste day trade' ou 'Valor dos negócios'. Pegue o valor não zerado.
         3. Total Líquido: Procure por 'Total líquido da nota'.
         
-        REGRA MATEMÁTICA CRÍTICA:
-        Sempre verifique se há um 'D' (Débito) ou 'C' (Crédito) atrelado ao valor. Se houver 'D', o valor DEVE TER SINAL NEGATIVO (-).
+        REGRA MATEMÁTICA CRÍTICA SOBRE SINAIS:
+        A letra 'C' significa CRÉDITO (POSITIVO). A letra 'D' significa DÉBITO (NEGATIVO).
+        Verifique ATENTAMENTE a letra que está colada ou logo após o número. 
+        Se houver 'C', o valor é ESTRITAMENTE POSITIVO.
+        Só use sinal negativo (-) se houver certeza da letra 'D' atrelada ao valor. Não assuma ou invente 'D' onde existe 'C'.
         
-        Retorne EXCLUSIVAMENTE um JSON válido. Use o campo 'raciocinio' para explicar a captura antes dos valores finais.
+        Retorne EXCLUSIVAMENTE um JSON válido. Use o campo 'raciocinio' para explicar a captura (mostre o número e a letra que encontrou).
         Estrutura obrigatória de exemplo:
         {
-            "raciocinio": "Achei Ajuste day trade 820,00D (Sinal negativo). O líquido é 847,00 com D (Sinal negativo).",
+            "raciocinio": "Achei Ajuste day trade 820,00 C (Positivo). O líquido é 847,00 C (Positivo).",
             "data_pregao": "06/05/2026",
-            "bruto": -820.00,
-            "liquido_nota": -847.00
+            "bruto": 820.00,
+            "liquido_nota": 847.00
         }
         """
         
         print("  [GROQ REQUEST] Despachando nota mascarada para a nuvem Groq...")
-        print("  --- INÍCIO DO TEXTO ENVIADO (MÁXIMO ENXUTO) ---")
-        print(texto_seguro)
-        print("  --- FIM DO TEXTO ENVIADO ---\n")
-
-        response = client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": texto_seguro}
-            ],
-            model=modelo_alvo,
-            temperature=0.0,
-            response_format={"type": "json_object"}
-        )
         
-        texto_json = response.choices[0].message.content.strip()
+        # ROLETA DE MODELOS (FALLBACK) PARA DRIBLAR O LIMITE DE TOKENS (ERROR 429)
+        modelos_para_tentar = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"]
+        texto_json = None
         
-        print("  [GROQ RESPONSE] Resposta bruta devolvida pela IA:")
+        for modelo_alvo in modelos_para_tentar:
+            try:
+                print(f"  [GROQ DIAGNÓSTICO] Tentando alocação no modelo: {modelo_alvo}...")
+                response = client.chat.completions.create(
+                    messages=[
+                        {"role": "system", "content": prompt},
+                        {"role": "user", "content": texto_seguro}
+                    ],
+                    model=modelo_alvo,
+                    temperature=0.0,
+                    response_format={"type": "json_object"}
+                )
+                texto_json = response.choices[0].message.content.strip()
+                print(f"    -> Sucesso no modelo {modelo_alvo}!")
+                break # Sai do loop se o modelo funcionar
+                
+            except Exception as e:
+                print(f"    [!] Falha no modelo {modelo_alvo}: {str(e)}")
+                if "429" in str(e) or "rate limit" in str(e).lower():
+                    print("    -> Cota diária excedida. Pulando para o modelo reserva...")
+                    continue # Tenta o próximo modelo
+                else:
+                    raise e # Se for outro erro, aborta.
+                    
+        if not texto_json:
+            raise Exception("Limites diários excedidos em todos os modelos de fallback do Groq. Tente novamente mais tarde.")
+        
+        print("\n  [GROQ RESPONSE] Resposta bruta devolvida pela IA:")
         print("  --- INÍCIO DO RETORNO ---")
         print(texto_json)
         print("  --- FIM DO RETORNO ---\n")
@@ -2377,10 +2504,28 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
         v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
         
         if v_custos_unificados < 0:
-            print(f"    [!] Anomalia XP: Custos negativos detectados ({v_custos_unificados}). O PDF inverteu o sinal de loss.")
-            v_liquido_pregao = -abs(v_liquido_pregao)
-            v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
-            print(f"    [!] Correção aplicada. Novo Líquido: {v_liquido_pregao} | Novos Custos: {v_custos_unificados}")
+            print(f"    [!] Anomalia XP: Custos negativos detectados ({v_custos_unificados}). O PDF ou a IA inverteu os sinais.")
+            
+            # FILTRO ANTI-ALUCINAÇÃO
+            if v_bruto < 0 and v_liquido_pregao < 0:
+                print("    [!] A IA negativou indevidamente um Gain. Forçando valores para POSITIVO.")
+                v_bruto = abs(v_bruto)
+                v_liquido_pregao = abs(v_liquido_pregao)
+                v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+                
+            elif abs(v_liquido_pregao) > abs(v_bruto):
+                v_bruto = -abs(v_bruto)
+                v_liquido_pregao = -abs(v_liquido_pregao)
+                v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+                print(f"    [!] Correção Dupla (Loss) aplicada. Novo Bruto: {v_bruto} | Novo Líquido: {v_liquido_pregao}")
+                
+            else:
+                v_liquido_pregao = -abs(v_liquido_pregao)
+                v_custos_unificados = round(v_bruto - v_liquido_pregao, 2)
+                print(f"    [!] Correção Parcial aplicada. Novo Líquido: {v_liquido_pregao}")
+                
+        # Garante segurança matemática absoluta
+        v_custos_unificados = abs(v_custos_unificados)
             
         print(f"    Custos Calculados: Bruto ({v_bruto}) - Líquido ({v_liquido_pregao}) = {v_custos_unificados}")
         
@@ -2413,6 +2558,8 @@ def extrair_dados_xp(caminho_arquivo, cpf_cliente, senha_manual=None):
         if "SENHA_INCORRETA" in str(e): raise Exception("SENHA_INCORRETA")
         if "PDF_INCOMPATIVEL" in str(e): raise e
         return None
+
+
 
 ==================================================
 ARQUIVO: ./app/static/css/style.css
@@ -2529,7 +2676,7 @@ ARQUIVO: ./app/templates/auth/login.html
                     <div class="relative">
                         <div class="flex justify-between items-end mb-1.5 ml-1 mr-1">
                             <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Senha de Segurança</label>
-                            <a href="https://wa.me/5511991167709?text=Ol%C3%A1%2C%20esqueci%20a%20minha%20senha%20da%20plataforma%20DW%20Capital" target="_blank" class="text-[10px] font-bold text-royal hover:text-white transition duration-200">Esqueci a senha</a>
+                            <button type="button" onclick="document.getElementById('modal-esqueci-senha').classList.remove('hidden');" class="text-[10px] font-bold text-royal hover:text-white transition duration-200 outline-none">Esqueci a senha</button>
                         </div>
                         <input name="senha" id="login-senha" type="password" required class="w-full px-5 py-4 bg-navy/40 border border-white/5 rounded-xl focus:bg-navy/80 focus:border-royal text-white placeholder-gray-500 font-medium transition duration-300 outline-none shadow-inner" placeholder="••••••••">
                         <button type="button" onclick="toggleLoginPassword()" class="absolute right-4 bottom-3.5 text-gray-500 hover:text-white transition-colors outline-none p-1">
@@ -2550,6 +2697,21 @@ ARQUIVO: ./app/templates/auth/login.html
     </div>
 </div>
 
+<div id="modal-esqueci-senha" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-navy/90 backdrop-blur-sm p-4">
+    <div class="bg-white w-full max-w-sm rounded-[2rem] shadow-2xl p-10 relative text-center border border-gray-100">
+        <div class="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-royal">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+        </div>
+        <h3 class="text-xl font-black text-navy mb-2">Recuperar Senha</h3>
+        <p class="text-xs text-gray-500 font-medium mb-8">Digite seu CPF para localizarmos seu cadastro e redirecionarmos ao WhatsApp do suporte.</p>
+        
+        <input type="text" id="input-cpf-recuperacao" placeholder="000.000.000-00" class="block w-full rounded-2xl px-5 py-4 bg-gray-50 border border-gray-200 text-center text-sm font-black tracking-widest focus:bg-white focus:border-royal mb-6 outline-none transition">
+        
+        <button id="btn-recuperacao" onclick="solicitarRecuperacao()" class="w-full py-4 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg transition">Solicitar Suporte</button>
+        <button onclick="document.getElementById('modal-esqueci-senha').classList.add('hidden')" class="mt-4 text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-navy transition w-full py-2 outline-none">Cancelar</button>
+    </div>
+</div>
+
 <script>
 function toggleLoginPassword() {
     const input = document.getElementById('login-senha');
@@ -2560,6 +2722,44 @@ function toggleLoginPassword() {
     } else {
         input.type = "password";
         icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>';
+    }
+}
+
+async function solicitarRecuperacao() {
+    const cpf = document.getElementById('input-cpf-recuperacao').value;
+    const btn = document.getElementById('btn-recuperacao');
+    
+    if(!cpf) {
+        alert("Por favor, digite seu CPF.");
+        return;
+    }
+    
+    btn.innerText = "Buscando...";
+    btn.disabled = true;
+    
+    try {
+        const res = await fetch("/portal/api/buscar_dados_whatsapp", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({cpf: cpf})
+        });
+        
+        const data = await res.json();
+        
+        if(data.success) {
+            window.location.href = data.link;
+        } else {
+            alert(data.message);
+            btn.innerText = "Solicitar Suporte";
+            btn.disabled = false;
+        }
+    } catch(e) {
+        alert("Erro de conexão. Tente novamente.");
+        btn.innerText = "Solicitar Suporte";
+        btn.disabled = false;
     }
 }
 </script>
@@ -3246,7 +3446,7 @@ ARQUIVO: ./app/templates/admin/dashboard.html
         </div>
     </form>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         
         <div onclick="abrirModalRanking()" class="cursor-pointer bg-gradient-to-br from-gray-900 to-navy p-8 rounded-[2rem] shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden flex flex-col justify-between group">
             <div class="absolute -right-6 -top-6 w-32 h-32 bg-white/5 rounded-full blur-2xl pointer-events-none transition-transform group-hover:scale-110"></div>
@@ -3255,15 +3455,6 @@ ARQUIVO: ./app/templates/admin/dashboard.html
                 <p class="text-3xl font-black text-white mt-1 relative z-10 leading-none group-hover:text-blue-200 transition-colors">R$ {{ faturamento_bruto_total|format_brl }}</p>
             </div>
             <p class="text-xs text-gray-400 font-bold mt-3 relative z-10">Performance Global</p>
-        </div>
-
-        <div onclick="abrirModalRanking()" class="cursor-pointer bg-gradient-to-br from-royal to-royal-dark p-8 rounded-[2rem] shadow-xl shadow-royal/30 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden flex flex-col justify-between group">
-            <div class="absolute -right-6 -top-6 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none transition-transform group-hover:scale-110"></div>
-            <div>
-                <p class="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1 relative z-10 flex items-center gap-2">Repasse DW (30%) <svg class="w-3 h-3 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg></p>
-                <p class="text-3xl font-black text-white mt-1 relative z-10 leading-none group-hover:text-blue-100 transition-colors">R$ {{ faturamento_total|format_brl }}</p>
-            </div>
-            <p class="text-xs text-blue-200 font-bold mt-3 relative z-10">Apenas Clientes (Comissão)</p>
         </div>
 
         <div class="bg-white/80 backdrop-blur-xl p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white flex flex-col justify-between">
@@ -3335,6 +3526,8 @@ ARQUIVO: ./app/templates/admin/dashboard.html
                             <p class="text-base font-black text-navy">{{ cliente.nome.split()[0] }} {{ cliente.nome.split()[-1] if cliente.nome.split()|length > 1 else '' }}</p>
                             {% if cliente.modelo == 'compra' %}
                                 <span class="px-1.5 py-0.5 bg-blue-100 text-royal border border-blue-200 rounded text-[8px] font-black uppercase tracking-widest shadow-sm">Licença</span>
+                            {% elif cliente.is_isento %}
+                                <span class="px-1.5 py-0.5 bg-purple-50 text-purple-600 border border-purple-200 rounded text-[8px] font-black uppercase tracking-widest shadow-sm">Isento</span>
                             {% endif %}
                         </div>
                         <p class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-0.5">Bruto: R$ {{ cliente.bruto|format_brl }}</p>
@@ -3346,6 +3539,8 @@ ARQUIVO: ./app/templates/admin/dashboard.html
                     <p class="text-lg font-black text-green-600">
                         {% if cliente.modelo == 'compra' %}
                             <span class="text-gray-400 text-sm">--</span>
+                        {% elif cliente.is_isento %}
+                            <span class="text-gray-400 text-[10px] uppercase tracking-widest">Dispensado</span>
                         {% else %}
                             R$ {{ cliente.repasse|format_brl }}
                         {% endif %}
@@ -3355,7 +3550,7 @@ ARQUIVO: ./app/templates/admin/dashboard.html
             {% else %}
             <div class="text-center py-16">
                 <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300">
-                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2-2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
                 </div>
                 <p class="text-gray-400 font-bold uppercase tracking-widest text-xs">Nenhum dado consolidado no período.</p>
             </div>
@@ -3426,6 +3621,8 @@ ARQUIVO: ./app/templates/admin/dashboard.html
 </script>
 {% endblock %}
 
+
+
 ==================================================
 ARQUIVO: ./app/templates/admin/documentos.html
 ==================================================
@@ -3461,17 +3658,23 @@ ARQUIVO: ./app/templates/admin/documentos.html
                     </div>
                 </div>
 
-                <form id="form-disparo-lote" class="space-y-6">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    
+                <div class="space-y-6">
                     <div>
                         <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Selecionar Modelos</label>
                         <div class="bg-white border border-gray-200 rounded-xl max-h-48 overflow-y-auto p-3 space-y-1 custom-scrollbar shadow-inner relative">
                             {% for temp in templates %}
-                            <label class="flex items-center p-3 hover:bg-gray-50 rounded-lg cursor-pointer border border-transparent hover:border-gray-200 transition group">
-                                <input type="checkbox" name="template_ids[]" value="{{ temp.id }}" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer temp-checkbox">
-                                <span class="ml-3 text-xs font-bold text-navy transition">{{ temp.nome }}</span>
-                            </label>
+                            <div class="flex justify-between items-center p-3 hover:bg-gray-50 rounded-lg border border-transparent hover:border-gray-200 transition group">
+                                <label class="flex items-center cursor-pointer flex-1">
+                                    <input type="checkbox" name="template_ids[]" form="form-disparo-lote" value="{{ temp.id }}" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer temp-checkbox">
+                                    <span class="ml-3 text-xs font-bold text-navy transition">{{ temp.nome }}</span>
+                                </label>
+                                <form action="{{ url_for('admin.excluir_template', id=temp.id) }}" method="POST" class="ml-2" onsubmit="return confirm('Tem certeza que deseja excluir o modelo de contrato ({{ temp.nome }}) e cancelar todas as assinaturas pendentes atreladas a ele? Esta ação limpa registros na fila.')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="text-red-400 hover:text-red-600 p-1.5 rounded-md hover:bg-red-50 border border-transparent hover:border-red-100 transition shadow-sm" title="Excluir Modelo">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                </form>
+                            </div>
                             {% else %}
                             <p class="text-xs text-gray-400 font-medium p-4 text-center">Nenhum modelo cadastrado.</p>
                             {% endfor %}
@@ -3479,30 +3682,33 @@ ARQUIVO: ./app/templates/admin/documentos.html
                         <p class="text-[9px] text-gray-400 mt-2 font-bold uppercase tracking-widest text-right">*Múltipla seleção permitida</p>
                     </div>
 
-                    <div>
-                        <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Selecionar Parceiros</label>
-                        <div class="bg-white border border-gray-200 rounded-xl h-48 overflow-y-auto p-3 space-y-1 custom-scrollbar shadow-inner relative">
-                            
-                            {% if clientes %}
-                            <label class="flex items-center p-3 mb-2 bg-purple-50 rounded-lg cursor-pointer border border-purple-100 hover:border-purple-300 transition group sticky top-0 z-10 shadow-sm">
-                                <input type="checkbox" id="check-todos" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer">
-                                <span class="ml-3 text-[10px] font-black text-navy uppercase tracking-widest group-hover:text-purple-700 transition">Selecionar Todos</span>
-                            </label>
-                            {% endif %}
-                            
-                            {% for cliente in clientes %}
-                            <label class="flex items-center p-3 hover:bg-gray-50 rounded-lg cursor-pointer border border-transparent hover:border-gray-200 transition group">
-                                <input type="checkbox" name="clientes[]" value="{{ cliente.id }}" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer cli-checkbox">
-                                <span class="ml-3 text-xs font-bold text-navy transition">{{ cliente.nome }}</span>
-                            </label>
-                            {% else %}
-                            <p class="text-xs text-gray-400 font-medium p-4 text-center">Nenhum parceiro ativo.</p>
-                            {% endfor %}
+                    <form id="form-disparo-lote" class="space-y-6">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Selecionar Parceiros</label>
+                            <div class="bg-white border border-gray-200 rounded-xl h-48 overflow-y-auto p-3 space-y-1 custom-scrollbar shadow-inner relative">
+                                
+                                {% if clientes %}
+                                <label class="flex items-center p-3 mb-2 bg-purple-50 rounded-lg cursor-pointer border border-purple-100 hover:border-purple-300 transition group sticky top-0 z-10 shadow-sm">
+                                    <input type="checkbox" id="check-todos" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer">
+                                    <span class="ml-3 text-[10px] font-black text-navy uppercase tracking-widest group-hover:text-purple-700 transition">Selecionar Todos</span>
+                                </label>
+                                {% endif %}
+                                
+                                {% for cliente in clientes %}
+                                <label class="flex items-center p-3 hover:bg-gray-50 rounded-lg cursor-pointer border border-transparent hover:border-gray-200 transition group">
+                                    <input type="checkbox" name="clientes[]" value="{{ cliente.id }}" class="w-4 h-4 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 cursor-pointer cli-checkbox">
+                                    <span class="ml-3 text-xs font-bold text-navy transition">{{ cliente.nome }}</span>
+                                </label>
+                                {% else %}
+                                <p class="text-xs text-gray-400 font-medium p-4 text-center">Nenhum parceiro ativo.</p>
+                                {% endfor %}
+                            </div>
                         </div>
-                    </div>
 
-                    <button type="submit" class="w-full py-4 bg-gradient-to-r from-purple-600 to-royal text-white font-black uppercase tracking-widest rounded-xl text-xs shadow-md hover:shadow-lg hover:-translate-y-0.5 transition border border-purple-700">Disparar Lote</button>
-                </form>
+                        <button type="submit" class="w-full py-4 bg-gradient-to-r from-purple-600 to-royal text-white font-black uppercase tracking-widest rounded-xl text-xs shadow-md hover:shadow-lg hover:-translate-y-0.5 transition border border-purple-700">Disparar Lote</button>
+                    </form>
+                </div>
             </div>
 
             <div class="bg-gray-50/80 backdrop-blur-md p-8 rounded-[2rem] border border-gray-200 border-dashed">
@@ -3550,7 +3756,6 @@ ARQUIVO: ./app/templates/admin/documentos.html
                                 Excluir Todos Pendentes
                             </button>
                         </form>
-                        <span class="px-4 py-2 bg-gray-50 border border-gray-200 text-gray-500 text-[9px] font-black uppercase tracking-widest rounded-lg shadow-sm">Top 100</span>
                     </div>
                 </div>
                 
@@ -3566,18 +3771,23 @@ ARQUIVO: ./app/templates/admin/documentos.html
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-50 bg-white">
-                            {% for doc in historico %}
+                            {% for doc in pagination_docs.items %}
                             <tr class="hover:bg-gray-50/50 transition-colors">
                                 <td class="px-8 py-6">
-                                    <span class="text-sm font-black text-navy">{{ doc.template.nome }}</span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-sm font-black text-navy">{{ doc.template.nome }}</span>
+                                        {% if doc.template.is_onboarding %}
+                                        <span class="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded text-[9px] font-black uppercase tracking-widest border border-purple-100">Onboarding</span>
+                                        {% endif %}
+                                    </div>
                                 </td>
                                 <td class="px-6 py-6">
                                     <span class="text-xs font-bold text-gray-600">{{ doc.cliente.nome }}</span>
                                 </td>
                                 <td class="px-6 py-6">
                                     {% if doc.data_envio %}
-                                        <span class="text-[10px] font-bold text-gray-500 tracking-widest uppercase block">{{ doc.data_envio.strftime('%d/%m/%Y') }}</span>
-                                        <span class="text-[9px] font-black text-gray-400">{{ doc.data_envio.strftime('%H:%M') }}</span>
+                                        <span class="text-[10px] font-bold text-gray-500 tracking-widest uppercase block">{{ (doc.data_envio | to_tz_br).strftime('%d/%m/%Y') }}</span>
+                                        <span class="text-[9px] font-black text-gray-400">{{ (doc.data_envio | to_tz_br).strftime('%H:%M') }}</span>
                                     {% else %}
                                         <span class="text-[10px] font-bold text-gray-500 tracking-widest uppercase block">Recém criado</span>
                                     {% endif %}
@@ -3618,6 +3828,26 @@ ARQUIVO: ./app/templates/admin/documentos.html
                         </tbody>
                     </table>
                 </div>
+
+                {% if pagination_docs.pages > 1 %}
+                <div class="px-8 py-5 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Página {{ pagination_docs.page }} de {{ pagination_docs.pages }}</span>
+                    <div class="flex items-center gap-2">
+                        {% if pagination_docs.has_prev %}
+                        <a href="{{ url_for('admin.documentos', page=pagination_docs.prev_num) }}" class="px-4 py-2 bg-white border border-gray-200 text-gray-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition shadow-sm">Anterior</a>
+                        {% else %}
+                        <span class="px-4 py-2 bg-gray-50 border border-gray-100 text-gray-300 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-not-allowed">Anterior</span>
+                        {% endif %}
+
+                        {% if pagination_docs.has_next %}
+                        <a href="{{ url_for('admin.documentos', page=pagination_docs.next_num) }}" class="px-4 py-2 bg-white border border-gray-200 text-navy rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition shadow-sm">Próxima</a>
+                        {% else %}
+                        <span class="px-4 py-2 bg-gray-50 border border-gray-100 text-gray-300 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-not-allowed">Próxima</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
             </div>
         </div>
 
@@ -3945,19 +4175,23 @@ ARQUIVO: ./app/templates/admin/index.html
         </button>
     </div>
 
-    <form method="GET" action="{{ url_for('admin.clientes_list') }}" class="mb-8 flex flex-wrap gap-4 bg-white/60 backdrop-blur-xl p-3 rounded-3xl shadow-sm border border-white w-full max-w-3xl">
-        <input type="text" name="q" value="{{ busca }}" placeholder="Buscar por nome, CPF ou ID..." class="flex-1 px-5 py-3 outline-none text-sm font-bold text-navy bg-white rounded-xl border border-gray-100 min-w-[200px]">
-        <select name="status" class="px-5 py-3 outline-none text-sm font-bold text-gray-500 bg-white rounded-xl border border-gray-100 cursor-pointer">
+    <div class="mb-8 flex flex-wrap gap-4 bg-white/60 backdrop-blur-xl p-3 rounded-3xl shadow-sm border border-white w-full max-w-4xl">
+        <input type="text" id="filtro-texto" placeholder="Buscar por nome, CPF ou ID..." class="flex-1 px-5 py-3 outline-none text-sm font-bold text-navy bg-white rounded-xl border border-gray-100 min-w-[200px]" onkeyup="filtrarClientes()">
+        
+        <select id="filtro-status" class="px-5 py-3 outline-none text-sm font-bold text-gray-500 bg-white rounded-xl border border-gray-100 cursor-pointer" onchange="filtrarClientes()">
             <option value="">Todos os Status</option>
-            <option value="ativo" {% if status_filtro == 'ativo' %}selected{% endif %}>Ativos</option>
-            <option value="inativo" {% if status_filtro == 'inativo' %}selected{% endif %}>Inativos</option>
-            <option value="pendente_cadastro" {% if status_filtro == 'pendente_cadastro' %}selected{% endif %}>Pendentes</option>
+            <option value="ativo">Ativos</option>
+            <option value="inativo">Inativos</option>
+            <option value="pendente_cadastro">Pendentes</option>
         </select>
-        <button type="submit" class="px-8 py-3 bg-navy text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition">Filtrar</button>
-        {% if busca or status_filtro %}
-        <a href="{{ url_for('admin.clientes_list') }}" class="px-4 py-3 text-gray-400 hover:text-red-500 font-bold text-xs flex items-center">Limpar</a>
-        {% endif %}
-    </form>
+
+        <select id="filtro-corretora" class="px-5 py-3 outline-none text-sm font-bold text-gray-500 bg-white rounded-xl border border-gray-100 cursor-pointer" onchange="filtrarClientes()">
+            <option value="">Todas as Corretoras</option>
+            <option value="btg">BTG</option>
+            <option value="xp">XP</option>
+            <option value="genial">GENIAL</option>
+        </select>
+    </div>
 
     <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden">
         <div class="overflow-x-auto">
@@ -3971,16 +4205,28 @@ ARQUIVO: ./app/templates/admin/index.html
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50">
-                    {% for cliente in pagination.items %}
-                    <tr class="hover:bg-gray-50/50 transition-colors {% if cliente.status_acesso == 'inativo' %}opacity-60{% endif %}">
+                    {% for cliente in clientes %}
+                    <tr class="hover:bg-gray-50/50 transition-colors linha-cliente {% if cliente.status_acesso == 'inativo' %}opacity-60{% endif %}" 
+                        data-nome="{{ cliente.nome }}" 
+                        data-cpf="{{ cliente.cpf }}" 
+                        data-id="{{ cliente.id }}" 
+                        data-status="{{ cliente.status_acesso }}"
+                        data-corretoras="{% for a in cliente.alocacoes %}{{ a.nome_corretora }} {% endfor %}">
                         <td class="px-8 py-6">
-                            <div class="font-black text-navy text-sm flex items-center gap-2">
-                                {{ cliente.nome }}
+                            <div class="font-black text-navy text-sm flex flex-wrap items-center gap-2">
+                                <span>{{ cliente.nome }}</span>
+                                
+                                {% if not cliente.modelo_negocio or cliente.modelo_negocio == 'comissao' %}
+                                <span class="px-2 py-0.5 bg-blue-100 text-royal border border-blue-200 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">Comissão</span>
+                                {% elif cliente.modelo_negocio == 'compra' %}
+                                <span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">Licença</span>
+                                {% endif %}
+
                                 {% if cliente.is_isento %}
                                 <span class="px-2 py-0.5 bg-purple-100 text-purple-700 border border-purple-200 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">Isento</span>
                                 {% endif %}
                             </div>
-                            <div class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">{{ cliente.cpf }} <span class="mx-1 text-gray-300">|</span> ID: {{ cliente.matricula or 'PENDENTE' }}</div>
+                            <div class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">{{ cliente.cpf }} <span class="mx-1 text-gray-300">|</span> ID: {{ cliente.id }}</div>
                         </td>
                         <td class="px-6 py-6">
                             <div class="flex flex-wrap gap-2">
@@ -4063,31 +4309,12 @@ ARQUIVO: ./app/templates/admin/index.html
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="4" class="px-8 py-16 text-center text-gray-400 font-medium">Nenhum cliente encontrado.</td>
+                        <td colspan="4" class="px-8 py-16 text-center text-gray-400 font-medium">Nenhum cliente encontrado na base de dados.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
-
-        {% if pagination.pages > 1 %}
-        <div class="px-8 py-5 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
-            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Página {{ pagination.page }} de {{ pagination.pages }}</span>
-            <div class="flex items-center gap-2">
-                {% if pagination.has_prev %}
-                <a href="{{ url_for('admin.clientes_list', page=pagination.prev_num, q=busca, status=status_filtro) }}" class="px-4 py-2 bg-white border border-gray-200 text-gray-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition shadow-sm">Anterior</a>
-                {% else %}
-                <span class="px-4 py-2 bg-gray-50 border border-gray-100 text-gray-300 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-not-allowed">Anterior</span>
-                {% endif %}
-
-                {% if pagination.has_next %}
-                <a href="{{ url_for('admin.clientes_list', page=pagination.next_num, q=busca, status=status_filtro) }}" class="px-4 py-2 bg-white border border-gray-200 text-navy rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition shadow-sm">Próxima</a>
-                {% else %}
-                <span class="px-4 py-2 bg-gray-50 border border-gray-100 text-gray-300 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-not-allowed">Próxima</span>
-                {% endif %}
-            </div>
-        </div>
-        {% endif %}
     </div>
 </div>
 
@@ -4145,6 +4372,31 @@ function abrirModalFicha(templateId) {
         document.getElementById('modal-ficha-conteudo').innerHTML = templateContent.innerHTML;
         document.getElementById('modal-ficha-global').classList.remove('hidden');
     }
+}
+
+// MOTOR JS DE BUSCA EM TEMPO REAL
+function filtrarClientes() {
+    const texto = document.getElementById('filtro-texto').value.toLowerCase();
+    const status = document.getElementById('filtro-status').value.toLowerCase();
+    const corretora = document.getElementById('filtro-corretora').value.toLowerCase();
+    
+    document.querySelectorAll('.linha-cliente').forEach(linha => {
+        const nome = linha.getAttribute('data-nome').toLowerCase();
+        const cpf = linha.getAttribute('data-cpf').toLowerCase();
+        const id = linha.getAttribute('data-id').toLowerCase();
+        const cliStatus = linha.getAttribute('data-status').toLowerCase();
+        const cliCorretoras = linha.getAttribute('data-corretoras').toLowerCase();
+        
+        const matchTexto = nome.includes(texto) || cpf.includes(texto) || id.includes(texto);
+        const matchStatus = status === "" || cliStatus === status;
+        const matchCorretora = corretora === "" || cliCorretoras.includes(corretora);
+        
+        if (matchTexto && matchStatus && matchCorretora) {
+            linha.style.display = '';
+        } else {
+            linha.style.display = 'none';
+        }
+    });
 }
 </script>
 {% endblock %}
@@ -4328,10 +4580,15 @@ ARQUIVO: ./app/templates/admin/pagamentos.html
 <div class="max-w-7xl mx-auto relative z-10 pb-20">
     
     {% if not exibe_clientes %}
-    <div class="flex justify-between items-end mb-8">
+    <div class="flex flex-col lg:flex-row justify-between lg:items-end gap-6 mb-8">
         <div>
             <h1 class="text-4xl font-black text-navy tracking-tight">Auditoria Semanal</h1>
             <p class="text-gray-500 mt-2 font-medium">Selecione o ciclo de faturamento para realizar o fechamento e repasse.</p>
+        </div>
+        
+        <div class="bg-gradient-to-br from-royal to-royal-dark px-6 py-4 rounded-2xl shadow-lg border border-royal-dark text-right w-max ml-auto shrink-0">
+            <p class="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1">Repasse Global (30%)</p>
+            <p class="text-2xl font-black text-white leading-none">R$ {{ repasse_global|format_brl }}</p>
         </div>
     </div>
 
@@ -4366,6 +4623,11 @@ ARQUIVO: ./app/templates/admin/pagamentos.html
                 </div>
                 
                 <div class="flex justify-between items-center">
+                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Repasse (30%)</span>
+                    <span class="text-xs font-black text-green-600">R$ {{ gaveta.repasse_total|format_brl }}</span>
+                </div>
+
+                <div class="flex justify-between items-center">
                     <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</span>
                     {% if gaveta.pendentes > 0 %}
                         <span class="px-3 py-1 bg-yellow-50 text-yellow-600 border border-yellow-100 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> {{ gaveta.pendentes }} Pendentes</span>
@@ -4384,9 +4646,16 @@ ARQUIVO: ./app/templates/admin/pagamentos.html
 
     {% else %}
     
-    <div class="mb-8 flex items-center gap-5 border-b border-gray-200 pb-6">
-        <a href="{{ url_for('admin.pagamentos') }}" class="px-5 py-3 bg-white text-[10px] font-black text-gray-500 uppercase tracking-widest rounded-xl hover:text-navy hover:shadow-md transition duration-200 border border-gray-200 flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg> Voltar</a>
-        <h2 class="text-3xl font-black text-navy tracking-tight">Ciclo: <span class="text-royal">{{ ciclo_data.strftime('%d/%m/%Y') }}</span></h2>
+    <div class="mb-8 flex flex-col md:flex-row lg:items-center justify-between gap-6 border-b border-gray-200 pb-6">
+        <div class="flex items-center gap-5">
+            <a href="{{ url_for('admin.pagamentos') }}" class="px-5 py-3 bg-white text-[10px] font-black text-gray-500 uppercase tracking-widest rounded-xl hover:text-navy hover:shadow-md transition duration-200 border border-gray-200 flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg> Voltar</a>
+            <h2 class="text-3xl font-black text-navy tracking-tight">Ciclo: <span class="text-royal">{{ ciclo_data.strftime('%d/%m/%Y') }}</span></h2>
+        </div>
+        
+        <div class="bg-gradient-to-br from-royal to-royal-dark px-6 py-4 rounded-2xl shadow-lg border border-royal-dark text-right w-max ml-auto shrink-0">
+            <p class="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1">Repasse do Ciclo (30%)</p>
+            <p class="text-2xl font-black text-white leading-none">R$ {{ repasse_ciclo|format_brl }}</p>
+        </div>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -4395,21 +4664,30 @@ ARQUIVO: ./app/templates/admin/pagamentos.html
       {% endfor %}{% endif %}
     {% endwith %}
 
-    <div class="flex flex-col xl:flex-row xl:items-center gap-6 mb-10">
-        <form method="GET" action="{{ url_for('admin.pagamentos') }}" class="flex gap-3 bg-white/60 backdrop-blur-xl p-3 rounded-[2rem] shadow-sm border border-white flex-1">
-            <input type="hidden" name="ciclo" value="{{ ciclo_data.strftime('%Y-%m-%d') }}">
-            <input type="text" name="q" value="{{ busca }}" placeholder="Filtrar parceiro neste ciclo..." class="flex-1 px-5 py-3 outline-none text-sm font-bold text-navy bg-white rounded-xl border border-gray-100 shadow-inner">
-            <button type="submit" class="px-8 py-3 bg-navy text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition shadow-md">Buscar</button>
-        </form>
+    <div class="flex flex-col xl:flex-row xl:items-center gap-4 mb-10">
+        <div class="flex items-center gap-1 bg-white/60 backdrop-blur-xl p-1.5 rounded-2xl shadow-sm border border-white shrink-0">
+            <button type="button" onclick="filtrarTabela('todos')" id="filtro-todos" class="btn-filtro px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-navy text-white shadow-md">Todos</button>
+            <button type="button" onclick="filtrarTabela('normais')" id="filtro-normais" class="btn-filtro px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-transparent text-gray-500 hover:bg-gray-100">Normais</button>
+            <button type="button" onclick="filtrarTabela('isentos')" id="filtro-isentos" class="btn-filtro px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-transparent text-gray-500 hover:bg-gray-100">Isentos</button>
+        </div>
 
-        {% if not busca %}
+        <div class="flex gap-3 bg-white/60 backdrop-blur-xl p-3 rounded-[2rem] shadow-sm border border-white flex-1">
+            <input type="text" id="filtro-texto-pagamentos" placeholder="Filtrar por nome ou CPF..." class="flex-1 px-5 py-3 outline-none text-sm font-bold text-navy bg-white rounded-xl border border-gray-100 shadow-inner" onkeyup="filtrarTabela()">
+            
+            <select id="filtro-corretora-pagamentos" class="px-5 py-3 outline-none text-sm font-bold text-gray-500 bg-white rounded-xl border border-gray-100 cursor-pointer shadow-inner hidden md:block" onchange="filtrarTabela()">
+                <option value="">Todas as Corretoras</option>
+                <option value="btg">BTG</option>
+                <option value="xp">XP</option>
+                <option value="genial">GENIAL</option>
+            </select>
+        </div>
+
         <div class="flex flex-wrap items-center gap-4 shrink-0">
             <div class="flex items-center gap-5 bg-white/80 backdrop-blur-xl rounded-[1.5rem] border border-white p-3 shadow-sm shrink-0">
                 <div class="pl-4 hidden sm:block">
                     <p class="text-[10px] font-black text-purple-600 uppercase tracking-widest">Ação Global em Lote</p>
                     <p class="text-[9px] text-gray-500 font-bold mt-0.5">Isentar dia (Feriado)</p>
                 </div>
-                
                 <form action="{{ url_for('admin.isentar_dia_global') }}" method="POST" id="form-isentar-global" class="flex items-center m-0 gap-2">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                     <input type="hidden" name="ciclo_atual" value="{{ ciclo_data.strftime('%Y-%m-%d') }}">
@@ -4422,7 +4700,6 @@ ARQUIVO: ./app/templates/admin/pagamentos.html
                 </form>
             </div>
         </div>
-        {% endif %}
     </div>
 
     <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden">
@@ -4437,7 +4714,11 @@ ARQUIVO: ./app/templates/admin/pagamentos.html
                 </thead>
                 <tbody class="divide-y divide-gray-50">
                     {% for item in clientes_dados %}
-                    <tr class="hover:bg-gray-50/50 transition-colors">
+                    <tr class="hover:bg-gray-50/50 transition-colors linha-cliente" 
+                        data-isento="{{ 'true' if item.info.is_isento else 'false' }}"
+                        data-nome="{{ item.info.nome }}"
+                        data-cpf="{{ item.info.cpf }}"
+                        data-corretoras="{% for a in item.info.alocacoes %}{{ a.nome_corretora }} {% endfor %}">
                         <td class="px-8 py-6">
                             <div class="font-black text-navy text-sm flex items-center gap-2">
                                 {{ item.info.nome }}
@@ -4478,7 +4759,15 @@ ARQUIVO: ./app/templates/admin/pagamentos.html
                             {% endif %}
                         </td>
                         <td class="px-8 py-6 text-right">
-                            <a href="{{ url_for('admin.pagamentos_cliente', id=item.info.id, ciclo=ciclo_data.strftime('%Y-%m-%d')) }}" class="px-5 py-3 bg-white text-[10px] font-black text-royal uppercase tracking-widest rounded-xl hover:bg-blue-50 transition border border-blue-100 shadow-sm inline-block">Auditar Notas -></a>
+                            <div class="flex items-center justify-end gap-2">
+                                {% if item.fatura_id %}
+                                <form action="{{ url_for('admin.isentar_ciclo', fatura_id=item.fatura_id) }}" method="POST" class="inline" onsubmit="return confirm('Deseja transformar TODOS os dias deste ciclo em Isentos para este cliente?')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="px-4 py-3 bg-purple-50 text-[10px] font-black text-purple-600 uppercase tracking-widest rounded-xl hover:bg-purple-100 transition border border-purple-100 shadow-sm inline-block">Isentar Ciclo</button>
+                                </form>
+                                {% endif %}
+                                <a href="{{ url_for('admin.pagamentos_cliente', id=item.info.id, ciclo=ciclo_data.strftime('%Y-%m-%d')) }}" class="px-5 py-3 bg-white text-[10px] font-black text-royal uppercase tracking-widest rounded-xl hover:bg-blue-50 transition border border-blue-100 shadow-sm inline-block">Visualizar</a>
+                            </div>
                         </td>
                     </tr>
                     {% else %}
@@ -4492,6 +4781,46 @@ ARQUIVO: ./app/templates/admin/pagamentos.html
     </div>
 
     <script>
+        let currentFilterType = 'todos';
+
+        function filtrarTabela(tipo) {
+            if (tipo) {
+                currentFilterType = tipo;
+                document.querySelectorAll('.btn-filtro').forEach(b => {
+                    b.classList.remove('bg-navy', 'text-white', 'shadow-md');
+                    b.classList.add('bg-transparent', 'text-gray-500');
+                });
+                const ativo = document.getElementById('filtro-' + tipo);
+                if (ativo) {
+                    ativo.classList.remove('bg-transparent', 'text-gray-500');
+                    ativo.classList.add('bg-navy', 'text-white', 'shadow-md');
+                }
+            }
+
+            const texto = document.getElementById('filtro-texto-pagamentos') ? document.getElementById('filtro-texto-pagamentos').value.toLowerCase() : '';
+            const corretora = document.getElementById('filtro-corretora-pagamentos') ? document.getElementById('filtro-corretora-pagamentos').value.toLowerCase() : '';
+
+            document.querySelectorAll('.linha-cliente').forEach(linha => {
+                const isIsento = linha.getAttribute('data-isento') === 'true';
+                const nome = (linha.getAttribute('data-nome') || '').toLowerCase();
+                const cpf = (linha.getAttribute('data-cpf') || '').toLowerCase();
+                const cliCorretoras = (linha.getAttribute('data-corretoras') || '').toLowerCase();
+                
+                let matchTipo = true;
+                if (currentFilterType === 'normais' && isIsento) matchTipo = false;
+                if (currentFilterType === 'isentos' && !isIsento) matchTipo = false;
+                
+                const matchTexto = nome.includes(texto) || cpf.includes(texto);
+                const matchCorretora = corretora === "" || cliCorretoras.includes(corretora);
+
+                if (matchTipo && matchTexto && matchCorretora) {
+                    linha.style.display = '';
+                } else {
+                    linha.style.display = 'none';
+                }
+            });
+        }
+
         document.getElementById('select-dia-isencao')?.addEventListener('change', function() {
             var select = this;
             var form = document.getElementById('form-isentar-global');
@@ -4653,7 +4982,7 @@ ARQUIVO: ./app/templates/admin/pagamentos_cliente.html
 
                                         {% elif dia.status == 'isento' %}
                                             <td colspan="{% if cliente.modelo_negocio == 'compra' %}4{% else %}5{% endif %}" class="px-5 py-5">
-                                                <span class="inline-flex px-3 py-1 bg-purple-50 text-purple-600 border border-purple-100 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm gap-1 items-center"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Feriado / Isento</span>
+                                                <span class="inline-flex px-3 py-1 bg-purple-50 text-purple-600 border border-purple-100 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm gap-1 items-center"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Isento</span>
                                             </td>
                                             <td class="px-6 py-5 text-right">
                                                 <form action="{{ url_for('admin.remover_isencao_dia', dia_id=dia.id) }}" method="POST" class="inline">
@@ -4776,6 +5105,8 @@ function mudarAbaAdmin(faturaId, corretoraNome) {
 }
 </script>
 {% endblock %}
+
+
 
 ==================================================
 ARQUIVO: ./app/templates/errors/403.html
@@ -4992,6 +5323,15 @@ ARQUIVO: ./app/templates/client/assinar_termo.html
         </div>
 
         <div class="p-10">
+            <div class="mb-8 p-5 bg-blue-50 border border-blue-200 rounded-2xl flex items-start gap-4 shadow-sm">
+                <div class="w-10 h-10 bg-white border border-blue-100 text-royal rounded-xl flex items-center justify-center shrink-0 shadow-sm mt-0.5">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                </div>
+                <div>
+                    <h4 class="text-sm font-black text-navy uppercase tracking-widest mb-1">Verifique seu E-mail</h4>
+                    <p class="text-xs text-gray-600 font-medium leading-relaxed">Nós enviamos um link seguro da Autentique para o seu e-mail cadastrado. Por favor, <b>acesse sua caixa de entrada (ou pasta de Spam)</b> para assinar os documentos digitalmente.</p>
+                </div>
+            </div>
             <h3 class="text-lg font-black text-navy mb-6 text-center">Documentos Pendentes ({{ documentos|length }})</h3>
             <div class="space-y-4">
                 {% for doc in documentos %}
@@ -5003,7 +5343,7 @@ ARQUIVO: ./app/templates/client/assinar_termo.html
                     {% if doc.link_assinatura %}
                     <a href="{{ doc.link_assinatura }}" target="_blank" class="text-royal font-black text-xs hover:underline">Assinar Agora</a>
                     {% else %}
-                    <span class="text-gray-400 text-xs">Aguardando API...</span>
+                    <span class="text-gray-400 text-xs">Aguardando assinatura...</span>
                     {% endif %}
                 </div>
                 {% endfor %}
@@ -5216,8 +5556,8 @@ ARQUIVO: ./app/templates/client/dados_pessoais.html
                 <h2 class="text-3xl font-black tracking-tight">{{ user.nome }}</h2>
             </div>
             <div class="text-left md:text-right mt-6 md:mt-0 relative z-10">
-                <p class="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1.5">ID de Matrícula</p>
-                <p class="text-xl font-black tracking-widest bg-white/10 px-6 py-2 rounded-xl backdrop-blur-md border border-white/20">{{ user.matricula or 'PENDENTE' }}</p>
+                <p class="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1.5">ID da Conta</p>
+                <p class="text-xl font-black tracking-widest bg-white/10 px-6 py-2 rounded-xl backdrop-blur-md border border-white/20">{{ user.id }}</p>
             </div>
         </div>
 
@@ -5444,7 +5784,7 @@ ARQUIVO: ./app/templates/client/faturas.html
                                             {% elif dia.status == 'isento' %}
                                                 <td colspan="{% if current_user.modelo_negocio == 'compra' %}4{% else %}5{% endif %}" class="px-6 py-5">
                                                     <span class="inline-flex items-center gap-2 px-3 py-1 bg-purple-50 border border-purple-100 text-purple-600 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm">
-                                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Feriado / Isento
+                                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Isento
                                                     </span>
                                                 </td>
                                                 <td class="px-8 py-5 text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">Dispensado</td>
@@ -5483,6 +5823,7 @@ ARQUIVO: ./app/templates/client/faturas.html
                                 <span class="text-2xl font-black text-navy">R$ {{ subtotal_parcial.total|format_brl }}</span>
                             </div>
                         </div>
+
                     </div>
                     {% endfor %}
                 </div>
@@ -5812,6 +6153,8 @@ function tentarComSenhaManual() { const diaId = document.getElementById('modal-d
 </script>
 {% endblock %}
 
+
+
 ==================================================
 ARQUIVO: ./app/templates/client/index.html
 ==================================================
@@ -6079,12 +6422,13 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
     Processa toda a matemática do dashboard admin: filtros de data, 
     faturamento bruto/líquido, cálculo de ROI Diário Médio e agregação do gráfico.
     """
+    # FRENTE 1: Retirado o filtro db.or_(User.is_isento == False, User.is_isento.is_(None)) 
+    # para que o Bruto Consolidado puxe TODOS os usuários (normais, isentos e compras).
     faturas_base = Fatura.query.join(User).options(
         contains_eager(Fatura.cliente),
         joinedload(Fatura.dias)
     ).filter(
-        Fatura.status.in_(['parcial', 'completo', 'pago', 'inadimplente']),
-        db.or_(User.is_isento == False, User.is_isento.is_(None))
+        Fatura.status.in_(['parcial', 'completo', 'pago', 'inadimplente'])
     )
     
     ano_atual = datetime.now(tz_br).year
@@ -6128,6 +6472,7 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
     for f in faturas_filtradas:
         capital_cliente = f.cliente.capital_alocado or 0.0
         modelo_cliente = getattr(f.cliente, 'modelo_negocio', 'comissao')
+        is_isento_cliente = getattr(f.cliente, 'is_isento', False)
         
         if f.user_id not in rois_clientes:
             rois_clientes[f.user_id] = {
@@ -6141,7 +6486,8 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
                 'nome': f.cliente.nome,
                 'bruto': 0.0,
                 'repasse': 0.0,
-                'modelo': modelo_cliente
+                'modelo': modelo_cliente,
+                'is_isento': is_isento_cliente
             }
             
         for d in f.dias:
@@ -6152,18 +6498,19 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
 
             if d.status == 'relatorio_enviado':
                 # Só calcula repasse DW se for modelo Comissão e não isento
-                if modelo_cliente == 'comissao' and not getattr(f.cliente, 'is_isento', False):
+                if modelo_cliente == 'comissao' and not is_isento_cliente:
                     faturamento_total += d.repasse
                     ranking_clientes[f.user_id]['repasse'] += d.repasse
                 
-                # Bruto Global contabiliza de todos (Compra e Comissão)
+                # Bruto Global contabiliza de todos (Compra e Comissão e Isentos)
                 if d.bruto > 0:
                     faturamento_bruto_total += d.bruto
                     ranking_clientes[f.user_id]['bruto'] += d.bruto
                     rois_clientes[f.user_id]['bruto_acumulado'] += d.bruto
                     rois_clientes[f.user_id]['dias_operados'].add(d.data_pregao)
                     
-                dados_grafico_raw[d.data_pregao] = dados_grafico_raw.get(d.data_pregao, 0.0) + d.bruto
+                    # Gráfico foca apenas em dias de GAIN
+                    dados_grafico_raw[d.data_pregao] = dados_grafico_raw.get(d.data_pregao, 0.0) + d.bruto
 
     datas_ordenadas = sorted(dados_grafico_raw.keys())
     chart_labels = [dt.strftime('%d/%m') for dt in datas_ordenadas]
@@ -6293,6 +6640,8 @@ def obter_dados_dashboard_cliente(user_id, filtro_dia, filtro_semana_dia, filtro
         'chart_labels': chart_labels,
         'chart_data': chart_data
     }
+
+
 
 ==================================================
 ARQUIVO: ./app/services/documento_service.py
@@ -6509,9 +6858,10 @@ def auto_gerar_ciclo(user, data_base=None):
     if fatura_existente:
         dias_uteis = []
         data_atual = inicio_ciclo
+        
+        # FRENTE 1: Gera exatamente os 5 dias do ciclo, independentemente de quando o cliente entrou
         while len(dias_uteis) < 5 and data_atual <= fim_ciclo:
-            # Trava Temporal: Só adiciona o dia útil se for maior ou igual à data de entrada
-            if data_atual.weekday() < 5 and data_atual >= data_cadastro:
+            if data_atual.weekday() < 5:
                 dias_uteis.append(data_atual)
             data_atual += timedelta(days=1)
             
@@ -6523,11 +6873,16 @@ def auto_gerar_ciclo(user, data_base=None):
         for data in dias_uteis:
             for alocacao in user.alocacoes:
                 if (data, alocacao.nome_corretora) not in mapa_dias:
+                    # FRENTE 2: Dias anteriores ao cadastro entram automaticamente como isentos
+                    is_isento = data < data_cadastro
+                    status_dia = 'isento' if is_isento else 'pendente'
+                    
                     novo_dia = FaturaDiaria(
                         fatura_id=fatura_existente.id,
                         data_pregao=data,
                         nome_corretora=alocacao.nome_corretora,
-                        status='pendente'
+                        status=status_dia,
+                        is_isento=is_isento
                     )
                     db.session.add(novo_dia)
                     houve_alteracao = True
@@ -6569,6 +6924,7 @@ def auto_gerar_ciclos_em_lote(users, data_base=None):
             
         data_cadastro = user.data_cadastro.date() if user.data_cadastro else datetime.min.date()
         
+        # FRENTE 3: Trava que não polui ciclos passados.
         if fim_ciclo < data_cadastro:
             continue
             
@@ -6730,7 +7086,7 @@ from flask_login import login_required, current_user
 import cloudinary.uploader
 from werkzeug.utils import secure_filename
 from app import db
-from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, DocumentoTemplate
+from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, DocumentoTemplate, User
 from app.utils.parsers.gerenciador_pdf import processar_pdf
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
@@ -6744,24 +7100,25 @@ client_bp = Blueprint('client', __name__, url_prefix='/portal')
 
 @client_bp.before_request
 def check_paywall():
+    # Ignora rotas abertas como a API do WhatsApp
+    if request.endpoint == 'client.buscar_dados_whatsapp':
+        return
+
     if not current_user.is_authenticated:
         return
     if getattr(current_user, 'precisa_trocar_senha', False):
         return
         
-    # Identifica documentos pendentes ou na fila
     pendentes = DocumentoCliente.query.filter(
         DocumentoCliente.user_id == current_user.id,
         DocumentoCliente.status.in_(['na_fila', 'pendente', 'processando'])
     ).first()
 
-    # HIERARQUIA 1: Assinatura de Documentos (Prioridade Máxima)
     if pendentes:
         if request.endpoint not in ['client.assinar_termo', 'client.api_status_assinatura', 'auth.logout']:
             return redirect(url_for('client.assinar_termo'))
         return 
             
-    # HIERARQUIA 2: Bloqueio Financeiro (PIX)
     if request.endpoint not in ['client.bloqueio_pagamento', 'client.gerar_pix_licenca', 'client.status_licenca_api', 'auth.logout']:
         if getattr(current_user, 'modelo_negocio', 'comissao') == 'compra':
             hoje = datetime.now(tz_br).date()
@@ -6773,6 +7130,22 @@ def check_paywall():
             
             if parcela_pendente:
                 return redirect(url_for('client.bloqueio_pagamento'))
+
+# ==========================================
+# ROTA ABERTA: Geração Link WhatsApp
+# ==========================================
+@client_bp.route('/api/buscar_dados_whatsapp', methods=['POST'])
+def buscar_dados_whatsapp():
+    data = request.get_json()
+    cpf_puro = ''.join(filter(str.isdigit, data.get('cpf', '')))
+    
+    user = User.query.filter_by(cpf=cpf_puro).first()
+    if user:
+        msg = f"Olá, me chamo {user.nome}. Preciso alterar minha senha, segue minhas informações:\nID: {user.id}\nCPF: {user.cpf}"
+        link = f"https://wa.me/5511991167709?text={urllib.parse.quote(msg)}"
+        return jsonify({"success": True, "link": link})
+        
+    return jsonify({"success": False, "message": "O CPF informado não foi encontrado em nossa base de dados."})
 
 @client_bp.route('/bloqueio_pagamento')
 @login_required
@@ -6857,7 +7230,6 @@ def assinar_termo():
     
     for doc in docs_na_fila:
         try:
-            # TRAVA DE ESTADO: Evita disparo duplicado se o usuário recarregar a página
             doc.status = 'processando'
             db.session.commit()
             
@@ -6871,7 +7243,7 @@ def assinar_termo():
             doc.status = 'pendente'
             db.session.commit()
         except Exception as e:
-            doc.status = 'na_fila' # Rollback do status em caso de erro
+            doc.status = 'na_fila' 
             db.session.commit()
             print(f"Erro ao disparar Just-in-Time: {e}")
 
@@ -6914,17 +7286,24 @@ def faturas():
                     houve_alteracao = True
             datas_da_semana = []
             data_atual = fatura.data_inicio
-            while len(datas_da_semana) < 5:
-                if data_atual.weekday() < 5 and data_atual >= data_cadastro:
+            
+            while len(datas_da_semana) < 5 and data_atual <= fatura.data_fim:
+                if data_atual.weekday() < 5:
                     datas_da_semana.append(data_atual)
                 data_atual += timedelta(days=1)
+                
             dias_existentes = { (d.data_pregao, d.nome_corretora) for d in fatura.dias }
+            
             for data in datas_da_semana:
                 for alocacao in current_user.alocacoes:
                     if (data, alocacao.nome_corretora) not in dias_existentes:
-                        novo_dia = FaturaDiaria(fatura_id=fatura.id, data_pregao=data, nome_corretora=alocacao.nome_corretora, status='pendente')
+                        is_isento = data < data_cadastro
+                        status_dia = 'isento' if is_isento else 'pendente'
+                        
+                        novo_dia = FaturaDiaria(fatura_id=fatura.id, data_pregao=data, nome_corretora=alocacao.nome_corretora, status=status_dia, is_isento=is_isento)
                         db.session.add(novo_dia)
                         houve_alteracao = True
+                        
         if houve_alteracao:
             try: db.session.commit()
             except IntegrityError: db.session.rollback()
@@ -7017,13 +7396,12 @@ def api_status_documento(doc_id):
 @client_bp.route('/ajuda')
 @login_required
 def ajuda():
-    msg_suporte = f"Olá, sou {current_user.nome}. Preciso de suporte técnico no portal DW Capital."
+    msg_suporte = f"Olá, me chamo {current_user.nome}. Preciso de ajuda, segue minhas informações:\nID: {current_user.id}\nCPF: {current_user.cpf}"
     msg_suporte_encoded = urllib.parse.quote(msg_suporte)
-    msg_comercial = f"Olá, sou {current_user.nome}. Preciso de atendimento comercial/financeiro."
-    msg_comercial_encoded = urllib.parse.quote(msg_comercial)
+    
     return render_template('client/ajuda.html', 
                            link_suporte=f"https://wa.me/5511991167709?text={msg_suporte_encoded}",
-                           link_comercial=f"https://wa.me/5511920504850?text={msg_comercial_encoded}")
+                           link_comercial=f"https://wa.me/5511920504850?text={msg_suporte_encoded}")
 
 
 

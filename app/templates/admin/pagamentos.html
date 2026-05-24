@@ -159,15 +159,20 @@
                             {% else %}
                                 <div class="flex flex-wrap gap-2">
                                     {% for corretora, progresso in item.detalhes_corretoras.items() %}
-                                        {% set num_ok = progresso.split('/')[0] | int %}
-                                        {% set num_total = progresso.split('/')[1] | int %}
-                                        
-                                        {% if num_ok == num_total and num_total > 0 %}
-                                            <span class="px-3 py-1 bg-green-50 text-green-700 border border-green-100 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">{{ corretora }} ({{ progresso }})</span>
-                                        {% elif num_ok > 0 %}
-                                            <span class="px-3 py-1 bg-blue-50 text-royal border border-blue-100 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">{{ corretora }} ({{ progresso }})</span>
+                                        {# Verifica se progresso é "Isento" (string) ou contém barra #}
+                                        {% if progresso == "Isento" %}
+                                            <span class="px-3 py-1 bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">{{ corretora }} (Isento)</span>
                                         {% else %}
-                                            <span class="px-3 py-1 bg-white text-gray-500 border border-gray-200 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">{{ corretora }} ({{ progresso }})</span>
+                                            {% set num_ok = progresso.split('/')[0] | int %}
+                                            {% set num_total = progresso.split('/')[1] | int %}
+                                            
+                                            {% if num_ok == num_total and num_total > 0 %}
+                                                <span class="px-3 py-1 bg-green-50 text-green-700 border border-green-100 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">{{ corretora }} ({{ progresso }})</span>
+                                            {% elif num_ok > 0 %}
+                                                <span class="px-3 py-1 bg-blue-50 text-royal border border-blue-100 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">{{ corretora }} ({{ progresso }})</span>
+                                            {% else %}
+                                                <span class="px-3 py-1 bg-white text-gray-500 border border-gray-200 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">{{ corretora }} ({{ progresso }})</span>
+                                            {% endif %}
                                         {% endif %}
                                     {% endfor %}
                                     
@@ -258,4 +263,3 @@
     {% endif %}
 </div>
 {% endblock %}
-
