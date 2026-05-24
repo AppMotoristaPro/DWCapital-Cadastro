@@ -206,7 +206,6 @@ def pagamentos():
     busca = request.args.get('q', '')
     ciclo = request.args.get('ciclo')
     
-    # 1) Faturamento (Repasse Global - Ignora 'compra' e 'isento')
     repasse_global = db.session.query(db.func.sum(Fatura.repasse)).join(User).filter(
         User.modelo_negocio == 'comissao',
         db.or_(User.is_isento == False, User.is_isento.is_(None))
@@ -258,7 +257,6 @@ def pagamentos():
             
         mapa_faturas = {f.user_id: f for f in faturas_do_ciclo}
         
-        # 2) Faturamento (Repasse do Ciclo Específico)
         repasse_ciclo = db.session.query(db.func.sum(Fatura.repasse)).join(User).filter(
             Fatura.data_inicio == inicio_ciclo,
             User.modelo_negocio == 'comissao',
@@ -318,10 +316,8 @@ def pagamentos():
                 User.status_acesso == 'ativo'
             ).all()
             
-            # FRENTE 2: Base Ativa e Status nas gavetas IGNORA isentos
             faturas_reais = [f for f in todas_faturas if not getattr(f.cliente, 'is_isento', False)]
             
-            # Repasse Total exclusivo de cada Gaveta (Ignora 'compra' e 'isento')
             repasse_gaveta = sum(f.repasse for f in faturas_reais if getattr(f.cliente, 'modelo_negocio', 'comissao') == 'comissao')
             
             total = len(faturas_reais)
@@ -563,7 +559,6 @@ def excluir_template(id):
     template = DocumentoTemplate.query.get_or_404(id)
     nome_temp = template.nome
     
-    # Removemos todos os DocumentoCliente atrelados para não quebrar a integridade no DB
     DocumentoCliente.query.filter_by(template_id=template.id).delete()
     
     db.session.delete(template)
@@ -658,14 +653,18 @@ def excluir_todos_pendentes():
         
     return redirect(url_for('admin.documentos'))
 
-@admin_bp.route('/reprocessar_notas_antigas', methods=['GET'])
-@admin_required
-def reprocessar_notas_antigas():
+# ==========================================
+# NOVO MOTOR DE REPROCESSAMENTO SEGMENTADO
+# ==========================================
+
+def _executar_reprocessamento_por_corretora(corretora_nome):
+    """Função privada que varre o banco e reprocessa PDFs apenas da corretora informada."""
     dias_enviados = FaturaDiaria.query.options(
         joinedload(FaturaDiaria.fatura_semanal).joinedload(Fatura.cliente)
     ).filter(
         FaturaDiaria.status == 'relatorio_enviado',
-        FaturaDiaria.arquivo_pdf.isnot(None)
+        FaturaDiaria.arquivo_pdf.isnot(None),
+        FaturaDiaria.nome_corretora == corretora_nome
     ).all()
     
     sucesso = 0
@@ -714,8 +713,27 @@ def reprocessar_notas_antigas():
         
     db.session.commit()
     
-    registrar_log(f"Executou Batch Job: Reprocessou e corrigiu {sucesso} notas antigas (Falhas: {erros}).", "Sistema")
-    flash(f'Reprocessamento concluído com sucesso! {sucesso} notas financeiras foram corrigidas com o novo motor unificado ({erros} não puderam ser lidas).', 'success')
+    registrar_log(f"Executou Batch Job: Reprocessou notas antigas ({corretora_nome}) (Sucesso: {sucesso}, Falhas: {erros}).", "Sistema")
+    flash(f'Reprocessamento {corretora_nome} concluído! {sucesso} notas corrigidas ({erros} falhas).', 'success')
     
     return redirect(url_for('admin.dashboard'))
+
+
+@admin_bp.route('/reprocessar_btg', methods=['GET'])
+@admin_required
+def reprocessar_btg():
+    return _executar_reprocessamento_por_corretora('BTG')
+
+
+@admin_bp.route('/reprocessar_genial', methods=['GET'])
+@admin_required
+def reprocessar_genial():
+    return _executar_reprocessamento_por_corretora('GENIAL')
+
+
+@admin_bp.route('/reprocessar_xp', methods=['GET'])
+@admin_required
+def reprocessar_xp():
+    return _executar_reprocessamento_por_corretora('XP')
+
 
