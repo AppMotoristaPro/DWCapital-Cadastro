@@ -2,6 +2,7 @@ import os
 import urllib.parse
 from datetime import datetime, timedelta
 import pytz
+import logging
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify, session, abort
 from flask_login import login_required, current_user
 import cloudinary.uploader
@@ -17,6 +18,7 @@ from app.services.dashboard_service import obter_dados_dashboard_cliente
 from app.services.pix_service import PixService
 from app.utils.autentique import obter_link_assinatura_autentique
 
+logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
 
@@ -315,20 +317,24 @@ def visualizar_documento(doc_id):
         flash('Este documento ainda não foi assinado.', 'warning')
         return redirect(url_for('client.documentos'))
 
-    # Se já tem link salvo, redireciona direto
     if doc.link_assinatura:
+        logger.info(f"Link já existente para doc {doc_id}: {doc.link_assinatura}")
         return redirect(doc.link_assinatura)
 
-    # Tenta buscar o link sob demanda via API da Autentique
+    # Tenta buscar o link sob demanda
     if doc.autentique_document_id:
+        logger.info(f"Buscando link para doc {doc_id} com autentique_id {doc.autentique_document_id}")
         link = obter_link_assinatura_autentique(doc.autentique_document_id)
         if link:
-            # Salva o link no banco para próximas vezes
             doc.link_assinatura = link
             db.session.commit()
+            logger.info(f"Link obtido e salvo: {link}")
             return redirect(link)
+        else:
+            logger.warning(f"Não foi possível obter link para doc {doc_id}")
+    else:
+        logger.warning(f"Documento {doc_id} não possui autentique_document_id")
 
-    # Se não conseguiu obter o link
     flash('Link de visualização não disponível. Entre em contato com o suporte.', 'error')
     return redirect(url_for('client.documentos'))
 

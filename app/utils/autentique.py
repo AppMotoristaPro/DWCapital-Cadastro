@@ -188,9 +188,12 @@ def verificar_status_autentique(doc_id):
         return False
     return False
 
-# NOVA FUNÇÃO: obter o link de assinatura (short_link) de um documento já existente
+# NOVA FUNÇÃO COM LOGS E TRATAMENTO ROBUSTO
 def obter_link_assinatura_autentique(autentique_document_id):
-    """Consulta a API da Autentique para obter o short_link do documento (mesmo após assinado)."""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"[Autentique] Buscando link para document_id: {autentique_document_id}")
+    
     query = """
     query GetSignerLink($id: UUID!) {
         document(id: $id) {
@@ -210,15 +213,31 @@ def obter_link_assinatura_autentique(autentique_document_id):
     }
     try:
         response = requests.post(URL, headers=headers, json=payload, timeout=10)
+        logger.info(f"[Autentique] Resposta status: {response.status_code}")
         if response.status_code == 200:
             data = response.json()
+            logger.info(f"[Autentique] Resposta JSON: {json.dumps(data, indent=2)}")
             if "errors" in data:
-                print(f"Erro GraphQL: {data['errors']}")
+                logger.error(f"[Autentique] Erro GraphQL: {data['errors']}")
                 return None
-            signatures = data.get('data', {}).get('document', {}).get('signatures', [])
-            if signatures and len(signatures) > 0:
-                link = signatures[0].get('link', {}).get('short_link')
-                return link
+            # Navegação segura
+            document = data.get('data', {}).get('document')
+            if not document:
+                logger.warning("[Autentique] Campo 'document' não encontrado ou é nulo")
+                return None
+            signatures = document.get('signatures')
+            if not signatures or len(signatures) == 0:
+                logger.warning("[Autentique] Nenhuma assinatura encontrada")
+                return None
+            link = signatures[0].get('link', {}).get('short_link')
+            if link:
+                logger.info(f"[Autentique] Link obtido: {link}")
+            else:
+                logger.warning("[Autentique] Link não encontrado na resposta")
+            return link
+        else:
+            logger.error(f"[Autentique] HTTP {response.status_code}: {response.text}")
+            return None
     except Exception as e:
-        print(f"Exceção ao obter link da Autentique: {e}")
-    return None
+        logger.exception(f"[Autentique] Exceção: {e}")
+        return None
