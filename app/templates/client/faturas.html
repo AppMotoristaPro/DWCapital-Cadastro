@@ -33,12 +33,7 @@
                     {% endif %}
                 </div>
             </div>
-            <!-- Botão Gerar Licença (visível para todos os ciclos; o backend valida as condições) -->
-            <div class="mt-4 pt-3 border-t border-gray-100">
-                <button onclick="gerarLicenca('{{ fatura.id }}')" class="w-full py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 text-[10px] font-black uppercase tracking-widest rounded-xl transition border border-purple-200 shadow-sm">
-                    Gerar Licença
-                </button>
-            </div>
+            <!-- Botão Gerar Licença removido daqui -->
         </div>
         {% endfor %}
     </div>
@@ -46,10 +41,16 @@
     <div id="area-conteudo" class="hidden transition-all duration-500">
         
         <div class="flex justify-between items-center mb-8 bg-white/40 p-3 rounded-2xl border border-gray-200/50 backdrop-blur-sm">
-            <button onclick="voltarGrid()" class="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest hover:text-navy transition-colors bg-white px-4 py-2.5 rounded-xl border border-gray-200 shadow-sm">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                Voltar aos Ciclos
-            </button>
+            <div class="flex items-center gap-3">
+                <button onclick="voltarGrid()" class="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest hover:text-navy transition-colors bg-white px-4 py-2.5 rounded-xl border border-gray-200 shadow-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    Voltar aos Ciclos
+                </button>
+                <!-- Botão Gerar Licença agora dentro da área de detalhe -->
+                <button onclick="gerarLicenca(globalFaturaAtivaId)" class="px-6 py-2.5 bg-purple-50 hover:bg-purple-100 text-purple-700 text-[10px] font-black uppercase tracking-widest rounded-xl transition border border-purple-200 shadow-sm">
+                    Gerar Licença
+                </button>
+            </div>
             
             {% if current_user.modelo_negocio != 'compra' %}
             <button onclick="abrirModalAuditoriaPagamento()" class="px-6 py-3 bg-gradient-to-r from-royal to-royal-dark text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all">
@@ -485,8 +486,12 @@ function abrirModalSenha(diaId) { document.getElementById('modal-dia-id').value 
 function fecharModalSenha() { document.getElementById('modal-senha').classList.add('hidden'); document.getElementById('input-senha-manual').value = ''; }
 function tentarComSenhaManual() { const diaId = document.getElementById('modal-dia-id').value; const senha = document.getElementById('input-senha-manual').value; if (!senha) return; fecharModalSenha(); enviarRelatorio(diaId, senha); }
 
-// NOVAS FUNÇÕES PARA GERAÇÃO DE LICENÇA
+// FUNÇÃO PARA GERAÇÃO DE LICENÇA (usa o ciclo ativo)
 async function gerarLicenca(faturaId) {
+    if (!faturaId) {
+        alert('Nenhum ciclo selecionado.');
+        return;
+    }
     try {
         const response = await fetch("{{ url_for('client.gerar_licenca') }}", {
             method: 'POST',
