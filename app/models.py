@@ -186,6 +186,7 @@ class VersaoRobo(db.Model):
     novidades = db.Column(db.Text, nullable=True)                # Changelog / novidades
     data_upload = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     publicada = db.Column(db.Boolean, default=False)             # Apenas uma versão pode ser True
+    extensao = db.Column(db.String(10), nullable=True)          # Extensão do arquivo (.exe, .ex5, .zip)
 
     def __repr__(self):
         return f"<VersaoRobo {self.versao}>"

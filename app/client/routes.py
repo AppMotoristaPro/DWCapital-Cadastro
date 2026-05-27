@@ -364,7 +364,7 @@ def robo_download():
 @client_bp.route('/robo/download', methods=['POST'])
 @login_required
 def baixar_robo():
-    """Registra o download e envia o arquivo com nome personalizado (proxy via Flask)."""
+    """Registra o download e envia o arquivo com nome personalizado usando a extensão salva."""
     versao = versao_atual()
     if not versao:
         return jsonify({"error": "Nenhuma versão disponível"}), 404
@@ -384,14 +384,8 @@ def baixar_robo():
         logger.error(f"Erro ao baixar arquivo do Cloudinary: {e}")
         return jsonify({"error": "Falha ao obter o arquivo do robô"}), 500
     
-    # Determinar a extensão a partir do arquivo original
-    # Extraímos da URL do Cloudinary (último segmento antes de '?')
-    url_filename = versao.arquivo_url.split('/')[-1].split('?')[0]
-    if '.' in url_filename:
-        extensao = '.' + url_filename.split('.')[-1]
-    else:
-        extensao = ''
-    
+    # Usar a extensão salva no banco (fallback para '.exe' se não houver)
+    extensao = versao.extensao if versao.extensao else '.exe'
     nome_arquivo = f"dwcapital_robo_v{versao.versao}{extensao}"
     
     # Enviar o arquivo como attachment

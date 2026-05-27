@@ -7,7 +7,7 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash,
 from flask_login import current_user
 from werkzeug.security import generate_password_hash
 from sqlalchemy.orm import joinedload
-from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria, DocumentoTemplate, DocumentoCliente, ParcelaCompra, VersaoRobo
+from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria, DocumentoTemplate, DocumentoCliente, ParcelaCompra, VersaoRobo, DownloadControle
 from app import db
 from datetime import datetime, timedelta
 from app.utils.decorators import admin_required
@@ -667,7 +667,13 @@ def upload_versao_robo():
         
         # Validação da extensão do arquivo (.exe, .ex5 ou .zip)
         filename = arquivo.filename
-        if not (filename.lower().endswith('.exe') or filename.lower().endswith('.ex5') or filename.lower().endswith('.zip')):
+        # Extrai extensão
+        if '.' in filename:
+            extensao = '.' + filename.rsplit('.', 1)[1].lower()
+        else:
+            extensao = ''
+        
+        if extensao not in ['.exe', '.ex5', '.zip']:
             flash("Tipo de arquivo inválido. Apenas .exe, .ex5 ou .zip são permitidos.", "error")
             return redirect(url_for('admin.upload_versao_robo'))
         
@@ -684,7 +690,8 @@ def upload_versao_robo():
             versao=versao,
             arquivo_url=arquivo_url,
             novidades=novidades,
-            publicada=False
+            publicada=False,
+            extensao=extensao
         )
         db.session.add(nova_versao)
         db.session.commit()
@@ -696,6 +703,8 @@ def upload_versao_robo():
     # GET: exibe formulário e lista de versões
     versoes = VersaoRobo.query.order_by(VersaoRobo.data_upload.desc()).all()
     return render_template('admin/upload_robo.html', versoes=versoes)
+
+# ==================== ROTA DE PUBLICAÇÃO (ATUALIZADA) ====================
 
 @admin_bp.route('/robo/publicar/<int:id>', methods=['POST'])
 @admin_required
@@ -711,8 +720,12 @@ def publicar_versao_robo(id):
     versao.publicada = True
     db.session.commit()
     
-    registrar_log(f"Publicou a versão do robô: {versao.versao}", "Robô")
-    flash(f"Versão {versao.versao} agora é a versão ativa para download.", "success")
+    # Remove todos os downloads registrados para esta versão (permite novo download)
+    removidos = DownloadControle.query.filter_by(versao_id=versao.id).delete()
+    db.session.commit()
+    
+    registrar_log(f"Publicou a versão do robô: {versao.versao} (downloads anteriores removidos: {removidos})", "Robô")
+    flash(f"Versão {versao.versao} agora é a versão ativa para download. Todos os clientes poderão baixá-la novamente.", "success")
     return redirect(url_for('admin.upload_versao_robo'))
 
 # ==================== FUNÇÕES AUXILIARES (mantidas) ====================
