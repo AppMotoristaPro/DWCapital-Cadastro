@@ -1,0 +1,100 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_content %}
+<div class="max-w-5xl mx-auto relative z-10 pb-20">
+    <div class="flex justify-between items-end mb-8">
+        <div>
+            <h1 class="text-4xl font-black text-navy tracking-tight">Versões do Robô</h1>
+            <p class="text-gray-500 mt-2 font-medium">Faça upload de novas versões, gerencie changelog e publique a versão ativa.</p>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}{% for category, message in messages %}
+        <div class="p-4 mb-8 rounded-2xl font-bold shadow-sm {% if category == 'error' %}bg-red-50 text-red-700 border-red-100{% else %}bg-green-50 text-green-700 border-green-100{% endif %} border">{{ message }}</div>
+      {% endfor %}{% endif %}
+    {% endwith %}
+
+    <!-- Formulário de upload -->
+    <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white p-8 mb-10">
+        <h2 class="text-xl font-black text-navy mb-6">Enviar nova versão</h2>
+        <form method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            
+            <div class="mb-5">
+                <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Número da versão</label>
+                <input type="text" name="versao" placeholder="Ex: 2.1.0" required class="w-full px-5 py-3.5 bg-white border border-gray-200 rounded-xl outline-none font-bold text-navy focus:border-royal transition shadow-sm">
+            </div>
+
+            <div class="mb-5">
+                <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Arquivo do robô (.exe)</label>
+                <input type="file" name="arquivo" accept=".exe,.zip" required class="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl outline-none text-sm">
+                <p class="text-[9px] text-gray-400 mt-1 ml-1">Formatos aceitos: .exe ou .zip (compactado).</p>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Novidades (changelog)</label>
+                <textarea name="novidades" rows="4" placeholder="Descreva as melhorias, correções e novas funcionalidades..." class="w-full px-5 py-3.5 bg-white border border-gray-200 rounded-xl outline-none font-medium text-navy focus:border-royal transition shadow-sm"></textarea>
+            </div>
+
+            <button type="submit" class="px-8 py-3.5 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">Enviar versão</button>
+        </form>
+    </div>
+
+    <!-- Lista de versões existentes -->
+    <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden">
+        <div class="px-8 py-6 border-b border-gray-100 bg-white/50">
+            <h2 class="text-xl font-black text-navy">Versões publicadas</h2>
+            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Apenas a versão ativa fica disponível para download pelos clientes.</p>
+        </div>
+
+        {% if versoes %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-gray-50/80 border-b border-gray-100 text-gray-400 text-[10px] font-black uppercase tracking-wider">
+                    <tr>
+                        <th class="px-8 py-4">Versão</th>
+                        <th class="px-6 py-4">Data upload</th>
+                        <th class="px-6 py-4">Status</th>
+                        <th class="px-6 py-4">Novidades</th>
+                        <th class="px-8 py-4 text-right">Ação</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50 bg-white">
+                    {% for v in versoes %}
+                    <tr class="hover:bg-gray-50/50 transition-colors">
+                        <td class="px-8 py-5 font-bold text-navy">{{ v.versao }}</td>
+                        <td class="px-6 py-5 text-[10px] font-bold text-gray-500">{{ v.data_upload.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td class="px-6 py-5">
+                            {% if v.publicada %}
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-green-100 text-green-700 text-[9px] font-black uppercase rounded-lg shadow-sm">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Ativa
+                                </span>
+                            {% else %}
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-100 text-gray-500 text-[9px] font-black uppercase rounded-lg shadow-sm">Inativa</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-5 text-xs text-gray-600 max-w-xs truncate">{{ v.novidades or '—' }}</td>
+                        <td class="px-8 py-5 text-right">
+                            {% if not v.publicada %}
+                            <form method="POST" action="{{ url_for('admin.publicar_versao_robo', id=v.id) }}" class="inline" onsubmit="return confirm('Publicar a versão {{ v.versao }} como versão ativa? Todos os clientes passarão a ver essa versão para download.')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-600 text-[10px] font-black uppercase rounded-lg transition border border-purple-200 shadow-sm">Publicar</button>
+                            </form>
+                            {% else %}
+                                <span class="text-[10px] text-gray-400">Ativa</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-12 text-center text-gray-400 font-medium">
+            Nenhuma versão de robô enviada ainda. Use o formulário acima para começar.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
