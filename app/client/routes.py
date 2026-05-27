@@ -3,10 +3,12 @@ import urllib.parse
 from datetime import datetime, timedelta
 import pytz
 import logging
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify, session, abort
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify, session, abort, send_file
 from flask_login import login_required, current_user
 import cloudinary.uploader
 from werkzeug.utils import secure_filename
+import requests
+import io
 from app import db
 from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, DocumentoTemplate, User
 from app.utils.parsers.gerenciador_pdf import processar_pdf
@@ -17,6 +19,9 @@ from app.services.documento_service import disparar_unico, verificar_status_docu
 from app.services.dashboard_service import obter_dados_dashboard_cliente
 from app.services.pix_service import PixService
 from app.utils.autentique import obter_url_visualizacao_autentique
+from app.services.robo_service import versao_atual, liberado_para_download, registrar_download, historico_downloads_cliente
+from app.services.licenca_service import verificar_condicoes_licenca, gerar_chave_licenca, calcular_ciclo_por_data
+from urllib.parse import urlparse, parse_qs, urlencode
 
 logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
@@ -317,11 +322,8 @@ def visualizar_documento(doc_id):
         flash('Este documento ainda não foi assinado.', 'warning')
         return redirect(url_for('client.documentos'))
 
-    # Para documentos assinados, sempre forçamos a URL de visualização oficial baseada no ID real,
-    # ignorando links antigos ou temporários de assinatura que possam conter o prefixo sandbox
     if doc.autentique_document_id:
         url = obter_url_visualizacao_autentique(doc.autentique_document_id)
-        # Sincroniza o banco com a URL real e limpa resíduos de sandbox
         if doc.link_assinatura != url:
             doc.link_assinatura = url
             db.session.commit()
@@ -337,6 +339,105 @@ def api_status_documento(doc_id):
     if not autorizado: return jsonify({"assinado": False}), 403
     return jsonify({"assinado": assinado})
 
+# ==================== ROTAS DO ROBÔ E LICENÇAS ====================
+
+@client_bp.route('/robo')
+@login_required
+def robo_download():
+    """Página de download do robô: exibe versão atual, botão condicionado e histórico."""
+    versao = versao_atual()
+    if not versao:
+        flash("Nenhuma versão do robô disponível no momento.", "warning")
+        return render_template('client/robo_download.html', versao=None, botao_liberado=False, historico=[])
+    
+    liberado, msg = liberado_para_download(current_user, versao)
+    historico = historico_downloads_cliente(current_user)
+    
+    return render_template(
+        'client/robo_download.html',
+        versao=versao,
+        botao_liberado=liberado,
+        msg_bloqueio=msg if not liberado else None,
+        historico=historico
+    )
+
+@client_bp.route('/robo/download', methods=['POST'])
+@login_required
+def baixar_robo():
+    """Registra o download e envia o arquivo com nome personalizado usando a extensão salva."""
+    versao = versao_atual()
+    if not versao:
+        return jsonify({"error": "Nenhuma versão disponível"}), 404
+    
+    liberado, msg = liberado_para_download(current_user, versao)
+    if not liberado:
+        return jsonify({"error": msg}), 403
+    
+    # Registrar download
+    registrar_download(current_user, versao.id)
+    
+    # Baixar o arquivo do Cloudinary
+    try:
+        response = requests.get(versao.arquivo_url, stream=True, timeout=30)
+        response.raise_for_status()
+    except Exception as e:
+        logger.error(f"Erro ao baixar arquivo do Cloudinary: {e}")
+        return jsonify({"error": "Falha ao obter o arquivo do robô"}), 500
+    
+    # Usar a extensão salva no banco (fallback para '.exe' se não houver)
+    extensao = versao.extensao if versao.extensao else '.exe'
+    nome_arquivo = f"dwcapital_robo_v{versao.versao}{extensao}"
+    
+    # Enviar o arquivo como attachment
+    return send_file(
+        io.BytesIO(response.content),
+        as_attachment=True,
+        download_name=nome_arquivo,
+        mimetype='application/octet-stream'
+    )
+
+@client_bp.route('/faturas/gerar_licenca', methods=['POST'])
+@login_required
+def gerar_licenca():
+    """
+    Gera uma nova licença para o cliente.
+    Regras:
+    - Só pode ser gerada aos sábados.
+    - Apenas para o último ciclo completo (sexta a quinta).
+    - Cliente deve ter todas as notas enviadas/isentas.
+    - Se comissionado não isento, fatura deve estar paga.
+    - Apenas uma licença por ciclo.
+    """
+    hoje = datetime.now(tz_br).date()
+    
+    if hoje.weekday() != 5:  # 5 = sábado
+        return jsonify({
+            "success": False,
+            "error": "DIA_INVALIDO",
+            "message": "A geração de licenças só é permitida aos sábados."
+        }), 400
+    
+    inicio_ciclo, fim_ciclo = calcular_ciclo_por_data(hoje)
+    
+    liberado, mensagem, pendencias = verificar_condicoes_licenca(current_user, inicio_ciclo)
+    if not liberado:
+        return jsonify({
+            "success": False,
+            "error": "CONDICOES_NAO_ATENDIDAS",
+            "message": mensagem,
+            "pendencias": pendencias
+        }), 400
+    
+    chave, msg_geracao = gerar_chave_licenca(current_user, inicio_ciclo)
+    
+    return jsonify({
+        "success": True,
+        "chave": chave,
+        "message": msg_geracao,
+        "ciclo_inicio": inicio_ciclo.strftime('%d/%m/%Y'),
+        "ciclo_fim": fim_ciclo.strftime('%d/%m/%Y')
+    })
+
 @client_bp.route('/ajuda')
 @login_required
 def ajuda():
@@ -346,4 +447,3 @@ def ajuda():
     return render_template('client/ajuda.html', 
                            link_suporte=f"https://wa.me/5511991167709?text={msg_suporte_encoded}",
                            link_comercial=f"https://wa.me/5511920504850?text={msg_suporte_encoded}")
-

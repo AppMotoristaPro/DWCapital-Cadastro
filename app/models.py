@@ -38,6 +38,10 @@ class User(db.Model, UserMixin):
     documentos_extras = db.relationship('DocumentoCliente', backref='cliente', lazy=True, cascade="all, delete-orphan")
     
     parcelas_licenca = db.relationship('ParcelaCompra', backref='cliente', lazy=True, cascade="all, delete-orphan", order_by="ParcelaCompra.ordem")
+    
+    # Novos relacionamentos (para controle de download e licenças)
+    downloads = db.relationship('DownloadControle', backref='cliente', lazy=True, cascade="all, delete-orphan")
+    licencas = db.relationship('LicencaCliente', backref='cliente', lazy=True, cascade="all, delete-orphan")
 
 class ParcelaCompra(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -168,7 +172,64 @@ class DocumentoCliente(db.Model):
 
     template = db.relationship('DocumentoTemplate', backref='documentos_enviados')
 
+# =============================================================================
+# NOVAS CLASSES PARA CONTROLE DE VERSÃO DO ROBÔ E LICENÇAS
+# =============================================================================
+
+class VersaoRobo(db.Model):
+    """Tabela para armazenar as versões do executável do robô."""
+    __tablename__ = 'versao_robo'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    versao = db.Column(db.String(20), nullable=False)
+    arquivo_url = db.Column(db.String(255), nullable=False)      # URL no Cloudinary
+    novidades = db.Column(db.Text, nullable=True)                # Changelog / novidades
+    data_upload = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
+    publicada = db.Column(db.Boolean, default=False)             # Apenas uma versão pode ser True
+    extensao = db.Column(db.String(10), nullable=True)          # Extensão do arquivo (.exe, .ex5, .zip)
+
+    def __repr__(self):
+        return f"<VersaoRobo {self.versao}>"
+
+class DownloadControle(db.Model):
+    """Registra quando um cliente baixou uma versão específica do robô."""
+    __tablename__ = 'download_controle'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    versao_id = db.Column(db.Integer, db.ForeignKey('versao_robo.id'), nullable=False)
+    data_download = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
+    
+    # Relacionamento com VersaoRobo (opcional, para consultas)
+    versao = db.relationship('VersaoRobo', backref='downloads')
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'versao_id', name='_user_versao_uc'),
+    )
+
+    def __repr__(self):
+        return f"<DownloadControle user={self.user_id} versao={self.versao_id}>"
+
+class LicencaCliente(db.Model):
+    """Registra as licenças geradas para cada ciclo (sábado)."""
+    __tablename__ = 'licenca_cliente'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    chave_licenca = db.Column(db.String(100), nullable=False)     # Chave gerada pelo motor externo
+    data_geracao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
+    ciclo_inicio = db.Column(db.Date, nullable=False)             # Data de início do ciclo (sexta)
+    ciclo_fim = db.Column(db.Date, nullable=False)                # Data de fim do ciclo (quinta)
+    
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'ciclo_inicio', name='_user_ciclo_uc'),
+    )
+
+    def __repr__(self):
+        return f"<LicencaCliente user={self.user_id} ciclo={self.ciclo_inicio}>"
+
+# =============================================================================
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
-
