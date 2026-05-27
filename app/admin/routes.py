@@ -7,7 +7,7 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash,
 from flask_login import current_user
 from werkzeug.security import generate_password_hash
 from sqlalchemy.orm import joinedload
-from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria, DocumentoTemplate, DocumentoCliente, ParcelaCompra
+from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria, DocumentoTemplate, DocumentoCliente, ParcelaCompra, VersaoRobo
 from app import db
 from datetime import datetime, timedelta
 from app.utils.decorators import admin_required
@@ -15,6 +15,7 @@ from app.services.fatura_service import atualizar_totais_semana, auto_gerar_cicl
 from app.services.documento_service import disparar_lote, disparar_unico
 from app.services.dashboard_service import obter_dados_dashboard
 from app.utils.parsers.gerenciador_pdf import processar_pdf
+import cloudinary.uploader
 import pytz
 
 tz_br = pytz.timezone('America/Sao_Paulo')
@@ -29,6 +30,8 @@ def registrar_log(acao, categoria):
             categoria=categoria
         )
         db.session.add(novo_log)
+
+# ==================== ROTAS EXISTENTES (mantidas) ====================
 
 @admin_bp.route('/')
 @admin_required
@@ -646,6 +649,67 @@ def excluir_todos_pendentes():
         flash(f'Erro ao excluir em massa: {str(e)}', 'error')
         
     return redirect(url_for('admin.documentos'))
+
+# ==================== NOVAS ROTAS (FASE 2) ====================
+
+@admin_bp.route('/robo/upload', methods=['GET', 'POST'])
+@admin_required
+def upload_versao_robo():
+    """Exibe formulário para upload de nova versão e lista versões existentes."""
+    if request.method == 'POST':
+        versao = request.form.get('versao')
+        novidades = request.form.get('novidades')
+        arquivo = request.files.get('arquivo')
+        
+        if not versao or not arquivo:
+            flash("Versão e arquivo são obrigatórios.", "error")
+            return redirect(url_for('admin.upload_versao_robo'))
+        
+        # Upload para Cloudinary (pasta "dwcapital/robos")
+        try:
+            upload_result = cloudinary.uploader.upload(arquivo, folder="dwcapital/robos", resource_type="raw")
+            arquivo_url = upload_result.get('secure_url')
+        except Exception as e:
+            flash(f"Erro ao enviar arquivo: {str(e)}", "error")
+            return redirect(url_for('admin.upload_versao_robo'))
+        
+        # Salvar nova versão (publicada = False)
+        nova_versao = VersaoRobo(
+            versao=versao,
+            arquivo_url=arquivo_url,
+            novidades=novidades,
+            publicada=False
+        )
+        db.session.add(nova_versao)
+        db.session.commit()
+        
+        registrar_log(f"Upload de nova versão do robô: {versao}", "Robô")
+        flash(f"Versão {versao} enviada com sucesso! Agora publique-a para ficar disponível.", "success")
+        return redirect(url_for('admin.upload_versao_robo'))
+    
+    # GET: exibe formulário e lista de versões
+    versoes = VersaoRobo.query.order_by(VersaoRobo.data_upload.desc()).all()
+    return render_template('admin/upload_robo.html', versoes=versoes)
+
+@admin_bp.route('/robo/publicar/<int:id>', methods=['POST'])
+@admin_required
+def publicar_versao_robo(id):
+    """Publica uma versão específica (torna ativa) e despublica as demais."""
+    versao = VersaoRobo.query.get_or_404(id)
+    
+    # Despublicar todas
+    VersaoRobo.query.update({'publicada': False})
+    db.session.commit()
+    
+    # Publicar a selecionada
+    versao.publicada = True
+    db.session.commit()
+    
+    registrar_log(f"Publicou a versão do robô: {versao.versao}", "Robô")
+    flash(f"Versão {versao.versao} agora é a versão ativa para download.", "success")
+    return redirect(url_for('admin.upload_versao_robo'))
+
+# ==================== FUNÇÕES AUXILIARES (mantidas) ====================
 
 def _executar_reprocessamento_por_corretora(corretora_nome):
     dias_enviados = FaturaDiaria.query.options(

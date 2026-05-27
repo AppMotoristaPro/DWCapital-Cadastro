@@ -17,6 +17,8 @@ from app.services.documento_service import disparar_unico, verificar_status_docu
 from app.services.dashboard_service import obter_dados_dashboard_cliente
 from app.services.pix_service import PixService
 from app.utils.autentique import obter_url_visualizacao_autentique
+from app.services.robo_service import versao_atual, liberado_para_download, registrar_download, historico_downloads_cliente
+from app.services.licenca_service import verificar_condicoes_licenca, gerar_chave_licenca, calcular_ciclo_por_data
 
 logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
@@ -317,11 +319,8 @@ def visualizar_documento(doc_id):
         flash('Este documento ainda não foi assinado.', 'warning')
         return redirect(url_for('client.documentos'))
 
-    # Para documentos assinados, sempre forçamos a URL de visualização oficial baseada no ID real,
-    # ignorando links antigos ou temporários de assinatura que possam conter o prefixo sandbox
     if doc.autentique_document_id:
         url = obter_url_visualizacao_autentique(doc.autentique_document_id)
-        # Sincroniza o banco com a URL real e limpa resíduos de sandbox
         if doc.link_assinatura != url:
             doc.link_assinatura = url
             db.session.commit()
@@ -337,6 +336,95 @@ def api_status_documento(doc_id):
     if not autorizado: return jsonify({"assinado": False}), 403
     return jsonify({"assinado": assinado})
 
+# ==================== NOVAS ROTAS (FASE 2) ====================
+
+@client_bp.route('/robo')
+@login_required
+def robo_download():
+    """Página de download do robô: exibe versão atual, botão condicionado e histórico."""
+    # Versão ativa
+    versao = versao_atual()
+    if not versao:
+        flash("Nenhuma versão do robô disponível no momento.", "warning")
+        return render_template('client/robo_download.html', versao=None, botao_liberado=False, historico=[])
+    
+    # Verifica se o cliente já baixou esta versão
+    liberado, msg = liberado_para_download(current_user, versao)
+    # Histórico de downloads do cliente
+    historico = historico_downloads_cliente(current_user)
+    
+    return render_template(
+        'client/robo_download.html',
+        versao=versao,
+        botao_liberado=liberado,
+        msg_bloqueio=msg if not liberado else None,
+        historico=historico
+    )
+
+@client_bp.route('/robo/download', methods=['POST'])
+@login_required
+def baixar_robo():
+    """Endpoint que registra o download e redireciona para o arquivo."""
+    versao = versao_atual()
+    if not versao:
+        return jsonify({"error": "Nenhuma versão disponível"}), 404
+    
+    liberado, msg = liberado_para_download(current_user, versao)
+    if not liberado:
+        return jsonify({"error": msg}), 403
+    
+    # Registrar download
+    registrar_download(current_user, versao.id)
+    
+    # Redirecionar para a URL do arquivo
+    return redirect(versao.arquivo_url)
+
+@client_bp.route('/faturas/gerar_licenca', methods=['POST'])
+@login_required
+def gerar_licenca():
+    """
+    Gera uma nova licença para o cliente.
+    Regras:
+    - Só pode ser gerada aos sábados.
+    - Apenas para o último ciclo completo (sexta a quinta).
+    - Cliente deve ter todas as notas enviadas/isentas.
+    - Se comissionado não isento, fatura deve estar paga.
+    - Apenas uma licença por ciclo.
+    """
+    hoje = datetime.now(tz_br).date()
+    
+    # 1. Verificar se hoje é sábado
+    if hoje.weekday() != 5:  # 5 = sábado
+        return jsonify({
+            "success": False,
+            "error": "DIA_INVALIDO",
+            "message": "A geração de licenças só é permitida aos sábados."
+        }), 400
+    
+    # 2. Calcular ciclo (sexta anterior e quinta)
+    inicio_ciclo, fim_ciclo = calcular_ciclo_por_data(hoje)
+    
+    # 3. Verificar condições
+    liberado, mensagem, pendencias = verificar_condicoes_licenca(current_user, inicio_ciclo)
+    if not liberado:
+        return jsonify({
+            "success": False,
+            "error": "CONDICOES_NAO_ATENDIDAS",
+            "message": mensagem,
+            "pendencias": pendencias
+        }), 400
+    
+    # 4. Gerar chave de licença (placeholder)
+    chave, msg_geracao = gerar_chave_licenca(current_user, inicio_ciclo)
+    
+    return jsonify({
+        "success": True,
+        "chave": chave,
+        "message": msg_geracao,
+        "ciclo_inicio": inicio_ciclo.strftime('%d/%m/%Y'),
+        "ciclo_fim": fim_ciclo.strftime('%d/%m/%Y')
+    })
+
 @client_bp.route('/ajuda')
 @login_required
 def ajuda():
@@ -346,4 +434,3 @@ def ajuda():
     return render_template('client/ajuda.html', 
                            link_suporte=f"https://wa.me/5511991167709?text={msg_suporte_encoded}",
                            link_comercial=f"https://wa.me/5511920504850?text={msg_suporte_encoded}")
-
