@@ -650,7 +650,7 @@ def excluir_todos_pendentes():
         
     return redirect(url_for('admin.documentos'))
 
-# ==================== NOVAS ROTAS (FASE 2) ====================
+# ==================== ROTA DE UPLOAD (ATUALIZADA) ====================
 
 @admin_bp.route('/robo/upload', methods=['GET', 'POST'])
 @admin_required
@@ -663,6 +663,12 @@ def upload_versao_robo():
         
         if not versao or not arquivo:
             flash("Versão e arquivo são obrigatórios.", "error")
+            return redirect(url_for('admin.upload_versao_robo'))
+        
+        # Validação da extensão do arquivo (.exe, .ex5 ou .zip)
+        filename = arquivo.filename
+        if not (filename.lower().endswith('.exe') or filename.lower().endswith('.ex5') or filename.lower().endswith('.zip')):
+            flash("Tipo de arquivo inválido. Apenas .exe, .ex5 ou .zip são permitidos.", "error")
             return redirect(url_for('admin.upload_versao_robo'))
         
         # Upload para Cloudinary (pasta "dwcapital/robos")
@@ -683,7 +689,7 @@ def upload_versao_robo():
         db.session.add(nova_versao)
         db.session.commit()
         
-        registrar_log(f"Upload de nova versão do robô: {versao}", "Robô")
+        registrar_log(f"Upload de nova versão do robô: {versao} (arquivo {filename})", "Robô")
         flash(f"Versão {versao} enviada com sucesso! Agora publique-a para ficar disponível.", "success")
         return redirect(url_for('admin.upload_versao_robo'))
     
