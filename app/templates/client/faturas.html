@@ -33,7 +33,6 @@
                     {% endif %}
                 </div>
             </div>
-            <!-- Botão Gerar Licença removido daqui -->
         </div>
         {% endfor %}
     </div>
@@ -46,8 +45,8 @@
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                     Voltar aos Ciclos
                 </button>
-                <!-- Botão Gerar Licença agora dentro da área de detalhe -->
-                <button onclick="gerarLicenca(globalFaturaAtivaId)" class="px-6 py-2.5 bg-purple-50 hover:bg-purple-100 text-purple-700 text-[10px] font-black uppercase tracking-widest rounded-xl transition border border-purple-200 shadow-sm">
+                <!-- Botão Gerar Licença oculto (visível apenas para testes futuros) -->
+                <button onclick="gerarLicenca(globalFaturaAtivaId)" class="px-6 py-2.5 bg-purple-50 hover:bg-purple-100 text-purple-700 text-[10px] font-black uppercase tracking-widest rounded-xl transition border border-purple-200 shadow-sm" style="display: none;">
                     Gerar Licença
                 </button>
             </div>
@@ -174,14 +173,13 @@
 
     {% if current_user.modelo_negocio != 'compra' %}
     <div id="modal-auditoria-pix-global" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
+        <!-- conteúdo do modal de auditoria (inalterado) -->
         <div class="bg-white border border-gray-100 w-full max-w-lg rounded-[2.5rem] shadow-2xl p-8 md:p-10 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
             <button onclick="fecharModalAuditoriaPagamento()" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black text-xl outline-none">&times;</button>
-            
             <div class="mb-6 pb-4 border-b border-gray-100">
                 <h2 class="text-2xl font-black text-navy">Auditoria do Período</h2>
                 <p class="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-1">Conferência Individualizada de Ativos</p>
             </div>
-
             <div class="space-y-3 mb-6" id="container-auditoria-corretoras">
                 {% for alocacao in current_user.alocacoes %}
                 <div class="flex justify-between items-center p-4 bg-gray-50 border border-gray-100 rounded-xl">
@@ -189,7 +187,6 @@
                     <span class="text-sm font-bold text-navy" id="auditoria-subtotal-{{ alocacao.nome_corretora }}">Calculando...</span>
                 </div>
                 {% endfor %}
-                
                 <div class="p-5 bg-gradient-to-r from-royal to-royal-dark text-white rounded-2xl shadow-md mt-4">
                     <div class="flex justify-between items-center">
                         <span class="text-[10px] font-black uppercase tracking-widest text-blue-200">Total do Repasse (30%)</span>
@@ -197,16 +194,13 @@
                     </div>
                 </div>
             </div>
-
             <div id="box-alerta-pendencia" class="hidden mb-6 p-5 bg-red-50 border border-red-200 rounded-2xl text-center">
                 <p class="text-xs font-black text-red-700 uppercase tracking-widest mb-1.5">Bloqueio Financeiro</p>
                 <p class="text-[11px] text-red-500 font-bold leading-tight" id="texto-alerta-mensagem"></p>
             </div>
-
             {% if inter_sandbox %}
                 <div id="box-gateway-inter-pix" class="hidden space-y-4 pt-4 border-t border-gray-100">
-                    <div class="p-4 bg-white border border-gray-200 shadow-inner rounded-2xl flex items-center justify-center" id="box-qrcode-dinamico">
-                        </div>
+                    <div class="p-4 bg-white border border-gray-200 shadow-inner rounded-2xl flex items-center justify-center" id="box-qrcode-dinamico"></div>
                     <div class="relative">
                         <input type="text" id="input-copia-cola-real" readonly class="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-navy font-mono text-xs outline-none pr-24 overflow-hidden text-ellipsis shadow-inner whitespace-nowrap">
                         <button onclick="copiarCopiaEColaFatura()" id="btn-copiar-fatura" class="absolute right-2 top-2 bottom-2 bg-navy text-white px-4 rounded-lg text-[10px] font-black uppercase tracking-widest transition shadow-sm">Copiar</button>
@@ -215,7 +209,6 @@
                         <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Aguardando compensação instantânea do Banco Inter...
                     </p>
                 </div>
-
                 <div class="mt-8 flex justify-end" id="box-acao-gerar-inicial">
                     <button onclick="solicitarGeracaoPixInter()" id="btn-disparar-pix-inter" class="w-full py-4 bg-navy hover:bg-gray-900 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition">Gerar PIX</button>
                 </div>
@@ -247,7 +240,7 @@
                     <button onclick="fecharModalAuditoriaPagamento()" class="w-full py-4 bg-navy hover:bg-gray-900 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition">Entendi</button>
                 </div>
             {% endif %}
-            </div>
+        </div>
     </div>
     {% endif %}
 
@@ -486,7 +479,7 @@ function abrirModalSenha(diaId) { document.getElementById('modal-dia-id').value 
 function fecharModalSenha() { document.getElementById('modal-senha').classList.add('hidden'); document.getElementById('input-senha-manual').value = ''; }
 function tentarComSenhaManual() { const diaId = document.getElementById('modal-dia-id').value; const senha = document.getElementById('input-senha-manual').value; if (!senha) return; fecharModalSenha(); enviarRelatorio(diaId, senha); }
 
-// FUNÇÃO PARA GERAÇÃO DE LICENÇA (usa o ciclo ativo)
+// FUNÇÃO PARA GERAÇÃO DE LICENÇA (ainda não ativa)
 async function gerarLicenca(faturaId) {
     if (!faturaId) {
         alert('Nenhum ciclo selecionado.');
@@ -524,7 +517,7 @@ function copiarChaveLicenca() {
 }
 </script>
 
-<!-- Modal de exibição da chave de licença -->
+<!-- Modal de exibição da chave de licença (oculto enquanto a função não estiver ativa) -->
 <div id="modal-licenca" class="hidden fixed inset-0 z-[150] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
     <div class="bg-white w-full max-w-md rounded-[2rem] shadow-2xl p-10 relative text-center border border-gray-100">
         <button onclick="fecharModalLicenca()" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black text-xl outline-none">&times;</button>
