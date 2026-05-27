@@ -3,10 +3,12 @@ import urllib.parse
 from datetime import datetime, timedelta
 import pytz
 import logging
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify, session, abort
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify, session, abort, send_file
 from flask_login import login_required, current_user
 import cloudinary.uploader
 from werkzeug.utils import secure_filename
+import requests
+import io
 from app import db
 from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, DocumentoTemplate, User
 from app.utils.parsers.gerenciador_pdf import processar_pdf
@@ -337,7 +339,7 @@ def api_status_documento(doc_id):
     if not autorizado: return jsonify({"assinado": False}), 403
     return jsonify({"assinado": assinado})
 
-# ==================== NOVAS ROTAS (FASE 2) ====================
+# ==================== ROTAS DO ROBÔ E LICENÇAS ====================
 
 @client_bp.route('/robo')
 @login_required
@@ -362,7 +364,7 @@ def robo_download():
 @client_bp.route('/robo/download', methods=['POST'])
 @login_required
 def baixar_robo():
-    """Registra o download e redireciona para o arquivo no Cloudinary com nome amigável."""
+    """Registra o download e envia o arquivo com nome personalizado (proxy via Flask)."""
     versao = versao_atual()
     if not versao:
         return jsonify({"error": "Nenhuma versão disponível"}), 404
@@ -374,31 +376,31 @@ def baixar_robo():
     # Registrar download
     registrar_download(current_user, versao.id)
     
-    # Obter URL original do Cloudinary
-    original_url = versao.arquivo_url
+    # Baixar o arquivo do Cloudinary
+    try:
+        response = requests.get(versao.arquivo_url, stream=True, timeout=30)
+        response.raise_for_status()
+    except Exception as e:
+        logger.error(f"Erro ao baixar arquivo do Cloudinary: {e}")
+        return jsonify({"error": "Falha ao obter o arquivo do robô"}), 500
     
-    # Extrair extensão do arquivo original (baseado na URL)
-    # Exemplo: https://res.cloudinary.com/.../dwcapital/robos/arquivo.exe?...
-    # Pegamos o segmento após a última barra e antes de qualquer '?'
-    filename_part = original_url.split('/')[-1].split('?')[0]
-    # Extrair extensão (último ponto após o último slash)
-    if '.' in filename_part:
-        extensao = '.' + filename_part.split('.')[-1]
+    # Determinar a extensão a partir do arquivo original
+    # Extraímos da URL do Cloudinary (último segmento antes de '?')
+    url_filename = versao.arquivo_url.split('/')[-1].split('?')[0]
+    if '.' in url_filename:
+        extensao = '.' + url_filename.split('.')[-1]
     else:
-        extensao = ''  # fallback - não deveria acontecer
+        extensao = ''
     
-    # Nome amigável (baseado na versão e extensão original)
     nome_arquivo = f"dwcapital_robo_v{versao.versao}{extensao}"
     
-    # Construir nova URL com parâmetro fl_attachment
-    parsed = urlparse(original_url)
-    query_params = parse_qs(parsed.query)
-    # O parâmetro fl_attachment define o nome do arquivo baixado
-    query_params['fl_attachment'] = nome_arquivo
-    new_query = urlencode(query_params, doseq=True)
-    nova_url = parsed._replace(query=new_query).geturl()
-    
-    return redirect(nova_url)
+    # Enviar o arquivo como attachment
+    return send_file(
+        io.BytesIO(response.content),
+        as_attachment=True,
+        download_name=nome_arquivo,
+        mimetype='application/octet-stream'
+    )
 
 @client_bp.route('/faturas/gerar_licenca', methods=['POST'])
 @login_required
@@ -414,7 +416,7 @@ def gerar_licenca():
     """
     hoje = datetime.now(tz_br).date()
     
-    if hoje.weekday() != 5:
+    if hoje.weekday() != 5:  # 5 = sábado
         return jsonify({
             "success": False,
             "error": "DIA_INVALIDO",
