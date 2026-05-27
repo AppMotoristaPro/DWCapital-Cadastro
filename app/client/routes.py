@@ -19,6 +19,7 @@ from app.services.pix_service import PixService
 from app.utils.autentique import obter_url_visualizacao_autentique
 from app.services.robo_service import versao_atual, liberado_para_download, registrar_download, historico_downloads_cliente
 from app.services.licenca_service import verificar_condicoes_licenca, gerar_chave_licenca, calcular_ciclo_por_data
+from urllib.parse import urlparse, parse_qs, urlencode
 
 logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
@@ -342,15 +343,12 @@ def api_status_documento(doc_id):
 @login_required
 def robo_download():
     """Página de download do robô: exibe versão atual, botão condicionado e histórico."""
-    # Versão ativa
     versao = versao_atual()
     if not versao:
         flash("Nenhuma versão do robô disponível no momento.", "warning")
         return render_template('client/robo_download.html', versao=None, botao_liberado=False, historico=[])
     
-    # Verifica se o cliente já baixou esta versão
     liberado, msg = liberado_para_download(current_user, versao)
-    # Histórico de downloads do cliente
     historico = historico_downloads_cliente(current_user)
     
     return render_template(
@@ -364,7 +362,7 @@ def robo_download():
 @client_bp.route('/robo/download', methods=['POST'])
 @login_required
 def baixar_robo():
-    """Endpoint que registra o download e redireciona para o arquivo."""
+    """Registra o download e redireciona para o arquivo no Cloudinary com nome amigável."""
     versao = versao_atual()
     if not versao:
         return jsonify({"error": "Nenhuma versão disponível"}), 404
@@ -376,8 +374,31 @@ def baixar_robo():
     # Registrar download
     registrar_download(current_user, versao.id)
     
-    # Redirecionar para a URL do arquivo
-    return redirect(versao.arquivo_url)
+    # Obter URL original do Cloudinary
+    original_url = versao.arquivo_url
+    
+    # Extrair extensão do arquivo original (baseado na URL)
+    # Exemplo: https://res.cloudinary.com/.../dwcapital/robos/arquivo.exe?...
+    # Pegamos o segmento após a última barra e antes de qualquer '?'
+    filename_part = original_url.split('/')[-1].split('?')[0]
+    # Extrair extensão (último ponto após o último slash)
+    if '.' in filename_part:
+        extensao = '.' + filename_part.split('.')[-1]
+    else:
+        extensao = ''  # fallback - não deveria acontecer
+    
+    # Nome amigável (baseado na versão e extensão original)
+    nome_arquivo = f"dwcapital_robo_v{versao.versao}{extensao}"
+    
+    # Construir nova URL com parâmetro fl_attachment
+    parsed = urlparse(original_url)
+    query_params = parse_qs(parsed.query)
+    # O parâmetro fl_attachment define o nome do arquivo baixado
+    query_params['fl_attachment'] = nome_arquivo
+    new_query = urlencode(query_params, doseq=True)
+    nova_url = parsed._replace(query=new_query).geturl()
+    
+    return redirect(nova_url)
 
 @client_bp.route('/faturas/gerar_licenca', methods=['POST'])
 @login_required
@@ -393,18 +414,15 @@ def gerar_licenca():
     """
     hoje = datetime.now(tz_br).date()
     
-    # 1. Verificar se hoje é sábado
-    if hoje.weekday() != 5:  # 5 = sábado
+    if hoje.weekday() != 5:
         return jsonify({
             "success": False,
             "error": "DIA_INVALIDO",
             "message": "A geração de licenças só é permitida aos sábados."
         }), 400
     
-    # 2. Calcular ciclo (sexta anterior e quinta)
     inicio_ciclo, fim_ciclo = calcular_ciclo_por_data(hoje)
     
-    # 3. Verificar condições
     liberado, mensagem, pendencias = verificar_condicoes_licenca(current_user, inicio_ciclo)
     if not liberado:
         return jsonify({
@@ -414,7 +432,6 @@ def gerar_licenca():
             "pendencias": pendencias
         }), 400
     
-    # 4. Gerar chave de licença (placeholder)
     chave, msg_geracao = gerar_chave_licenca(current_user, inicio_ciclo)
     
     return jsonify({
