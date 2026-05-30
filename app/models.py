@@ -25,6 +25,9 @@ class User(db.Model, UserMixin):
     corretora = db.Column(db.String(50), nullable=True)
     capital_alocado = db.Column(db.Float, default=0.0)
     
+    # NOVO CAMPO
+    conta_mt5 = db.Column(db.String(20), nullable=True)
+    
     perfil_risco = db.Column(db.String(20))
     data_cadastro = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     matricula = db.Column(db.String(20), unique=True, nullable=True)
@@ -221,12 +224,18 @@ class LicencaCliente(db.Model):
     ciclo_inicio = db.Column(db.Date, nullable=False)             # Data de início do ciclo (sexta)
     ciclo_fim = db.Column(db.Date, nullable=False)                # Data de fim do ciclo (quinta)
     
+    # NOVOS CAMPOS
+    tipo = db.Column(db.String(20), nullable=False, default='semanal')   # 'semanal' ou 'vitalicia'
+    data_expiracao = db.Column(db.DateTime, nullable=True)               # apenas para semanais
+    status = db.Column(db.String(20), nullable=False, default='ativa')   # 'ativa', 'expirada'
+    conta_mt5 = db.Column(db.String(20), nullable=True)                  # redundante, cópia do User
+    
     __table_args__ = (
         db.UniqueConstraint('user_id', 'ciclo_inicio', name='_user_ciclo_uc'),
     )
 
     def __repr__(self):
-        return f"<LicencaCliente user={self.user_id} ciclo={self.ciclo_inicio}>"
+        return f"<LicencaCliente user={self.user_id} tipo={self.tipo} ciclo={self.ciclo_inicio}>"
 
 # =============================================================================
 
