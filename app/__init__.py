@@ -68,7 +68,7 @@ def create_app():
     register_cli_commands(app)
 
     from app.auth.routes import auth_bp
-    from app.client import client_bp
+    from app.client.routes import client_bp
     from app.admin.routes import admin_bp
     from app.api.pix_webhook import api_bp # Importa as rotas de API do Webhook
     
