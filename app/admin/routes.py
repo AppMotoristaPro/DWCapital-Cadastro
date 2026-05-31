@@ -793,6 +793,15 @@ def cliente_licencas(id):
     licencas = LicencaCliente.query.filter_by(user_id=cliente.id).order_by(LicencaCliente.data_geracao.desc()).all()
     return render_template('admin/cliente_licencas.html', cliente=cliente, licencas=licencas)
 
+# ==================== NOVA ROTA: RELATÓRIO DE GESTÃO ====================
+
+@admin_bp.route('/relatorio_gestao')
+@admin_required
+def relatorio_gestao():
+    from app.services.relatorio_service import gerar_relatorio_gestao
+    output = gerar_relatorio_gestao()
+    return send_file(output, as_attachment=True, download_name='relatorio_gestao.xlsx')
+
 # ==================== FUNÇÕES AUXILIARES ====================
 
 def _executar_reprocessamento_por_corretora(corretora_nome):
