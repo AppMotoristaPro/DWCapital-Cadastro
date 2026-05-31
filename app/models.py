@@ -25,8 +25,11 @@ class User(db.Model, UserMixin):
     corretora = db.Column(db.String(50), nullable=True)
     capital_alocado = db.Column(db.Float, default=0.0)
     
-    # NOVO CAMPO
+    # Conta MT5 do cliente (usada para geração de licenças)
     conta_mt5 = db.Column(db.String(20), nullable=True)
+    
+    # NOVO CAMPO: bloqueio de geração de licenças (admin)
+    licenca_bloqueada = db.Column(db.Boolean, default=False)
     
     perfil_risco = db.Column(db.String(20))
     data_cadastro = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
@@ -42,7 +45,7 @@ class User(db.Model, UserMixin):
     
     parcelas_licenca = db.relationship('ParcelaCompra', backref='cliente', lazy=True, cascade="all, delete-orphan", order_by="ParcelaCompra.ordem")
     
-    # Novos relacionamentos (para controle de download e licenças)
+    # Relacionamentos de download e licenças
     downloads = db.relationship('DownloadControle', backref='cliente', lazy=True, cascade="all, delete-orphan")
     licencas = db.relationship('LicencaCliente', backref='cliente', lazy=True, cascade="all, delete-orphan")
 
@@ -176,7 +179,7 @@ class DocumentoCliente(db.Model):
     template = db.relationship('DocumentoTemplate', backref='documentos_enviados')
 
 # =============================================================================
-# NOVAS CLASSES PARA CONTROLE DE VERSÃO DO ROBÔ E LICENÇAS
+# CONTROLE DE VERSÃO DO ROBÔ E LICENÇAS
 # =============================================================================
 
 class VersaoRobo(db.Model):
@@ -185,17 +188,16 @@ class VersaoRobo(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     versao = db.Column(db.String(20), nullable=False)
-    arquivo_url = db.Column(db.String(255), nullable=False)      # URL no Cloudinary
-    novidades = db.Column(db.Text, nullable=True)                # Changelog / novidades
+    arquivo_url = db.Column(db.String(255), nullable=False)
+    novidades = db.Column(db.Text, nullable=True)
     data_upload = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
-    publicada = db.Column(db.Boolean, default=False)             # Apenas uma versão pode ser True
-    extensao = db.Column(db.String(10), nullable=True)          # Extensão do arquivo (.exe, .ex5, .zip)
+    publicada = db.Column(db.Boolean, default=False)
+    extensao = db.Column(db.String(10), nullable=True)
 
     def __repr__(self):
         return f"<VersaoRobo {self.versao}>"
 
 class DownloadControle(db.Model):
-    """Registra quando um cliente baixou uma versão específica do robô."""
     __tablename__ = 'download_controle'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -203,7 +205,6 @@ class DownloadControle(db.Model):
     versao_id = db.Column(db.Integer, db.ForeignKey('versao_robo.id'), nullable=False)
     data_download = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     
-    # Relacionamento com VersaoRobo (opcional, para consultas)
     versao = db.relationship('VersaoRobo', backref='downloads')
 
     __table_args__ = (
@@ -214,25 +215,23 @@ class DownloadControle(db.Model):
         return f"<DownloadControle user={self.user_id} versao={self.versao_id}>"
 
 class LicencaCliente(db.Model):
-    """Registra as licenças geradas para cada ciclo (sábado)."""
+    """Registra as licenças geradas (semanais ou vitalícias)."""
     __tablename__ = 'licenca_cliente'
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    chave_licenca = db.Column(db.String(100), nullable=False)     # Chave gerada pelo motor externo
+    chave_licenca = db.Column(db.String(100), nullable=False)
     data_geracao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
-    ciclo_inicio = db.Column(db.Date, nullable=False)             # Data de início do ciclo (sexta)
-    ciclo_fim = db.Column(db.Date, nullable=False)                # Data de fim do ciclo (quinta)
+    ciclo_inicio = db.Column(db.Date, nullable=False)    # para semanais; para vitalícias pode ser a data de criação
+    ciclo_fim = db.Column(db.Date, nullable=False)
     
-    # NOVOS CAMPOS
     tipo = db.Column(db.String(20), nullable=False, default='semanal')   # 'semanal' ou 'vitalicia'
     data_expiracao = db.Column(db.DateTime, nullable=True)               # apenas para semanais
-    status = db.Column(db.String(20), nullable=False, default='ativa')   # 'ativa', 'expirada'
-    conta_mt5 = db.Column(db.String(20), nullable=True)                  # redundante, cópia do User
+    status = db.Column(db.String(20), nullable=False, default='ativa')   # 'ativa', 'expirada', 'cancelada'
+    conta_mt5 = db.Column(db.String(20), nullable=True)                  # redundante (cópia do User)
     
-    __table_args__ = (
-        db.UniqueConstraint('user_id', 'ciclo_inicio', name='_user_ciclo_uc'),
-    )
+    # Constraint unique removida para permitir múltiplas licenças por ciclo (histórico)
+    # __table_args__ = ()   # sem constraints adicionais
 
     def __repr__(self):
         return f"<LicencaCliente user={self.user_id} tipo={self.tipo} ciclo={self.ciclo_inicio}>"
