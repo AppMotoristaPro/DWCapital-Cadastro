@@ -30,7 +30,7 @@
                 <tbody class="divide-y divide-gray-100 bg-white">
                     {% for lic in licencas %}
                     <tr class="hover:bg-gray-50/50 transition-colors">
-                        <td class="px-6 py-5 text-sm font-mono">{{ lic.data_geracao.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td class="px-6 py-5 text-sm font-mono">{{ (lic.data_geracao | to_tz_br).strftime('%d/%m/%Y %H:%M') }}</td>
                         <td class="px-6 py-5">
                             <span class="px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest 
                                 {% if lic.tipo == 'semanal' %}bg-blue-100 text-royal border border-blue-200
@@ -42,7 +42,7 @@
                         <td class="px-6 py-5 text-sm">{{ lic.ciclo_inicio.strftime('%d/%m/%Y') }} a {{ lic.ciclo_fim.strftime('%d/%m/%Y') }}</td>
                         <td class="px-6 py-5 text-sm">
                             {% if lic.data_expiracao %}
-                                {{ lic.data_expiracao.strftime('%d/%m/%Y %H:%M') }}
+                                {{ (lic.data_expiracao | to_tz_br).strftime('%d/%m/%Y %H:%M') }}
                             {% else %}
                                 <span class="text-green-600 font-black">Vitalícia (nunca expira)</span>
                             {% endif %}

@@ -64,7 +64,7 @@
                     {% for v in versoes %}
                     <tr class="hover:bg-gray-50/50 transition-colors">
                         <td class="px-8 py-5 font-bold text-navy">{{ v.versao }}</td>
-                        <td class="px-6 py-5 text-[10px] font-bold text-gray-500">{{ v.data_upload.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td class="px-6 py-5 text-[10px] font-bold text-gray-500">{{ (v.data_upload | to_tz_br).strftime('%d/%m/%Y %H:%M') }}</td>
                         <td class="px-6 py-5">
                             {% if v.publicada %}
                                 <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-green-100 text-green-700 text-[9px] font-black uppercase rounded-lg shadow-sm">
