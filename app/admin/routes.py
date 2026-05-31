@@ -8,7 +8,7 @@ from flask_login import current_user
 from werkzeug.security import generate_password_hash
 from sqlalchemy.orm import joinedload
 from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria, DocumentoTemplate, DocumentoCliente, ParcelaCompra, VersaoRobo, DownloadControle, LicencaCliente
-from app import db
+from app import db, csrf   # <-- importa o csrf
 from datetime import datetime, timedelta
 from app.utils.decorators import admin_required
 from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo, auto_gerar_ciclos_em_lote
@@ -120,7 +120,6 @@ def editar_cliente(id):
         cliente.celular = request.form.get('celular')
         cliente.is_isento = True if request.form.get('is_isento') else False
         
-        # NOVO CAMPO: Conta MT5
         cliente.conta_mt5 = request.form.get('conta_mt5', '').strip()
         
         novo_modelo = request.form.get('modelo_negocio', 'comissao')
@@ -151,12 +150,8 @@ def editar_cliente(id):
                 
         cliente.capital_alocado = capital_soma
         
-        # ============================================================
-        # LÓGICA DE TROCA DE MODELO DE NEGÓCIO
-        # ============================================================
         if modelo_anterior != novo_modelo:
             if novo_modelo == 'compra':
-                # Mudou de comissão para compra
                 if cliente.termo_assinado:
                     parcela_inicial = ParcelaCompra.query.filter_by(user_id=cliente.id, ordem=1, status='pago').first()
                     if parcela_inicial:
@@ -172,7 +167,6 @@ def editar_cliente(id):
                     flash('Cliente alterado para compra, mas ainda não assinou os termos. Licença será gerada após assinatura.', 'warning')
                     
             elif novo_modelo == 'comissao':
-                # Mudou de compra para comissão: invalidar licença vitalícia existente
                 licenca_vitalicia = obter_licenca_ativa(cliente, tipo='vitalicia')
                 if licenca_vitalicia:
                     licenca_vitalicia.status = 'cancelada'
@@ -775,11 +769,12 @@ def forcar_licenca_vitalicia(id):
     flash(f'Licença vitalícia gerada/regenerada com sucesso! Chave: {chave}', 'success')
     return redirect(url_for('admin.editar_cliente', id=id))
 
-# ==================== ROTA PARA JOB DE EXPIRAÇÃO ====================
+# ==================== ROTA PARA JOB DE EXPIRAÇÃO (com CSRF exempt) ====================
 
 @admin_bp.route('/cron/expirar_licencas', methods=['POST'])
+@csrf.exempt   # <--- ISENTA CSRF PARA PERMITIR CHAMADA EXTERNA
 def cron_expirar_licencas():
-    """Endpoint chamado pelo GitHub Actions para expirar licenças semanais."""
+    """Endpoint chamado pelo GitHub Actions ou cron-job.org para expirar licenças semanais."""
     token = request.headers.get('X-Cron-Secret')
     if token != os.environ.get('CRON_SECRET'):
         return jsonify({"error": "Não autorizado"}), 403
