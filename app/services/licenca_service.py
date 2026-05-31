@@ -3,6 +3,10 @@ Serviço de licenças – Responsável por toda lógica de geração, validaçã
 Tipos:
 - semanal: para clientes comissão, válida até domingo 23:59, geração permitida apenas em dias úteis.
 - vitalicia: para clientes compra, válida para sempre (não expira).
+
+Regras de expiração:
+- Licenças semanais com data_expiracao < agora são marcadas como status='expirada' pelo job semanal.
+- A função existe_licenca_para_ciclo ignora licenças com status 'expirada', permitindo gerar nova licença para o mesmo ciclo.
 """
 
 from datetime import datetime, timedelta
@@ -120,10 +124,14 @@ def obter_licenca_ativa(user, tipo=None):
 
 
 def existe_licenca_para_ciclo(user, ciclo_inicio):
-    """Verifica se já existe licença (ativa ou expirada) para aquele ciclo."""
-    return LicencaCliente.query.filter_by(
-        user_id=user.id,
-        ciclo_inicio=ciclo_inicio
+    """
+    Verifica se já existe licença (não expirada) para aquele ciclo.
+    Ignora licenças com status 'expirada' para permitir nova geração após expiração.
+    """
+    return LicencaCliente.query.filter(
+        LicencaCliente.user_id == user.id,
+        LicencaCliente.ciclo_inicio == ciclo_inicio,
+        LicencaCliente.status != 'expirada'   # <-- IGNORA EXPIRADAS
     ).first() is not None
 
 
@@ -138,7 +146,7 @@ def verificar_condicoes_comissao(user, ciclo_inicio):
     status pode ser:
         - True (liberado)
         - False (não liberado, erro)
-        - "LICENCA_EXISTENTE" (já existe licença, retorna o objeto)
+        - "LICENCA_EXISTENTE" (já existe licença não expirada, retorna o objeto)
     """
     # Caso especial: cliente novo (sem nenhuma fatura)
     possui_fatura = Fatura.query.filter_by(user_id=user.id).first() is not None
@@ -160,10 +168,11 @@ def verificar_condicoes_comissao(user, ciclo_inicio):
         if fatura.status != 'pago':
             return False, "Pagamento deste ciclo ainda não foi confirmado pela administração.", {'pagamento_pendente': True}, None
 
-    # Verificar se já existe licença para este ciclo
-    licenca_existente = LicencaCliente.query.filter_by(
-        user_id=user.id,
-        ciclo_inicio=ciclo_inicio
+    # Verificar se já existe licença NÃO EXPIRADA para este ciclo
+    licenca_existente = LicencaCliente.query.filter(
+        LicencaCliente.user_id == user.id,
+        LicencaCliente.ciclo_inicio == ciclo_inicio,
+        LicencaCliente.status != 'expirada'
     ).first()
     if licenca_existente:
         return "LICENCA_EXISTENTE", "Uma licença já foi gerada para este ciclo.", {}, licenca_existente
@@ -177,7 +186,7 @@ def verificar_condicoes_comissao(user, ciclo_inicio):
 
 def gerar_licenca_comissao(user, conta_mt5, semana_id=None):
     """
-    Gera uma nova licença semanal ou retorna a existente.
+    Gera uma nova licença semanal ou retorna a existente (não expirada).
     Retorna (chave, mensagem, licenca_obj, ja_existente)
     """
     possui_fatura = Fatura.query.filter_by(user_id=user.id).first() is not None
@@ -191,7 +200,7 @@ def gerar_licenca_comissao(user, conta_mt5, semana_id=None):
     # Verificar condições
     status, msg, _, licenca_existente = verificar_condicoes_comissao(user, ciclo_inicio)
 
-    # Se já existe licença, retornar ela
+    # Se já existe licença (não expirada), retornar ela
     if status == "LICENCA_EXISTENTE" and licenca_existente:
         return licenca_existente.chave_licenca, msg, licenca_existente, True
 
@@ -277,7 +286,8 @@ def salvar_conta_mt5_e_gerar_vitalicia_se_necessario(user, nova_conta):
 def expirar_licencas_semanais():
     """
     Marca como expiradas todas as licenças semanais cuja data_expiracão já passou.
-    Deve ser chamada por um job agendado (GitHub Actions) toda segunda-feira às 00:00.
+    Deve ser chamada por um job agendado (cron-job.org ou GitHub Actions) toda segunda-feira às 00:00.
+    Licenças expiradas não são excluídas, apenas têm status alterado para 'expirada'.
     """
     agora = datetime.now(tz_br)
     licencas = LicencaCliente.query.filter(
