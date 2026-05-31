@@ -6,9 +6,14 @@
         <div>
             <h1 class="text-4xl font-black text-navy tracking-tight">Gestão de Clientes</h1>
         </div>
-        <button onclick="document.getElementById('modal-novo-acesso').classList.remove('hidden')" class="px-6 py-4 bg-royal hover:bg-royal-dark text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg transition">
-            Liberar Novo Acesso
-        </button>
+        <div>
+            <button onclick="document.getElementById('modal-novo-acesso').classList.remove('hidden')" class="px-6 py-4 bg-royal hover:bg-royal-dark text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg transition">
+                Liberar Novo Acesso
+            </button>
+            <a href="{{ url_for('admin.relatorio_gestao') }}" class="px-6 py-4 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg transition ml-4">
+                Relatório de Gestão
+            </a>
+        </div>
     </div>
 
     <div class="mb-8 flex flex-wrap gap-4 bg-white/60 backdrop-blur-xl p-3 rounded-3xl shadow-sm border border-white w-full max-w-4xl">

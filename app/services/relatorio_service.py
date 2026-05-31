@@ -1,10 +1,5 @@
 """
-Serviço para geração do Relatório de Gestão (Excel)
-Itens:
-- Totais gerais (clientes ativos/inativos, capital alocado, médias de ganhos semanais/mensais)
-- Total de repasse real (apenas comissionados não isentos)
-- Total de repasse simulado (30% sobre liquido de todos, exceto isentos)
-- Listagem detalhada por cliente (ativos)
+Serviço para geração do Relatório de Gestão (Excel) com formatação de moeda brasileira (R$).
 """
 
 from datetime import datetime, timedelta
@@ -12,7 +7,7 @@ import pytz
 from app import db
 from app.models import User, Fatura, FaturaDiaria
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
 import tempfile
 import os
 
@@ -43,7 +38,11 @@ def gerar_relatorio_gestao():
     left_align = Alignment(horizontal='left', vertical='center')
     right_align = Alignment(horizontal='right', vertical='center')
 
-    # ==================== 1. TOTAGERAL ====================
+    # Formato de moeda brasileira
+    currency_format = numbers.FORMAT_CURRENCY_BRL_SIMPLE  # 'R$ #,##0.00'
+    # Ou para garantir: '"R$" #,##0.00'
+
+    # ==================== 1. TOTAIS GERAIS ====================
     ws.merge_cells('A1:E1')
     ws['A1'] = 'RELATÓRIO DE GESTÃO - DW CAPITAL'
     ws['A1'].font = Font(bold=True, size=14)
@@ -58,13 +57,7 @@ def gerar_relatorio_gestao():
         User.role == 'cliente', User.status_acesso == 'ativo'
     ).scalar() or 0.0
 
-    # Médias de ganhos (com base no líquido operacional - campo 'liquido' da fatura diária)
-    # Vamos calcular a média diária de 'liquido' (resultado após IR, antes do repasse)
-    # considerando apenas dias com relatório enviado.
-    # Para média semanal: média diária * 5 (dias úteis)
-    # Para média mensal: média diária * 22 (dias úteis médios por mês)
-
-    # Buscar todos os registros de FaturaDiaria com status 'relatorio_enviado' de clientes ativos
+    # Médias de ganhos
     dias_operados = db.session.query(FaturaDiaria.liquido).join(Fatura).join(User).filter(
         User.role == 'cliente',
         User.status_acesso == 'ativo',
@@ -86,9 +79,7 @@ def gerar_relatorio_gestao():
         db.or_(User.is_isento == False, User.is_isento.is_(None))
     ).scalar() or 0.0
 
-    # Repasse simulado (30% sobre o liquido de todos os clientes, exceto isentos)
-    # Para isso, somamos o campo 'liquido' de todas as faturas diárias de clientes não isentos
-    # e multiplicamos por 0.30
+    # Repasse simulado (30% sobre o liquido de todos, exceto isentos)
     liquido_total_nao_isentos = db.session.query(db.func.sum(FaturaDiaria.liquido)).join(Fatura).join(User).filter(
         User.is_isento == False,
         FaturaDiaria.status == 'relatorio_enviado'
@@ -108,18 +99,23 @@ def gerar_relatorio_gestao():
     linha += 1
     ws.cell(row=linha, column=1, value='Capital Total Alocado (R$)')
     ws.cell(row=linha, column=2, value=capital_total)
+    ws.cell(row=linha, column=2).number_format = currency_format
     linha += 1
     ws.cell(row=linha, column=1, value='Média de Ganhos Semanais (Global - R$)')
     ws.cell(row=linha, column=2, value=round(media_semanal_global, 2))
+    ws.cell(row=linha, column=2).number_format = currency_format
     linha += 1
     ws.cell(row=linha, column=1, value='Média de Ganhos Mensais (Global - R$)')
     ws.cell(row=linha, column=2, value=round(media_mensal_global, 2))
+    ws.cell(row=linha, column=2).number_format = currency_format
     linha += 1
     ws.cell(row=linha, column=1, value='Repasse Real DW (R$)')
     ws.cell(row=linha, column=2, value=round(repasse_real, 2))
+    ws.cell(row=linha, column=2).number_format = currency_format
     linha += 1
     ws.cell(row=linha, column=1, value='Repasse Simulado DW (30% sobre todos não isentos - R$)')
     ws.cell(row=linha, column=2, value=round(repasse_simulado, 2))
+    ws.cell(row=linha, column=2).number_format = currency_format
 
     # Aplicar bordas e alinhamento nas células de totais
     for row in range(3, linha+1):
@@ -192,11 +188,27 @@ def gerar_relatorio_gestao():
         ws.cell(row=linha, column=3, value=cliente.conta_mt5 or '').border = thin_border
         modelo_str = 'Comissão' if cliente.modelo_negocio == 'comissao' else 'Compra'
         ws.cell(row=linha, column=4, value=modelo_str).border = thin_border
-        ws.cell(row=linha, column=5, value=round(cliente.capital_alocado or 0.0, 2)).border = thin_border
-        ws.cell(row=linha, column=6, value=round(ganho_semanal, 2)).border = thin_border
-        ws.cell(row=linha, column=7, value=round(ganho_mensal, 2)).border = thin_border
-        ws.cell(row=linha, column=8, value=round(repasse_real_cliente, 2)).border = thin_border
-        ws.cell(row=linha, column=9, value=round(repasse_simulado_cliente, 2)).border = thin_border
+
+        # Valores monetários com formatação
+        cell_capital = ws.cell(row=linha, column=5, value=round(cliente.capital_alocado or 0.0, 2))
+        cell_capital.number_format = currency_format
+        cell_capital.border = thin_border
+
+        cell_semanal = ws.cell(row=linha, column=6, value=round(ganho_semanal, 2))
+        cell_semanal.number_format = currency_format
+        cell_semanal.border = thin_border
+
+        cell_mensal = ws.cell(row=linha, column=7, value=round(ganho_mensal, 2))
+        cell_mensal.number_format = currency_format
+        cell_mensal.border = thin_border
+
+        cell_repasse_real = ws.cell(row=linha, column=8, value=round(repasse_real_cliente, 2))
+        cell_repasse_real.number_format = currency_format
+        cell_repasse_real.border = thin_border
+
+        cell_repasse_sim = ws.cell(row=linha, column=9, value=round(repasse_simulado_cliente, 2))
+        cell_repasse_sim.number_format = currency_format
+        cell_repasse_sim.border = thin_border
 
         # Alinhamento
         for col in range(1, 10):
@@ -211,7 +223,8 @@ def gerar_relatorio_gestao():
     # Ajustar larguras das colunas
     column_widths = [30, 15, 12, 12, 18, 20, 20, 18, 18]
     for i, width in enumerate(column_widths, start=1):
-        ws.column_dimensions[chr(64 + i)].width = width
+        col_letter = chr(64 + i) if i <= 26 else 'A' + chr(64 + (i-26))  # suporte até 52
+        ws.column_dimensions[col_letter].width = width
 
     # Salvar em arquivo temporário
     fd, temp_path = tempfile.mkstemp(suffix='.xlsx')
