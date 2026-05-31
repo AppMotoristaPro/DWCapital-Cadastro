@@ -26,10 +26,10 @@
                 <div>
                     {% if current_user.modelo_negocio == 'compra' %}
                         <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Líquido Operacional</p>
-                        <p class="text-2xl font-black text-navy">R$ {{ fatura.liquido|format_brl }}</p>
+                        <p class="text-2xl font-black text-navy">R$ {{ fatura.subtotal_exibicao|format_brl }}</p>
                     {% else %}
                         <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Repasse Total</p>
-                        <p class="text-2xl font-black text-green-600">R$ {{ fatura.repasse|format_brl }}</p>
+                        <p class="text-2xl font-black text-green-600">R$ {{ fatura.subtotal_exibicao|format_brl }}</p>
                     {% endif %}
                 </div>
             </div>
@@ -154,7 +154,7 @@
                                                     </div>
                                                 </td>
                                             {% endif %}
-                                        </tr>
+                                        </td>
                                         {% endif %}
                                     {% endfor %}
                                 </tbody>

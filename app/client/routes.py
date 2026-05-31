@@ -210,6 +210,18 @@ def faturas():
     auto_gerar_ciclo(current_user)
     faturas_carregadas = Fatura.query.options(joinedload(Fatura.dias)).filter_by(user_id=current_user.id).order_by(Fatura.data_inicio.desc()).all()
 
+    # ==================== CORREÇÃO DO ITEM 1 ====================
+    # Pré-calcular o subtotal exato para cada fatura, igual ao que será exibido dentro do ciclo
+    for fatura in faturas_carregadas:
+        if current_user.modelo_negocio == 'compra':
+            # Soma de dia.liquido (subtotal líquido)
+            subtotal = sum(dia.liquido for dia in fatura.dias if dia.status == 'relatorio_enviado')
+        else:
+            # Soma de dia.repasse (subtotal de repasse)
+            subtotal = sum(dia.repasse for dia in fatura.dias if dia.status == 'relatorio_enviado')
+        fatura.subtotal_exibicao = subtotal
+    # ==================== FIM DA CORREÇÃO ====================
+
     if request.method == 'GET':
         houve_alteracao = False
         data_cadastro = current_user.data_cadastro.date() if current_user.data_cadastro else datetime.min.date()
