@@ -62,7 +62,6 @@
                                 <span class="px-2 py-0.5 bg-purple-100 text-purple-700 border border-purple-200 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">Isento</span>
                                 {% endif %}
 
-                                <!-- NOVO BADGE DE BLOQUEIO -->
                                 {% if cliente.licenca_bloqueada %}
                                 <span class="px-2 py-0.5 bg-red-100 text-red-700 border border-red-200 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">🔒 Licenças bloqueadas</span>
                                 {% endif %}
@@ -89,9 +88,13 @@
                             </span>
                         </td>
                         <td class="px-8 py-6 text-right">
-                            <div class="flex justify-end items-center gap-2">
+                            <div class="flex justify-end items-center gap-2 flex-wrap">
                                 <button type="button" onclick="abrirModalFicha('ficha-template-{{ cliente.id }}')" class="text-[10px] px-4 py-2.5 bg-white border border-blue-100 text-royal font-black uppercase tracking-widest rounded-xl hover:bg-blue-50 transition shadow-sm">Ficha</button>
                                 <a href="{{ url_for('admin.editar_cliente', id=cliente.id) }}" class="text-[10px] px-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-600 font-black uppercase tracking-widest rounded-xl hover:bg-white transition shadow-sm">Editar</a>
+                                
+                                <a href="{{ url_for('admin.cliente_licencas', id=cliente.id) }}" class="text-[10px] px-4 py-2.5 bg-purple-50 border border-purple-200 text-purple-700 font-black uppercase tracking-widest rounded-xl hover:bg-purple-100 transition shadow-sm">
+                                    Histórico de Licenças
+                                </a>
                                 
                                 {% if cliente.status_acesso == 'ativo' or cliente.status_acesso == 'pendente_cadastro' %}
                                 <form action="{{ url_for('admin.inativar_cliente', id=cliente.id) }}" method="POST" class="inline">
@@ -124,7 +127,6 @@
                                     </div>
                                     <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><span class="block text-[10px] uppercase font-black text-gray-400 mb-1">Endereço Completo</span><span class="text-navy font-bold">{{ cliente.endereco or 'Não preenchido' }}</span></div>
                                     
-                                    <!-- NOVA LINHA: Conta MT5 -->
                                     <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><span class="block text-[10px] uppercase font-black text-gray-400 mb-1">Conta MT5</span><span class="text-navy font-bold">{{ cliente.conta_mt5 or 'Não informada' }}</span></div>
                                     
                                     <div class="bg-blue-50/50 p-5 rounded-xl border border-blue-100">

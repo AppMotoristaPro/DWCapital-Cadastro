@@ -122,7 +122,6 @@ def editar_cliente(id):
         
         cliente.conta_mt5 = request.form.get('conta_mt5', '').strip()
         
-        # NOVO CAMPO: bloqueio de licenças
         cliente.licenca_bloqueada = True if request.form.get('licenca_bloqueada') else False
         
         novo_modelo = request.form.get('modelo_negocio', 'comissao')
@@ -784,6 +783,15 @@ def cron_expirar_licencas():
     quantidade = expirar_licencas_semanais()
     registrar_log(f"Job automático: expirou {quantidade} licenças semanais.", "Sistema")
     return jsonify({"status": "ok", "expiradas": quantidade}), 200
+
+# ==================== NOVA ROTA: HISTÓRICO DE LICENÇAS ====================
+
+@admin_bp.route('/cliente_licencas/<int:id>')
+@admin_required
+def cliente_licencas(id):
+    cliente = User.query.get_or_404(id)
+    licencas = LicencaCliente.query.filter_by(user_id=cliente.id).order_by(LicencaCliente.data_geracao.desc()).all()
+    return render_template('admin/cliente_licencas.html', cliente=cliente, licencas=licencas)
 
 # ==================== FUNÇÕES AUXILIARES ====================
 
