@@ -28,7 +28,8 @@ from app.services.licenca_service import (
     salvar_conta_mt5_e_gerar_vitalicia_se_necessario,
     calcular_ciclo_anterior,
     obter_semana_id,
-    is_modo_teste
+    is_modo_teste,
+    is_licenca_bloqueada
 )
 
 logger = logging.getLogger(__name__)
@@ -452,6 +453,14 @@ def licenca_gerar():
             "message": "Esta rota é apenas para clientes comissionados."
         }), 400
     
+    # VERIFICAÇÃO DE BLOQUEIO
+    if is_licenca_bloqueada(current_user):
+        return jsonify({
+            "success": False,
+            "error": "BLOQUEADO",
+            "message": "A geração de licenças está bloqueada para este cliente. Entre em contato com o suporte."
+        }), 403
+    
     hoje = datetime.now(tz_br).date()
     # Verificar dia útil apenas se não estiver em modo teste
     if not is_modo_teste():
@@ -499,6 +508,14 @@ def licenca_visualizar():
             "error": "MODELO_INVALIDO",
             "message": "Esta rota é apenas para clientes que compraram o robô."
         }), 400
+    
+    # VERIFICAÇÃO DE BLOQUEIO
+    if is_licenca_bloqueada(current_user):
+        return jsonify({
+            "success": False,
+            "error": "BLOQUEADO",
+            "message": "A visualização de licenças está bloqueada para este cliente. Entre em contato com o suporte."
+        }), 403
     
     licenca = obter_licenca_ativa(current_user, tipo='vitalicia')
     if not licenca:

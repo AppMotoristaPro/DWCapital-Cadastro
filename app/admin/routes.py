@@ -122,6 +122,9 @@ def editar_cliente(id):
         
         cliente.conta_mt5 = request.form.get('conta_mt5', '').strip()
         
+        # NOVO CAMPO: bloqueio de licenças
+        cliente.licenca_bloqueada = True if request.form.get('licenca_bloqueada') else False
+        
         novo_modelo = request.form.get('modelo_negocio', 'comissao')
         
         if novo_modelo == 'compra':
@@ -769,12 +772,11 @@ def forcar_licenca_vitalicia(id):
     flash(f'Licença vitalícia gerada/regenerada com sucesso! Chave: {chave}', 'success')
     return redirect(url_for('admin.editar_cliente', id=id))
 
-# ==================== ROTA PARA JOB DE EXPIRAÇÃO (com CSRF exempt) ====================
+# ==================== ROTA PARA JOB DE EXPIRAÇÃO ====================
 
 @admin_bp.route('/cron/expirar_licencas', methods=['POST'])
-@csrf.exempt   # <--- ISENTA CSRF PARA PERMITIR CHAMADA EXTERNA
+@csrf.exempt
 def cron_expirar_licencas():
-    """Endpoint chamado pelo GitHub Actions ou cron-job.org para expirar licenças semanais."""
     token = request.headers.get('X-Cron-Secret')
     if token != os.environ.get('CRON_SECRET'):
         return jsonify({"error": "Não autorizado"}), 403

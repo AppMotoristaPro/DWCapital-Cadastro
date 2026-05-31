@@ -61,6 +61,11 @@
                                 {% if cliente.is_isento %}
                                 <span class="px-2 py-0.5 bg-purple-100 text-purple-700 border border-purple-200 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">Isento</span>
                                 {% endif %}
+
+                                <!-- NOVO BADGE DE BLOQUEIO -->
+                                {% if cliente.licenca_bloqueada %}
+                                <span class="px-2 py-0.5 bg-red-100 text-red-700 border border-red-200 rounded text-[9px] font-black uppercase tracking-widest shadow-sm">🔒 Licenças bloqueadas</span>
+                                {% endif %}
                             </div>
                             <div class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">{{ cliente.cpf }} <span class="mx-1 text-gray-300">|</span> ID: {{ cliente.id }}</div>
                         </td>
@@ -118,6 +123,9 @@
                                         <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><span class="block text-[10px] uppercase font-black text-gray-400 mb-1">Celular / WhatsApp</span><span class="text-navy font-bold">{{ cliente.celular or 'Não preenchido' }}</span></div>
                                     </div>
                                     <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><span class="block text-[10px] uppercase font-black text-gray-400 mb-1">Endereço Completo</span><span class="text-navy font-bold">{{ cliente.endereco or 'Não preenchido' }}</span></div>
+                                    
+                                    <!-- NOVA LINHA: Conta MT5 -->
+                                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><span class="block text-[10px] uppercase font-black text-gray-400 mb-1">Conta MT5</span><span class="text-navy font-bold">{{ cliente.conta_mt5 or 'Não informada' }}</span></div>
                                     
                                     <div class="bg-blue-50/50 p-5 rounded-xl border border-blue-100">
                                         <span class="block text-[10px] uppercase font-black text-blue-500 mb-3">Corretoras Alocadas</span>
@@ -210,7 +218,6 @@ function abrirModalFicha(templateId) {
     }
 }
 
-// MOTOR JS DE BUSCA EM TEMPO REAL
 function filtrarClientes() {
     const texto = document.getElementById('filtro-texto').value.toLowerCase();
     const status = document.getElementById('filtro-status').value.toLowerCase();
@@ -236,4 +243,3 @@ function filtrarClientes() {
 }
 </script>
 {% endblock %}
-

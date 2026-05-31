@@ -28,6 +28,15 @@ def is_modo_teste():
 
 
 # ============================================================
+# BLOQUEIO DE LICENÇAS
+# ============================================================
+
+def is_licenca_bloqueada(user):
+    """Retorna True se o cliente está com a geração de licenças bloqueada pelo admin."""
+    return getattr(user, 'licenca_bloqueada', False)
+
+
+# ============================================================
 # AUXILIARES
 # ============================================================
 
