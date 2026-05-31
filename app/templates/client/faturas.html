@@ -45,10 +45,17 @@
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                     Voltar aos Ciclos
                 </button>
-                <!-- Botão Gerar Licença oculto (visível apenas para testes futuros) -->
-                <button onclick="gerarLicenca(globalFaturaAtivaId)" class="px-6 py-2.5 bg-purple-50 hover:bg-purple-100 text-purple-700 text-[10px] font-black uppercase tracking-widest rounded-xl transition border border-purple-200 shadow-sm" style="display: none;">
-                    Gerar Licença
+                
+                <!-- Botão de Licença condicional -->
+                {% if current_user.modelo_negocio == 'comissao' %}
+                <button onclick="gerarLicencaComissao()" class="px-6 py-2.5 bg-purple-50 hover:bg-purple-100 text-purple-700 text-[10px] font-black uppercase tracking-widest rounded-xl transition border border-purple-200 shadow-sm">
+                    Gerar Licença Semanal
                 </button>
+                {% elif current_user.modelo_negocio == 'compra' %}
+                <button onclick="visualizarLicencaVitalicia()" class="px-6 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-black uppercase tracking-widest rounded-xl transition border border-blue-200 shadow-sm">
+                    Visualizar Licença Vitalícia
+                </button>
+                {% endif %}
             </div>
             
             {% if current_user.modelo_negocio != 'compra' %}
@@ -95,7 +102,7 @@
                                         <th class="px-6 py-4 bg-green-50/30 text-green-600">Repasse DW <span class="block text-[8px] font-bold text-green-600/70 lowercase tracking-normal mt-0.5">(Líq. Real x 30%)</span></th>
                                         {% endif %}
                                         <th class="px-8 py-4 text-right">Ação / Documento</th>
-                                    </tr>
+                                    </td>
                                 </thead>
                                 <tbody class="divide-y divide-gray-50">
                                     {% set subtotal_parcial = namespace(total=0) %}
@@ -173,7 +180,6 @@
 
     {% if current_user.modelo_negocio != 'compra' %}
     <div id="modal-auditoria-pix-global" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
-        <!-- conteúdo do modal de auditoria (inalterado) -->
         <div class="bg-white border border-gray-100 w-full max-w-lg rounded-[2.5rem] shadow-2xl p-8 md:p-10 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
             <button onclick="fecharModalAuditoriaPagamento()" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black text-xl outline-none">&times;</button>
             <div class="mb-6 pb-4 border-b border-gray-100">
@@ -244,6 +250,56 @@
     </div>
     {% endif %}
 
+    <!-- Modal para solicitar conta MT5 -->
+    <div id="modal-solicitar-conta" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
+        <div class="bg-white w-full max-w-md rounded-[2rem] shadow-2xl p-10 relative border border-gray-100">
+            <button onclick="fecharModalSolicitarConta()" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black text-xl outline-none">&times;</button>
+            <div class="w-16 h-16 bg-royal/10 rounded-2xl flex items-center justify-center mx-auto mb-6 text-royal">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+            </div>
+            <h3 class="text-xl font-black text-navy mb-2">Conta MT5 Necessária</h3>
+            <p class="text-xs text-gray-500 font-medium mb-6">Para gerar sua licença, precisamos do número da sua conta MetaTrader 5.</p>
+            <input type="number" id="input-conta-mt5" placeholder="Ex: 123456" class="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-xl text-center text-lg font-black focus:bg-white focus:border-royal mb-6 outline-none transition">
+            <button onclick="salvarContaMT5()" class="w-full py-4 bg-royal text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg hover:-translate-y-1 transition">Salvar e Continuar</button>
+            <button onclick="fecharModalSolicitarConta()" class="mt-4 text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-navy transition w-full py-2">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Modal de regras para licença semanal -->
+    <div id="modal-regras-licenca" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
+        <div class="bg-white w-full max-w-md rounded-[2rem] shadow-2xl p-10 relative border border-gray-100">
+            <button onclick="fecharModalRegras()" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black text-xl outline-none">&times;</button>
+            <div class="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-6 text-purple-600">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+            </div>
+            <h3 class="text-xl font-black text-navy mb-4">Regras da Licença Semanal</h3>
+            <ul class="text-sm text-gray-600 space-y-2 text-left list-disc pl-4 mb-6">
+                <li>A licença é gerada apenas em dias úteis (segunda a sexta).</li>
+                <li>O ciclo anterior (sexta a quinta) deve estar com TODAS as notas enviadas.</li>
+                <li>Para comissionados o pagamento do ciclo deve estar confirmado pelo administrador.</li>
+                <li>Uma mesma licença não pode ser gerada duas vezes para o mesmo ciclo.</li>
+                <li>A licença gerada é válida até o domingo seguinte, às 23:59.</li>
+            </ul>
+            <button onclick="aceitarRegrasEProsseguir()" class="w-full py-4 bg-purple-600 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg hover:bg-purple-700 transition">Li e Aceito as Regras</button>
+        </div>
+    </div>
+
+    <!-- Modal de exibição da chave (para ambos os tipos) -->
+    <div id="modal-chave-licenca" class="hidden fixed inset-0 z-[150] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
+        <div class="bg-white w-full max-w-md rounded-[2rem] shadow-2xl p-10 relative text-center border border-gray-100">
+            <button onclick="fecharModalChave()" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black text-xl outline-none">&times;</button>
+            <div class="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-6 text-green-600">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+            </div>
+            <h3 id="modal-chave-titulo" class="text-xl font-black text-navy mb-2">Licença Gerada</h3>
+            <p class="text-xs text-gray-500 font-medium mb-6">Utilize a chave abaixo para ativar seu robô.</p>
+            <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6">
+                <code id="chave-licenca-exibida" class="text-sm font-mono font-bold text-royal break-all"></code>
+            </div>
+            <button onclick="copiarChaveExibida()" class="w-full py-3 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">Copiar Chave</button>
+        </div>
+    </div>
+
     <div id="modal-senha" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
         <div class="bg-white w-full max-w-sm rounded-[2rem] shadow-2xl p-10 relative text-center border border-gray-100">
             <div class="w-16 h-16 bg-royal/10 rounded-2xl flex items-center justify-center mx-auto mb-6 text-royal">
@@ -261,6 +317,7 @@
 
 <script>
 let globalFaturaAtivaId = null;
+var pendingGenerateCallback = null;
 
 // RESTAURAÇÃO DE MEMÓRIA DE NAVEGAÇÃO
 document.addEventListener("DOMContentLoaded", () => {
@@ -312,8 +369,164 @@ function mudarAba(nome) {
     }
 }
 
+// ==================== LICENÇAS ====================
+function gerarLicencaComissao() {
+    pendingGenerateCallback = () => {
+        fetch("{{ url_for('client.licenca_gerar') }}", {
+            method: 'POST',
+            headers: { 'X-CSRFToken': '{{ csrf_token() }}' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('chave-licenca-exibida').innerText = data.chave;
+                document.getElementById('modal-chave-titulo').innerText = 'Licença Semanal Gerada';
+                document.getElementById('modal-chave-licenca').classList.remove('hidden');
+            } else if (data.error === 'PRECISA_CONTA') {
+                abrirModalSolicitarConta(() => gerarLicencaComissao());
+            } else {
+                alert(data.message || 'Erro ao gerar licença.');
+            }
+        })
+        .catch(err => alert('Erro de comunicação com o servidor.'));
+    };
+    document.getElementById('modal-regras-licenca').classList.remove('hidden');
+}
+
+function aceitarRegrasEProsseguir() {
+    fecharModalRegras();
+    if (pendingGenerateCallback) {
+        pendingGenerateCallback();
+        pendingGenerateCallback = null;
+    }
+}
+
+function visualizarLicencaVitalicia() {
+    fetch("{{ url_for('client.licenca_visualizar') }}", {
+        method: 'POST',
+        headers: { 'X-CSRFToken': '{{ csrf_token() }}' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('chave-licenca-exibida').innerText = data.chave;
+            document.getElementById('modal-chave-titulo').innerText = 'Licença Vitalícia';
+            document.getElementById('modal-chave-licenca').classList.remove('hidden');
+        } else if (data.error === 'LICENCA_NAO_ENCONTRADA') {
+            fetch("{{ url_for('client.licenca_status') }}")
+            .then(res => res.json())
+            .then(status => {
+                if (!status.tem_licenca) {
+                    abrirModalSolicitarConta(() => visualizarLicencaVitalicia());
+                } else {
+                    alert(data.message);
+                }
+            });
+        } else {
+            alert(data.message || 'Erro ao visualizar licença.');
+        }
+    })
+    .catch(err => alert('Erro de comunicação com o servidor.'));
+}
+
+function salvarContaMT5() {
+    const conta = document.getElementById('input-conta-mt5').value.trim();
+    if (!conta) {
+        alert('Digite o número da sua conta MT5.');
+        return;
+    }
+    fetch("{{ url_for('client.api_salvar_conta_mt5') }}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
+        body: JSON.stringify({ conta_mt5: conta })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            fecharModalSolicitarConta();
+            if (pendingGenerateCallback) {
+                pendingGenerateCallback();
+                pendingGenerateCallback = null;
+            } else {
+                window.location.reload();
+            }
+        } else {
+            alert(data.message || 'Erro ao salvar conta MT5.');
+        }
+    })
+    .catch(err => alert('Erro de comunicação com o servidor.'));
+}
+
+function abrirModalSolicitarConta(callback) {
+    pendingGenerateCallback = callback;
+    document.getElementById('input-conta-mt5').value = '';
+    document.getElementById('modal-solicitar-conta').classList.remove('hidden');
+}
+
+function fecharModalSolicitarConta() {
+    document.getElementById('modal-solicitar-conta').classList.add('hidden');
+}
+
+function fecharModalRegras() {
+    document.getElementById('modal-regras-licenca').classList.add('hidden');
+}
+
+function fecharModalChave() {
+    document.getElementById('modal-chave-licenca').classList.add('hidden');
+}
+
+function copiarChaveExibida() {
+    const chave = document.getElementById('chave-licenca-exibida').innerText;
+    navigator.clipboard.writeText(chave);
+    alert('Chave copiada para a área de transferência!');
+}
+
+// ==================== UPLOAD DE NOTAS ====================
+async function enviarRelatorio(diaId, senhaManual = null) {
+    const fileInput = document.getElementById(`file-${diaId}`);
+    const btn = document.getElementById(`btn-${diaId}`);
+    if (!fileInput.files[0] && !senhaManual) { alert('Selecione um arquivo PDF.'); return; }
+    
+    const formData = new FormData();
+    formData.append('dia_id', diaId);
+    formData.append('csrf_token', '{{ csrf_token() }}');
+    if (fileInput.files[0]) formData.append('relatorio_pdf', fileInput.files[0]);
+    if (senhaManual) formData.append('senha_manual', senhaManual);
+
+    btn.disabled = true;
+    btn.classList.add('opacity-80', 'cursor-not-allowed');
+    btn.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Lendo...`;
+    
+    try {
+        const response = await fetch("{{ url_for('client.faturas') }}", { method: 'POST', body: formData });
+        const data = await response.json();
+        
+        if (data.success) { window.location.reload(); } 
+        else if (data.error === 'REQUER_SENHA') { 
+            abrirModalSenha(diaId);
+            resetarBotao(btn);
+        } else { 
+            alert(data.message || 'Erro no processamento.');
+            resetarBotao(btn);
+        }
+    } catch (e) { 
+        alert('Erro de conexão com o servidor.');
+        resetarBotao(btn);
+    }
+}
+
+function resetarBotao(btn) {
+    btn.disabled = false; 
+    btn.classList.remove('opacity-80', 'cursor-not-allowed');
+    btn.innerHTML = `<span id="btn-text-${btn.id.split('-')[1]}">Anexar</span>`;
+}
+
+function abrirModalSenha(diaId) { document.getElementById('modal-dia-id').value = diaId; document.getElementById('modal-senha').classList.remove('hidden'); document.getElementById('input-senha-manual').focus(); }
+function fecharModalSenha() { document.getElementById('modal-senha').classList.add('hidden'); document.getElementById('input-senha-manual').value = ''; }
+function tentarComSenhaManual() { const diaId = document.getElementById('modal-dia-id').value; const senha = document.getElementById('input-senha-manual').value; if (!senha) return; fecharModalSenha(); enviarRelatorio(diaId, senha); }
+
+// ==================== PAGAMENTO ====================
 {% if current_user.modelo_negocio != 'compra' %}
-// LÓGICA DO MODAL DE AUDITORIA UNIFICADA
 function abrirModalAuditoriaPagamento() {
     if (!globalFaturaAtivaId) return;
     
@@ -432,105 +645,6 @@ function copiarChaveManualFatura() {
     }, 2000);
 }
 {% endif %}
-
 {% endif %}
-
-// UPLOAD DAS NOTAS DIÁRIAS
-async function enviarRelatorio(diaId, senhaManual = null) {
-    const fileInput = document.getElementById(`file-${diaId}`);
-    const btn = document.getElementById(`btn-${diaId}`);
-    if (!fileInput.files[0] && !senhaManual) { alert('Selecione um arquivo PDF.'); return; }
-    
-    const formData = new FormData();
-    formData.append('dia_id', diaId);
-    formData.append('csrf_token', '{{ csrf_token() }}');
-    if (fileInput.files[0]) formData.append('relatorio_pdf', fileInput.files[0]);
-    if (senhaManual) formData.append('senha_manual', senhaManual);
-
-    btn.disabled = true;
-    btn.classList.add('opacity-80', 'cursor-not-allowed');
-    btn.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Lendo...`;
-    
-    try {
-        const response = await fetch("{{ url_for('client.faturas') }}", { method: 'POST', body: formData });
-        const data = await response.json();
-        
-        if (data.success) { window.location.reload(); } 
-        else if (data.error === 'REQUER_SENHA') { 
-            abrirModalSenha(diaId);
-            resetarBotao(btn);
-        } else { 
-            alert(data.message || 'Erro no processamento.');
-            resetarBotao(btn);
-        }
-    } catch (e) { 
-        alert('Erro de conexão com o servidor.');
-        resetarBotao(btn);
-    }
-}
-
-function resetarBotao(btn) {
-    btn.disabled = false; 
-    btn.classList.remove('opacity-80', 'cursor-not-allowed');
-    btn.innerHTML = `<span id="btn-text-${btn.id.split('-')[1]}">Anexar</span>`;
-}
-
-function abrirModalSenha(diaId) { document.getElementById('modal-dia-id').value = diaId; document.getElementById('modal-senha').classList.remove('hidden'); document.getElementById('input-senha-manual').focus(); }
-function fecharModalSenha() { document.getElementById('modal-senha').classList.add('hidden'); document.getElementById('input-senha-manual').value = ''; }
-function tentarComSenhaManual() { const diaId = document.getElementById('modal-dia-id').value; const senha = document.getElementById('input-senha-manual').value; if (!senha) return; fecharModalSenha(); enviarRelatorio(diaId, senha); }
-
-// FUNÇÃO PARA GERAÇÃO DE LICENÇA (ainda não ativa)
-async function gerarLicenca(faturaId) {
-    if (!faturaId) {
-        alert('Nenhum ciclo selecionado.');
-        return;
-    }
-    try {
-        const response = await fetch("{{ url_for('client.gerar_licenca') }}", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token() }}'
-            },
-            body: JSON.stringify({ fatura_id: faturaId })
-        });
-        const data = await response.json();
-        if (data.success) {
-            document.getElementById('chave-licenca').innerText = data.chave;
-            document.getElementById('modal-licenca').classList.remove('hidden');
-        } else {
-            alert(data.message || 'Não foi possível gerar a licença. Verifique as condições.');
-        }
-    } catch (error) {
-        alert('Erro ao comunicar com o servidor.');
-    }
-}
-
-function fecharModalLicenca() {
-    document.getElementById('modal-licenca').classList.add('hidden');
-}
-
-function copiarChaveLicenca() {
-    const chave = document.getElementById('chave-licenca').innerText;
-    navigator.clipboard.writeText(chave);
-    alert('Chave copiada para a área de transferência!');
-}
 </script>
-
-<!-- Modal de exibição da chave de licença (oculto enquanto a função não estiver ativa) -->
-<div id="modal-licenca" class="hidden fixed inset-0 z-[150] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
-    <div class="bg-white w-full max-w-md rounded-[2rem] shadow-2xl p-10 relative text-center border border-gray-100">
-        <button onclick="fecharModalLicenca()" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black text-xl outline-none">&times;</button>
-        <div class="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-6 text-green-600">
-            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-        </div>
-        <h3 class="text-xl font-black text-navy mb-2">Licença Gerada</h3>
-        <p class="text-xs text-gray-500 font-medium mb-6">Utilize a chave abaixo para ativar seu robô.</p>
-        <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6">
-            <code id="chave-licenca" class="text-sm font-mono font-bold text-royal break-all"></code>
-        </div>
-        <button onclick="copiarChaveLicenca()" class="w-full py-3 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">Copiar Chave</button>
-    </div>
-</div>
-
 {% endblock %}
