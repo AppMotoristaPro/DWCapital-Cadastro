@@ -7,10 +7,20 @@ Tipos:
 
 from datetime import datetime, timedelta
 import pytz
+import os
 from app import db
 from app.models import Fatura, LicencaCliente, User
 
 tz_br = pytz.timezone('America/Sao_Paulo')
+
+
+# ============================================================
+# MODO TESTE
+# ============================================================
+
+def is_modo_teste():
+    """Retorna True se a variável TESTE_LICENCA estiver configurada como 'true' (case-insensitive)."""
+    return os.environ.get('TESTE_LICENCA', 'false').lower() in ('true', '1', 't')
 
 
 # ============================================================
@@ -60,6 +70,19 @@ def gerar_chave_vitalicia(conta_mt5):
     """Gera chave vitalícia conforme fórmula: conta * 99999"""
     conta = int(conta_mt5) if conta_mt5 else 0
     return str(conta * 99999)
+
+
+def calcular_ciclo_por_data(data_ref=None):
+    """
+    Dada uma data de referência (padrão = hoje), retorna (inicio_ciclo, fim_ciclo)
+    onde inicio_ciclo é a sexta anterior e fim_ciclo é a quinta seguinte.
+    """
+    if data_ref is None:
+        data_ref = datetime.now(tz_br).date()
+    dias_para_sexta = (data_ref.weekday() - 4) % 7
+    inicio_ciclo = data_ref - timedelta(days=dias_para_sexta)
+    fim_ciclo = inicio_ciclo + timedelta(days=6)
+    return inicio_ciclo, fim_ciclo
 
 
 def calcular_ciclo_anterior(data_ref=None):
@@ -113,22 +136,27 @@ def verificar_condicoes_comissao(user, ciclo_inicio):
     Verifica se o cliente comissão pode gerar licença para o ciclo_inicio.
     Retorna (liberado: bool, mensagem: str, pendencias: dict)
     """
-    # 1. Verificar fatura do ciclo
+    # Caso especial: cliente novo (sem nenhuma fatura)
+    possui_fatura = Fatura.query.filter_by(user_id=user.id).first() is not None
+    if not possui_fatura:
+        return True, "Cliente novo. Licença liberada imediatamente.", {'novo_cliente': True}
+
+    # Cliente existente: precisa da fatura do ciclo
     fatura = Fatura.query.filter_by(user_id=user.id, data_inicio=ciclo_inicio).first()
     if not fatura:
-        return False, f"Ciclo {ciclo_inicio.strftime('%d/%m/%Y')} não encontrado.", {}
+        return False, f"Ciclo {ciclo_inicio.strftime('%d/%m/%Y')} não encontrado. Você precisa completar um ciclo antes de gerar nova licença.", {}
 
-    # 2. Notas pendentes?
+    # Notas pendentes?
     dias_pendentes = [d for d in fatura.dias if d.status not in ['relatorio_enviado', 'isento']]
     if dias_pendentes:
         return False, f"Existem {len(dias_pendentes)} dias com notas pendentes.", {'notas_pendentes': [d.data_pregao.strftime('%d/%m') for d in dias_pendentes]}
 
-    # 3. Pagamento (apenas para comissão não isento)
+    # Pagamento (apenas para comissão não isento)
     if not user.is_isento:
         if fatura.status != 'pago':
             return False, "Pagamento deste ciclo ainda não foi confirmado pela administração.", {'pagamento_pendente': True}
 
-    # 4. Já existe licença para este ciclo?
+    # Já existe licença para este ciclo?
     if existe_licenca_para_ciclo(user, ciclo_inicio):
         return False, "Uma licença já foi gerada para este ciclo. Você pode visualizá-la em 'Minhas Licenças'.", {'licenca_ja_existe': True}
 
@@ -141,29 +169,32 @@ def verificar_condicoes_comissao(user, ciclo_inicio):
 
 def gerar_licenca_comissao(user, conta_mt5, semana_id=None):
     """
-    Gera uma nova licença semanal para o cliente comissão.
-    Retorna (chave, mensagem, licenca_obj).
+    Gera uma nova licença semanal.
+    Para cliente novo (sem fatura), usa o ciclo atual.
+    Para cliente existente, usa o ciclo anterior (validado).
     """
-    # Obter ciclo anterior (o que deve ser validado)
-    ciclo_inicio, ciclo_fim = calcular_ciclo_anterior()
-    
+    possui_fatura = Fatura.query.filter_by(user_id=user.id).first() is not None
+
+    if possui_fatura:
+        ciclo_inicio, ciclo_fim = calcular_ciclo_anterior()
+    else:
+        # Cliente novo: ciclo atual (a partir de hoje)
+        ciclo_inicio, ciclo_fim = calcular_ciclo_por_data()
+
     # Verificar condições novamente (segurança)
     liberado, msg, _ = verificar_condicoes_comissao(user, ciclo_inicio)
     if not liberado:
         return None, msg, None
-    
+
     # Gerar chave
     chave = gerar_chave_semanal(conta_mt5, semana_id)
-    
-    # Data de expiração: domingo 23:59 da semana atual (ajustar)
-    # Como o ciclo_inicio é sexta, o domingo seguinte é ciclo_inicio + 2 dias?
-    # Para simplificar, usamos a função proxima_segunda_00h00 e subtraímos 1 minuto?
-    # Melhor: expirar no domingo 23:59
+
+    # Data de expiração: domingo 23:59 do ciclo atual
     hoje = datetime.now(tz_br).date()
-    dias_para_domingo = (6 - hoje.weekday()) % 7  # domingo = 6
+    dias_para_domingo = (6 - hoje.weekday()) % 7
     domingo = hoje + timedelta(days=dias_para_domingo)
     data_expiracao = datetime(domingo.year, domingo.month, domingo.day, 23, 59, 59, tzinfo=tz_br)
-    
+
     nova_licenca = LicencaCliente(
         user_id=user.id,
         chave_licenca=chave,
@@ -176,7 +207,7 @@ def gerar_licenca_comissao(user, conta_mt5, semana_id=None):
     )
     db.session.add(nova_licenca)
     db.session.commit()
-    
+
     return chave, "Licença semanal gerada com sucesso.", nova_licenca
 
 
@@ -189,15 +220,14 @@ def gerar_licenca_vitalicia(user, conta_mt5):
     existente = obter_licenca_ativa(user, tipo='vitalicia')
     if existente:
         return existente.chave_licenca, "Licença vitalícia já existente.", existente
-    
+
     chave = gerar_chave_vitalicia(conta_mt5)
-    
-    # Para vitalícia, data_expiracao = None, status = 'ativa'
+
     nova_licenca = LicencaCliente(
         user_id=user.id,
         chave_licenca=chave,
-        ciclo_inicio=datetime.now(tz_br).date(),  # data de referência
-        ciclo_fim=datetime.now(tz_br).date(),     # não usado
+        ciclo_inicio=datetime.now(tz_br).date(),
+        ciclo_fim=datetime.now(tz_br).date(),
         tipo='vitalicia',
         data_expiracao=None,
         status='ativa',
@@ -205,7 +235,7 @@ def gerar_licenca_vitalicia(user, conta_mt5):
     )
     db.session.add(nova_licenca)
     db.session.commit()
-    
+
     return chave, "Licença vitalícia gerada com sucesso.", nova_licenca
 
 
@@ -217,7 +247,7 @@ def salvar_conta_mt5_e_gerar_vitalicia_se_necessario(user, nova_conta):
     """
     user.conta_mt5 = nova_conta
     db.session.commit()
-    
+
     if user.modelo_negocio == 'compra':
         licenca = obter_licenca_ativa(user, tipo='vitalicia')
         if not licenca:
@@ -243,9 +273,9 @@ def expirar_licencas_semanais():
         LicencaCliente.status == 'ativa',
         LicencaCliente.data_expiracao < agora
     ).all()
-    
+
     for lic in licencas:
         lic.status = 'expirada'
-    
+
     db.session.commit()
     return len(licencas)

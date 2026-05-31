@@ -27,7 +27,8 @@ from app.services.licenca_service import (
     obter_licenca_ativa,
     salvar_conta_mt5_e_gerar_vitalicia_se_necessario,
     calcular_ciclo_anterior,
-    obter_semana_id
+    obter_semana_id,
+    is_modo_teste
 )
 
 logger = logging.getLogger(__name__)
@@ -443,8 +444,9 @@ def licenca_gerar():
     """
     Gera uma nova licença para cliente comissionado.
     Regras:
-    - Apenas em dias úteis (segunda a sexta).
-    - Ciclo anterior completo (notas enviadas/isentas + pagamento confirmado).
+    - Apenas em dias úteis (segunda a sexta), a menos que TESTE_LICENCA=true.
+    - Ciclo anterior completo (notas enviadas/isentas + pagamento confirmado) para clientes existentes.
+    - Para cliente novo (sem faturas), gera imediatamente.
     - Cliente deve ter conta MT5 preenchida.
     - Uma licença por ciclo.
     """
@@ -456,13 +458,14 @@ def licenca_gerar():
         }), 400
     
     hoje = datetime.now(tz_br).date()
-    # Verificar se é dia útil (segunda=0 a sexta=4)
-    if hoje.weekday() >= 5:
-        return jsonify({
-            "success": False,
-            "error": "DIA_INVALIDO",
-            "message": "A geração de licenças semanais só é permitida em dias úteis (segunda a sexta)."
-        }), 400
+    # Verificar dia útil apenas se não estiver em modo teste
+    if not is_modo_teste():
+        if hoje.weekday() >= 5:
+            return jsonify({
+                "success": False,
+                "error": "DIA_INVALIDO",
+                "message": "A geração de licenças semanais só é permitida em dias úteis (segunda a sexta)."
+            }), 400
     
     # Verificar se o cliente tem conta MT5
     if not current_user.conta_mt5:
@@ -472,7 +475,7 @@ def licenca_gerar():
             "message": "Você precisa cadastrar sua conta MT5 antes de gerar a licença."
         }), 200  # 200 para o frontend tratar como erro de validação
     
-    # Gerar licença
+    # Gerar licença (a função já trata cliente novo vs existente)
     chave, msg, licenca_obj = gerar_licenca_comissao(current_user, current_user.conta_mt5)
     if not chave:
         return jsonify({
@@ -528,7 +531,6 @@ def api_salvar_conta_mt5():
     if not nova_conta:
         return jsonify({"success": False, "message": "Número da conta MT5 é obrigatório."}), 400
     
-    # Validar se é numérico (pode conter apenas dígitos)
     if not nova_conta.isdigit():
         return jsonify({"success": False, "message": "A conta MT5 deve conter apenas números."}), 400
     
