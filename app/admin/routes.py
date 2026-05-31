@@ -7,13 +7,14 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash,
 from flask_login import current_user
 from werkzeug.security import generate_password_hash
 from sqlalchemy.orm import joinedload
-from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria, DocumentoTemplate, DocumentoCliente, ParcelaCompra, VersaoRobo, DownloadControle
+from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria, DocumentoTemplate, DocumentoCliente, ParcelaCompra, VersaoRobo, DownloadControle, LicencaCliente
 from app import db
 from datetime import datetime, timedelta
 from app.utils.decorators import admin_required
 from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo, auto_gerar_ciclos_em_lote
 from app.services.documento_service import disparar_lote, disparar_unico
 from app.services.dashboard_service import obter_dados_dashboard
+from app.services.licenca_service import gerar_licenca_vitalicia, obter_licenca_ativa, expirar_licencas_semanais
 from app.utils.parsers.gerenciador_pdf import processar_pdf
 import cloudinary.uploader
 import pytz
@@ -31,7 +32,7 @@ def registrar_log(acao, categoria):
         )
         db.session.add(novo_log)
 
-# ==================== ROTAS EXISTENTES (mantidas) ====================
+# ==================== ROTAS EXISTENTES ====================
 
 @admin_bp.route('/')
 @admin_required
@@ -101,6 +102,8 @@ def liberar_cliente():
 @admin_required
 def editar_cliente(id):
     cliente = User.query.get_or_404(id)
+    modelo_anterior = cliente.modelo_negocio
+    
     if request.method == 'POST':
         corretoras_selecionadas = request.form.getlist('corretora[]')
         capitais_alocados = request.form.getlist('capital[]')
@@ -116,6 +119,9 @@ def editar_cliente(id):
         cliente.email = request.form.get('email')
         cliente.celular = request.form.get('celular')
         cliente.is_isento = True if request.form.get('is_isento') else False
+        
+        # NOVO CAMPO: Conta MT5
+        cliente.conta_mt5 = request.form.get('conta_mt5', '').strip()
         
         novo_modelo = request.form.get('modelo_negocio', 'comissao')
         
@@ -144,6 +150,35 @@ def editar_cliente(id):
                 capital_soma += float(capital)
                 
         cliente.capital_alocado = capital_soma
+        
+        # ============================================================
+        # LÓGICA DE TROCA DE MODELO DE NEGÓCIO
+        # ============================================================
+        if modelo_anterior != novo_modelo:
+            if novo_modelo == 'compra':
+                # Mudou de comissão para compra
+                if cliente.termo_assinado:
+                    parcela_inicial = ParcelaCompra.query.filter_by(user_id=cliente.id, ordem=1, status='pago').first()
+                    if parcela_inicial:
+                        if cliente.conta_mt5:
+                            chave, msg, licenca = gerar_licenca_vitalicia(cliente, cliente.conta_mt5)
+                            flash(f'Cliente alterado para compra. Licença vitalícia gerada: {chave}', 'success')
+                            registrar_log(f"Alterou modelo para compra e gerou licença vitalícia para {cliente.nome}.", "Clientes")
+                        else:
+                            flash('Cliente alterado para compra, mas não possui conta MT5. Será solicitado no próximo acesso.', 'warning')
+                    else:
+                        flash('Cliente alterado para compra, mas a primeira parcela ainda não foi paga. Licença será gerada automaticamente após o pagamento.', 'warning')
+                else:
+                    flash('Cliente alterado para compra, mas ainda não assinou os termos. Licença será gerada após assinatura.', 'warning')
+                    
+            elif novo_modelo == 'comissao':
+                # Mudou de compra para comissão: invalidar licença vitalícia existente
+                licenca_vitalicia = obter_licenca_ativa(cliente, tipo='vitalicia')
+                if licenca_vitalicia:
+                    licenca_vitalicia.status = 'cancelada'
+                    db.session.add(licenca_vitalicia)
+                    flash('Licença vitalícia cancelada. Cliente agora opera no modelo comissão.', 'info')
+                    registrar_log(f"Alterou modelo para comissão e cancelou licença vitalícia de {cliente.nome}.", "Clientes")
         
         status_isento = "Sim" if cliente.is_isento else "Não"
         registrar_log(f"Editou o cadastro (Isento: {status_isento}, Modelo: {novo_modelo.upper()}) e alocações do cliente {cliente.nome} (Novo Capital: R$ {capital_soma:,.2f}).", "Clientes")
@@ -255,7 +290,6 @@ def pagamentos():
                     if total_exigido < 0: 
                         total_exigido = 0
                     
-                    # 🔥 CORREÇÃO: Se não há dias exigidos, exibir "Isento" ao invés de "0/0"
                     if total_exigido == 0:
                         progresso_display = "Isento"
                     else:
@@ -514,7 +548,6 @@ def documentos():
     templates = DocumentoTemplate.query.all()
     clientes = User.query.filter_by(role='cliente', status_acesso='ativo').order_by(User.nome.asc()).all()
     
-    # Agrupa os documentos por template
     grupos = []
     for template in templates:
         docs = DocumentoCliente.query.filter_by(template_id=template.id)\
@@ -650,12 +683,11 @@ def excluir_todos_pendentes():
         
     return redirect(url_for('admin.documentos'))
 
-# ==================== ROTA DE UPLOAD (ATUALIZADA) ====================
+# ==================== ROTA DE UPLOAD (ROBÔ) ====================
 
 @admin_bp.route('/robo/upload', methods=['GET', 'POST'])
 @admin_required
 def upload_versao_robo():
-    """Exibe formulário para upload de nova versão e lista versões existentes."""
     if request.method == 'POST':
         versao = request.form.get('versao')
         novidades = request.form.get('novidades')
@@ -665,9 +697,7 @@ def upload_versao_robo():
             flash("Versão e arquivo são obrigatórios.", "error")
             return redirect(url_for('admin.upload_versao_robo'))
         
-        # Validação da extensão do arquivo (.exe, .ex5 ou .zip)
         filename = arquivo.filename
-        # Extrai extensão
         if '.' in filename:
             extensao = '.' + filename.rsplit('.', 1)[1].lower()
         else:
@@ -677,7 +707,6 @@ def upload_versao_robo():
             flash("Tipo de arquivo inválido. Apenas .exe, .ex5 ou .zip são permitidos.", "error")
             return redirect(url_for('admin.upload_versao_robo'))
         
-        # Upload para Cloudinary (pasta "dwcapital/robos")
         try:
             upload_result = cloudinary.uploader.upload(arquivo, folder="dwcapital/robos", resource_type="raw")
             arquivo_url = upload_result.get('secure_url')
@@ -685,7 +714,6 @@ def upload_versao_robo():
             flash(f"Erro ao enviar arquivo: {str(e)}", "error")
             return redirect(url_for('admin.upload_versao_robo'))
         
-        # Salvar nova versão (publicada = False)
         nova_versao = VersaoRobo(
             versao=versao,
             arquivo_url=arquivo_url,
@@ -700,27 +728,20 @@ def upload_versao_robo():
         flash(f"Versão {versao} enviada com sucesso! Agora publique-a para ficar disponível.", "success")
         return redirect(url_for('admin.upload_versao_robo'))
     
-    # GET: exibe formulário e lista de versões
     versoes = VersaoRobo.query.order_by(VersaoRobo.data_upload.desc()).all()
     return render_template('admin/upload_robo.html', versoes=versoes)
-
-# ==================== ROTA DE PUBLICAÇÃO (ATUALIZADA) ====================
 
 @admin_bp.route('/robo/publicar/<int:id>', methods=['POST'])
 @admin_required
 def publicar_versao_robo(id):
-    """Publica uma versão específica (torna ativa) e despublica as demais."""
     versao = VersaoRobo.query.get_or_404(id)
     
-    # Despublicar todas
     VersaoRobo.query.update({'publicada': False})
     db.session.commit()
     
-    # Publicar a selecionada
     versao.publicada = True
     db.session.commit()
     
-    # Remove todos os downloads registrados para esta versão (permite novo download)
     removidos = DownloadControle.query.filter_by(versao_id=versao.id).delete()
     db.session.commit()
     
@@ -728,7 +749,46 @@ def publicar_versao_robo(id):
     flash(f"Versão {versao.versao} agora é a versão ativa para download. Todos os clientes poderão baixá-la novamente.", "success")
     return redirect(url_for('admin.upload_versao_robo'))
 
-# ==================== FUNÇÕES AUXILIARES (mantidas) ====================
+# ==================== ROTAS DE LICENÇA (ADMIN) ====================
+
+@admin_bp.route('/forcar_licenca_vitalicia/<int:id>', methods=['POST'])
+@admin_required
+def forcar_licenca_vitalicia(id):
+    cliente = User.query.get_or_404(id)
+    if cliente.modelo_negocio != 'compra':
+        flash('Este cliente não está no modelo compra.', 'error')
+        return redirect(url_for('admin.editar_cliente', id=id))
+    
+    if not cliente.conta_mt5:
+        flash('Cliente não possui conta MT5 cadastrada. Preencha o campo antes de gerar a licença.', 'error')
+        return redirect(url_for('admin.editar_cliente', id=id))
+    
+    licenca_existente = obter_licenca_ativa(cliente, tipo='vitalicia')
+    if licenca_existente:
+        licenca_existente.status = 'cancelada'
+        db.session.add(licenca_existente)
+    
+    chave, msg, nova_licenca = gerar_licenca_vitalicia(cliente, cliente.conta_mt5)
+    db.session.commit()
+    
+    registrar_log(f"Forçou a geração de nova licença vitalícia para {cliente.nome}. Chave: {chave}", "Clientes")
+    flash(f'Licença vitalícia gerada/regenerada com sucesso! Chave: {chave}', 'success')
+    return redirect(url_for('admin.editar_cliente', id=id))
+
+# ==================== ROTA PARA JOB DE EXPIRAÇÃO ====================
+
+@admin_bp.route('/cron/expirar_licencas', methods=['POST'])
+def cron_expirar_licencas():
+    """Endpoint chamado pelo GitHub Actions para expirar licenças semanais."""
+    token = request.headers.get('X-Cron-Secret')
+    if token != os.environ.get('CRON_SECRET'):
+        return jsonify({"error": "Não autorizado"}), 403
+    
+    quantidade = expirar_licencas_semanais()
+    registrar_log(f"Job automático: expirou {quantidade} licenças semanais.", "Sistema")
+    return jsonify({"status": "ok", "expiradas": quantidade}), 200
+
+# ==================== FUNÇÕES AUXILIARES ====================
 
 def _executar_reprocessamento_por_corretora(corretora_nome):
     dias_enviados = FaturaDiaria.query.options(
