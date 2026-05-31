@@ -28,14 +28,14 @@
                         Pagamentos
                     </a>
                     <a href="{{ url_for('admin.licencas') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint and request.endpoint.startswith('admin.licencas') %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-slate-300 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
-                        Licenças
+                        Vendas
                     </a>
                     <a href="{{ url_for('admin.documentos') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint and request.endpoint.startswith('admin.documentos') %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-slate-300 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
                         Assinaturas
                     </a>
                     <!-- Link Robô (agora antes de Atividades) -->
                     <a href="{{ url_for('admin.upload_versao_robo') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint == 'admin.upload_versao_robo' %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-slate-300 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
-                        Robô
+                        Versões do Robô
                     </a>
                     <a href="{{ url_for('admin.atividades') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint == 'admin.atividades' %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-blue-200 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
                         Atividades
@@ -62,10 +62,10 @@
                 <a href="{{ url_for('admin.dashboard') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'admin.dashboard' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Tela Inicial</a>
                 <a href="{{ url_for('admin.clientes_list') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'admin.clientes_list' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Clientes</a>
                 <a href="{{ url_for('admin.pagamentos') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint and request.endpoint.startswith('admin.pagamentos') %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Pagamentos</a>
-                <a href="{{ url_for('admin.licencas') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint and request.endpoint.startswith('admin.licencas') %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Licenças</a>
+                <a href="{{ url_for('admin.licencas') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint and request.endpoint.startswith('admin.licencas') %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Vendas</a>
                 <a href="{{ url_for('admin.documentos') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint and request.endpoint.startswith('admin.documentos') %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Assinaturas</a>
                 <!-- Robô no mobile (antes de Atividades) -->
-                <a href="{{ url_for('admin.upload_versao_robo') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'admin.upload_versao_robo' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Robô</a>
+                <a href="{{ url_for('admin.upload_versao_robo') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'admin.upload_versao_robo' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Versões do Robô</a>
                 <a href="{{ url_for('admin.atividades') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'admin.atividades' %}bg-royal/20 text-royal border border-royal/30{% else %}text-blue-200 hover:bg-white/5 hover:text-white{% endif %}">Atividades</a>
                 <div class="h-px w-full bg-white/5 my-2"></div>
                 <a href="{{ url_for('auth.logout') }}" class="px-4 py-3 text-center bg-red-400/10 text-red-400 hover:bg-red-500 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition">Sair do Sistema</a>
