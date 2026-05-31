@@ -102,7 +102,7 @@
                                         <th class="px-6 py-4 bg-green-50/30 text-green-600">Repasse DW <span class="block text-[8px] font-bold text-green-600/70 lowercase tracking-normal mt-0.5">(Líq. Real x 30%)</span></th>
                                         {% endif %}
                                         <th class="px-8 py-4 text-right">Ação / Documento</th>
-                                    </td>
+                                    </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-50">
                                     {% set subtotal_parcial = namespace(total=0) %}
@@ -380,7 +380,11 @@ function gerarLicencaComissao() {
         .then(data => {
             if (data.success) {
                 document.getElementById('chave-licenca-exibida').innerText = data.chave;
-                document.getElementById('modal-chave-titulo').innerText = 'Licença Semanal Gerada';
+                if (data.ja_existente) {
+                    document.getElementById('modal-chave-titulo').innerText = 'Licença já existente';
+                } else {
+                    document.getElementById('modal-chave-titulo').innerText = 'Licença Semanal Gerada';
+                }
                 document.getElementById('modal-chave-licenca').classList.remove('hidden');
             } else if (data.error === 'PRECISA_CONTA') {
                 abrirModalSolicitarConta(() => gerarLicencaComissao());

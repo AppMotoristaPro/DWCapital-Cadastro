@@ -443,12 +443,7 @@ def licenca_status():
 def licenca_gerar():
     """
     Gera uma nova licença para cliente comissionado.
-    Regras:
-    - Apenas em dias úteis (segunda a sexta), a menos que TESTE_LICENCA=true.
-    - Ciclo anterior completo (notas enviadas/isentas + pagamento confirmado) para clientes existentes.
-    - Para cliente novo (sem faturas), gera imediatamente.
-    - Cliente deve ter conta MT5 preenchida.
-    - Uma licença por ciclo.
+    Se já existir licença para o ciclo, retorna a existente com flag 'ja_existente'.
     """
     if current_user.modelo_negocio != 'comissao':
         return jsonify({
@@ -473,10 +468,10 @@ def licenca_gerar():
             "success": False,
             "error": "PRECISA_CONTA",
             "message": "Você precisa cadastrar sua conta MT5 antes de gerar a licença."
-        }), 200  # 200 para o frontend tratar como erro de validação
+        }), 200
     
-    # Gerar licença (a função já trata cliente novo vs existente)
-    chave, msg, licenca_obj = gerar_licenca_comissao(current_user, current_user.conta_mt5)
+    # Gerar ou obter licença existente
+    chave, msg, licenca_obj, ja_existente = gerar_licenca_comissao(current_user, current_user.conta_mt5)
     if not chave:
         return jsonify({
             "success": False,
@@ -488,7 +483,8 @@ def licenca_gerar():
         "success": True,
         "chave": chave,
         "message": msg,
-        "validade": licenca_obj.data_expiracao.strftime('%d/%m/%Y %H:%M') if licenca_obj.data_expiracao else None
+        "validade": licenca_obj.data_expiracao.strftime('%d/%m/%Y %H:%M') if licenca_obj.data_expiracao else None,
+        "ja_existente": ja_existente
     })
 
 @client_bp.route('/licenca/visualizar', methods=['POST'])
