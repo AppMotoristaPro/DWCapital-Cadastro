@@ -134,33 +134,41 @@ def existe_licenca_para_ciclo(user, ciclo_inicio):
 def verificar_condicoes_comissao(user, ciclo_inicio):
     """
     Verifica se o cliente comissão pode gerar licença para o ciclo_inicio.
-    Retorna (liberado: bool, mensagem: str, pendencias: dict)
+    Retorna (status, mensagem, pendencias, licenca_existente)
+    status pode ser:
+        - True (liberado)
+        - False (não liberado, erro)
+        - "LICENCA_EXISTENTE" (já existe licença, retorna o objeto)
     """
     # Caso especial: cliente novo (sem nenhuma fatura)
     possui_fatura = Fatura.query.filter_by(user_id=user.id).first() is not None
     if not possui_fatura:
-        return True, "Cliente novo. Licença liberada imediatamente.", {'novo_cliente': True}
+        return True, "Cliente novo. Licença liberada imediatamente.", {}, None
 
     # Cliente existente: precisa da fatura do ciclo
     fatura = Fatura.query.filter_by(user_id=user.id, data_inicio=ciclo_inicio).first()
     if not fatura:
-        return False, f"Ciclo {ciclo_inicio.strftime('%d/%m/%Y')} não encontrado. Você precisa completar um ciclo antes de gerar nova licença.", {}
+        return False, f"Ciclo {ciclo_inicio.strftime('%d/%m/%Y')} não encontrado. Você precisa completar um ciclo antes de gerar nova licença.", {}, None
 
     # Notas pendentes?
     dias_pendentes = [d for d in fatura.dias if d.status not in ['relatorio_enviado', 'isento']]
     if dias_pendentes:
-        return False, f"Existem {len(dias_pendentes)} dias com notas pendentes.", {'notas_pendentes': [d.data_pregao.strftime('%d/%m') for d in dias_pendentes]}
+        return False, f"Existem {len(dias_pendentes)} dias com notas pendentes.", {'notas_pendentes': [d.data_pregao.strftime('%d/%m') for d in dias_pendentes]}, None
 
     # Pagamento (apenas para comissão não isento)
     if not user.is_isento:
         if fatura.status != 'pago':
-            return False, "Pagamento deste ciclo ainda não foi confirmado pela administração.", {'pagamento_pendente': True}
+            return False, "Pagamento deste ciclo ainda não foi confirmado pela administração.", {'pagamento_pendente': True}, None
 
-    # Já existe licença para este ciclo?
-    if existe_licenca_para_ciclo(user, ciclo_inicio):
-        return False, "Uma licença já foi gerada para este ciclo. Você pode visualizá-la em 'Minhas Licenças'.", {'licenca_ja_existe': True}
+    # Verificar se já existe licença para este ciclo
+    licenca_existente = LicencaCliente.query.filter_by(
+        user_id=user.id,
+        ciclo_inicio=ciclo_inicio
+    ).first()
+    if licenca_existente:
+        return "LICENCA_EXISTENTE", "Uma licença já foi gerada para este ciclo.", {}, licenca_existente
 
-    return True, "Condições atendidas.", {}
+    return True, "Condições atendidas.", {}, None
 
 
 # ============================================================
@@ -169,9 +177,8 @@ def verificar_condicoes_comissao(user, ciclo_inicio):
 
 def gerar_licenca_comissao(user, conta_mt5, semana_id=None):
     """
-    Gera uma nova licença semanal.
-    Para cliente novo (sem fatura), usa o ciclo atual.
-    Para cliente existente, usa o ciclo anterior (validado).
+    Gera uma nova licença semanal ou retorna a existente.
+    Retorna (chave, mensagem, licenca_obj, ja_existente)
     """
     possui_fatura = Fatura.query.filter_by(user_id=user.id).first() is not None
 
@@ -181,12 +188,17 @@ def gerar_licenca_comissao(user, conta_mt5, semana_id=None):
         # Cliente novo: ciclo atual (a partir de hoje)
         ciclo_inicio, ciclo_fim = calcular_ciclo_por_data()
 
-    # Verificar condições novamente (segurança)
-    liberado, msg, _ = verificar_condicoes_comissao(user, ciclo_inicio)
-    if not liberado:
-        return None, msg, None
+    # Verificar condições
+    status, msg, _, licenca_existente = verificar_condicoes_comissao(user, ciclo_inicio)
 
-    # Gerar chave
+    # Se já existe licença, retornar ela
+    if status == "LICENCA_EXISTENTE" and licenca_existente:
+        return licenca_existente.chave_licenca, msg, licenca_existente, True
+
+    if not status:
+        return None, msg, None, False
+
+    # Gerar nova chave
     chave = gerar_chave_semanal(conta_mt5, semana_id)
 
     # Data de expiração: domingo 23:59 do ciclo atual
@@ -208,7 +220,7 @@ def gerar_licenca_comissao(user, conta_mt5, semana_id=None):
     db.session.add(nova_licenca)
     db.session.commit()
 
-    return chave, "Licença semanal gerada com sucesso.", nova_licenca
+    return chave, "Licença semanal gerada com sucesso.", nova_licenca, False
 
 
 def gerar_licenca_vitalicia(user, conta_mt5):
