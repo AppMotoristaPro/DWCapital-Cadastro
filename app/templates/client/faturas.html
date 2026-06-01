@@ -45,17 +45,9 @@
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                     Voltar aos Ciclos
                 </button>
-                
-                <!-- Botão de Licença condicional -->
-                {% if current_user.modelo_negocio == 'comissao' %}
                 <button onclick="gerarLicencaComissao()" class="px-6 py-2.5 bg-purple-50 hover:bg-purple-100 text-purple-700 text-[10px] font-black uppercase tracking-widest rounded-xl transition border border-purple-200 shadow-sm">
                     Gerar Licença Semanal
                 </button>
-                {% elif current_user.modelo_negocio == 'compra' %}
-                <button onclick="visualizarLicencaVitalicia()" class="px-6 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-black uppercase tracking-widest rounded-xl transition border border-blue-200 shadow-sm">
-                    Visualizar Licença Vitalícia
-                </button>
-                {% endif %}
             </div>
             
             {% if current_user.modelo_negocio != 'compra' %}
@@ -102,7 +94,7 @@
                                         <th class="px-6 py-4 bg-green-50/30 text-green-600">Repasse DW <span class="block text-[8px] font-bold text-green-600/70 lowercase tracking-normal mt-0.5">(Líq. Real x 30%)</span></th>
                                         {% endif %}
                                         <th class="px-8 py-4 text-right">Ação / Documento</th>
-                                    </tr>
+                                    </td>
                                 </thead>
                                 <tbody class="divide-y divide-gray-50">
                                     {% set subtotal_parcial = namespace(total=0) %}
@@ -154,7 +146,7 @@
                                                     </div>
                                                 </td>
                                             {% endif %}
-                                        </td>
+                                        </tr>
                                         {% endif %}
                                     {% endfor %}
                                 </tbody>
@@ -319,7 +311,6 @@
 let globalFaturaAtivaId = null;
 var pendingGenerateCallback = null;
 
-// RESTAURAÇÃO DE MEMÓRIA DE NAVEGAÇÃO
 document.addEventListener("DOMContentLoaded", () => {
     const cicloSalvo = sessionStorage.getItem('cicloAtivo');
     if (cicloSalvo) { abrirCiclo(cicloSalvo, true); }
@@ -369,7 +360,7 @@ function mudarAba(nome) {
     }
 }
 
-// ==================== LICENÇAS ====================
+// ==================== LICENÇAS (UNIFICADA) ====================
 function gerarLicencaComissao() {
     pendingGenerateCallback = () => {
         fetch("{{ url_for('client.licenca_gerar') }}", {
@@ -403,34 +394,6 @@ function aceitarRegrasEProsseguir() {
         pendingGenerateCallback();
         pendingGenerateCallback = null;
     }
-}
-
-function visualizarLicencaVitalicia() {
-    fetch("{{ url_for('client.licenca_visualizar') }}", {
-        method: 'POST',
-        headers: { 'X-CSRFToken': '{{ csrf_token() }}' }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            document.getElementById('chave-licenca-exibida').innerText = data.chave;
-            document.getElementById('modal-chave-titulo').innerText = 'Licença Vitalícia';
-            document.getElementById('modal-chave-licenca').classList.remove('hidden');
-        } else if (data.error === 'LICENCA_NAO_ENCONTRADA') {
-            fetch("{{ url_for('client.licenca_status') }}")
-            .then(res => res.json())
-            .then(status => {
-                if (!status.tem_licenca) {
-                    abrirModalSolicitarConta(() => visualizarLicencaVitalicia());
-                } else {
-                    alert(data.message);
-                }
-            });
-        } else {
-            alert(data.message || 'Erro ao visualizar licença.');
-        }
-    })
-    .catch(err => alert('Erro de comunicação com o servidor.'));
 }
 
 function salvarContaMT5() {

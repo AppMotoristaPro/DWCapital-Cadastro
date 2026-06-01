@@ -210,17 +210,13 @@ def faturas():
     auto_gerar_ciclo(current_user)
     faturas_carregadas = Fatura.query.options(joinedload(Fatura.dias)).filter_by(user_id=current_user.id).order_by(Fatura.data_inicio.desc()).all()
 
-    # ==================== CORREÇÃO DO ITEM 1 ====================
-    # Pré-calcular o subtotal exato para cada fatura, igual ao que será exibido dentro do ciclo
+    # Pré-calcular o subtotal exato para cada fatura
     for fatura in faturas_carregadas:
         if current_user.modelo_negocio == 'compra':
-            # Soma de dia.liquido (subtotal líquido)
             subtotal = sum(dia.liquido for dia in fatura.dias if dia.status == 'relatorio_enviado')
         else:
-            # Soma de dia.repasse (subtotal de repasse)
             subtotal = sum(dia.repasse for dia in fatura.dias if dia.status == 'relatorio_enviado')
         fatura.subtotal_exibicao = subtotal
-    # ==================== FIM DA CORREÇÃO ====================
 
     if request.method == 'GET':
         houve_alteracao = False
@@ -360,12 +356,11 @@ def api_status_documento(doc_id):
     if not autorizado: return jsonify({"assinado": False}), 403
     return jsonify({"assinado": assinado})
 
-# ==================== ROTAS DO ROBÔ E LICENÇAS ====================
+# ==================== ROTAS DO ROBÔ E LICENÇAS (UNIFICADAS) ====================
 
 @client_bp.route('/robo')
 @login_required
 def robo_download():
-    """Página de download do robô: exibe versão atual, botão condicionado e histórico."""
     versao = versao_atual()
     if not versao:
         flash("Nenhuma versão do robô disponível no momento.", "warning")
@@ -385,7 +380,6 @@ def robo_download():
 @client_bp.route('/robo/download', methods=['POST'])
 @login_required
 def baixar_robo():
-    """Registra o download e envia o arquivo com nome personalizado usando a extensão salva."""
     versao = versao_atual()
     if not versao:
         return jsonify({"error": "Nenhuma versão disponível"}), 404
@@ -394,10 +388,8 @@ def baixar_robo():
     if not liberado:
         return jsonify({"error": msg}), 403
     
-    # Registrar download
     registrar_download(current_user, versao.id)
     
-    # Baixar o arquivo do Cloudinary
     try:
         response = requests.get(versao.arquivo_url, stream=True, timeout=30)
         response.raise_for_status()
@@ -405,11 +397,9 @@ def baixar_robo():
         logger.error(f"Erro ao baixar arquivo do Cloudinary: {e}")
         return jsonify({"error": "Falha ao obter o arquivo do robô"}), 500
     
-    # Usar a extensão salva no banco (fallback para '.exe' se não houver)
     extensao = versao.extensao if versao.extensao else '.exe'
     nome_arquivo = f"dwcapital_robo_v{versao.versao}{extensao}"
     
-    # Enviar o arquivo como attachment
     return send_file(
         io.BytesIO(response.content),
         as_attachment=True,
@@ -417,25 +407,10 @@ def baixar_robo():
         mimetype='application/octet-stream'
     )
 
-# ----------------------------------------------------------------------
-# NOVAS ROTAS DE LICENÇA (conforme plano de ação)
-# ----------------------------------------------------------------------
-
 @client_bp.route('/licenca/status', methods=['GET'])
 @login_required
 def licenca_status():
-    """
-    Retorna o status da licença ativa do usuário (se existir).
-    Para comissão: licença semanal mais recente ativa.
-    Para compra: licença vitalícia ativa.
-    """
-    tipo = None
-    if current_user.modelo_negocio == 'compra':
-        tipo = 'vitalicia'
-    elif current_user.modelo_negocio == 'comissao':
-        tipo = 'semanal'
-    
-    licenca = obter_licenca_ativa(current_user, tipo=tipo)
+    licenca = obter_licenca_ativa(current_user)
     if licenca:
         return jsonify({
             "success": True,
@@ -454,18 +429,6 @@ def licenca_status():
 @client_bp.route('/licenca/gerar', methods=['POST'])
 @login_required
 def licenca_gerar():
-    """
-    Gera uma nova licença para cliente comissionado.
-    Se já existir licença para o ciclo, retorna a existente com flag 'ja_existente'.
-    """
-    if current_user.modelo_negocio != 'comissao':
-        return jsonify({
-            "success": False,
-            "error": "MODELO_INVALIDO",
-            "message": "Esta rota é apenas para clientes comissionados."
-        }), 400
-    
-    # VERIFICAÇÃO DE BLOQUEIO
     if is_licenca_bloqueada(current_user):
         return jsonify({
             "success": False,
@@ -474,7 +437,6 @@ def licenca_gerar():
         }), 403
     
     hoje = datetime.now(tz_br).date()
-    # Verificar dia útil apenas se não estiver em modo teste
     if not is_modo_teste():
         if hoje.weekday() >= 5:
             return jsonify({
@@ -483,7 +445,6 @@ def licenca_gerar():
                 "message": "A geração de licenças semanais só é permitida em dias úteis (segunda a sexta)."
             }), 400
     
-    # Verificar se o cliente tem conta MT5
     if not current_user.conta_mt5:
         return jsonify({
             "success": False,
@@ -491,7 +452,6 @@ def licenca_gerar():
             "message": "Você precisa cadastrar sua conta MT5 antes de gerar a licença."
         }), 200
     
-    # Gerar ou obter licença existente
     chave, msg, licenca_obj, ja_existente = gerar_licenca_comissao(current_user, current_user.conta_mt5)
     if not chave:
         return jsonify({
@@ -511,46 +471,11 @@ def licenca_gerar():
 @client_bp.route('/licenca/visualizar', methods=['POST'])
 @login_required
 def licenca_visualizar():
-    """
-    Retorna a licença vitalícia ativa para clientes compra.
-    """
-    if current_user.modelo_negocio != 'compra':
-        return jsonify({
-            "success": False,
-            "error": "MODELO_INVALIDO",
-            "message": "Esta rota é apenas para clientes que compraram o robô."
-        }), 400
-    
-    # VERIFICAÇÃO DE BLOQUEIO
-    if is_licenca_bloqueada(current_user):
-        return jsonify({
-            "success": False,
-            "error": "BLOQUEADO",
-            "message": "A visualização de licenças está bloqueada para este cliente. Entre em contato com o suporte."
-        }), 403
-    
-    licenca = obter_licenca_ativa(current_user, tipo='vitalicia')
-    if not licenca:
-        return jsonify({
-            "success": False,
-            "error": "LICENCA_NAO_ENCONTRADA",
-            "message": "Nenhuma licença vitalícia encontrada. Entre em contato com o suporte."
-        }), 404
-    
-    return jsonify({
-        "success": True,
-        "chave": licenca.chave_licenca,
-        "data_geracao": licenca.data_geracao.strftime('%d/%m/%Y %H:%M'),
-        "tipo": licenca.tipo
-    })
+    return licenca_gerar()
 
 @client_bp.route('/api/salvar_conta_mt5', methods=['POST'])
 @login_required
 def api_salvar_conta_mt5():
-    """
-    Salva a conta MT5 fornecida pelo cliente.
-    Se o cliente for do modelo compra e ainda não tiver licença vitalícia, gera automaticamente.
-    """
     data = request.get_json()
     nova_conta = data.get('conta_mt5', '').strip()
     if not nova_conta:
@@ -569,20 +494,10 @@ def api_salvar_conta_mt5():
         "message": msg
     })
 
-# Mantida a rota original /faturas/gerar_licenca (agora redireciona para a nova lógica)
 @client_bp.route('/faturas/gerar_licenca', methods=['POST'])
 @login_required
 def gerar_licenca_antiga():
-    """
-    Rota mantida para compatibilidade com versões anteriores do frontend.
-    Redireciona para a nova rota /licenca/gerar (comissionado) ou /licenca/visualizar (compra).
-    """
-    if current_user.modelo_negocio == 'comissao':
-        return licenca_gerar()
-    elif current_user.modelo_negocio == 'compra':
-        return licenca_visualizar()
-    else:
-        return jsonify({"success": False, "message": "Modelo de negócio inválido."}), 400
+    return licenca_gerar()
 
 @client_bp.route('/ajuda')
 @login_required

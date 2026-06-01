@@ -1,12 +1,14 @@
 """
 Serviço de licenças – Responsável por toda lógica de geração, validação e expiração.
 Tipos:
-- semanal: para clientes comissão, válida até domingo 23:59, geração permitida apenas em dias úteis.
-- vitalicia: para clientes compra, válida para sempre (não expira).
-
-Regras de expiração:
-- Licenças semanais com data_expiracao < agora são marcadas como status='expirada' pelo job semanal.
-- A função existe_licenca_para_ciclo ignora licenças com status 'expirada', permitindo gerar nova licença para o mesmo ciclo.
+- semanal: para todos os clientes (comissão e compra), válida até domingo 23:59.
+- vitalicia: não é mais utilizado (mantido apenas para compatibilidade).
+Regras unificadas:
+- Cliente comissionado: precisa de notas enviadas e pagamento confirmado no ciclo anterior.
+- Cliente compra: não paga repasse, mas precisa de notas enviadas (não exige pagamento).
+- Ambos podem gerar licença no ciclo anterior (se não houver fatura, liberado como novo).
+- Licença expira no próximo domingo às 23:59:59 BRT, independente do dia da geração.
+- Cron job expira licenças semanais com data_expiracao passada.
 """
 
 from datetime import datetime, timedelta
@@ -80,7 +82,7 @@ def gerar_chave_semanal(conta_mt5, semana_id=None):
 
 
 def gerar_chave_vitalicia(conta_mt5):
-    """Gera chave vitalícia conforme fórmula: conta * 99999"""
+    """Gera chave vitalícia conforme fórmula: conta * 99999 (mantido para compatibilidade)"""
     conta = int(conta_mt5) if conta_mt5 else 0
     return str(conta * 99999)
 
@@ -123,7 +125,8 @@ def calcular_ciclo_anterior(data_ref=None):
 def obter_licenca_ativa(user, tipo=None):
     """
     Retorna a licença ativa (status='ativa') do usuário.
-    Se tipo for informado, filtra por ele. Se não, retorna a mais recente.
+    Se tipo for informado, filtra por ele (útil apenas para histórico).
+    Na prática, todos os tipos são tratados como semanal.
     """
     query = LicencaCliente.query.filter_by(user_id=user.id, status='ativa')
     if tipo:
@@ -144,12 +147,15 @@ def existe_licenca_para_ciclo(user, ciclo_inicio):
 
 
 # ============================================================
-# CONDIÇÕES PARA COMISSÃO (CORRIGIDO PARA CLIENTES NOVOS)
+# CONDIÇÕES PARA GERAÇÃO (UNIFICADA)
 # ============================================================
 
 def verificar_condicoes_comissao(user, ciclo_inicio):
     """
-    Verifica se o cliente comissão pode gerar licença para o ciclo_inicio informado.
+    Verifica se o cliente pode gerar licença para o ciclo_inicio informado.
+    Funciona para ambos os modelos (comissão e compra), com diferença:
+    - Comissão não isento: exige pagamento.
+    - Compra: não exige pagamento (apenas notas enviadas).
     Retorna (status, mensagem, pendencias, licenca_existente)
     status pode ser:
         - True (liberado)
@@ -169,12 +175,12 @@ def verificar_condicoes_comissao(user, ciclo_inicio):
     if dias_pendentes:
         return False, f"Existem {len(dias_pendentes)} dias com notas pendentes.", {'notas_pendentes': [d.data_pregao.strftime('%d/%m') for d in dias_pendentes]}, None
 
-    # Pagamento (apenas para comissão não isento)
-    if not user.is_isento:
+    # 3. Pagamento (apenas para comissão não isento)
+    if user.modelo_negocio == 'comissao' and not user.is_isento:
         if fatura.status != 'pago':
             return False, "Pagamento deste ciclo ainda não foi confirmado pela administração.", {'pagamento_pendente': True}, None
 
-    # Verificar se já existe licença NÃO EXPIRADA para este ciclo
+    # 4. Verificar se já existe licença NÃO EXPIRADA para este ciclo
     licenca_existente = LicencaCliente.query.filter(
         LicencaCliente.user_id == user.id,
         LicencaCliente.ciclo_inicio == ciclo_inicio,
@@ -187,18 +193,19 @@ def verificar_condicoes_comissao(user, ciclo_inicio):
 
 
 # ============================================================
-# GERAÇÃO DE LICENÇAS
+# GERAÇÃO DE LICENÇA (UNIFICADA)
 # ============================================================
 
 def gerar_licenca_comissao(user, conta_mt5, semana_id=None):
     """
     Gera uma nova licença semanal ou retorna a existente (não expirada).
+    Funciona para qualquer modelo de negócio (comissão ou compra).
     Retorna (chave, mensagem, licenca_obj, ja_existente)
     """
     # O ciclo alvo é sempre o CICLO ANTERIOR (completo)
     ciclo_inicio, ciclo_fim = calcular_ciclo_anterior()
 
-    # Verificar condições (agora com base no ciclo anterior)
+    # Verificar condições
     status, msg, _, licenca_existente = verificar_condicoes_comissao(user, ciclo_inicio)
 
     # Se já existe licença (não expirada), retornar ela
@@ -211,31 +218,25 @@ def gerar_licenca_comissao(user, conta_mt5, semana_id=None):
     # Gerar nova chave
     chave = gerar_chave_semanal(conta_mt5, semana_id)
 
-    # ============================================================
-    # CORREÇÃO DA DATA DE EXPIRAÇÃO
-    # ============================================================
-    # Calcula o próximo domingo (se hoje é domingo, vai para o próximo)
+    # Data de expiração: próximo domingo às 23:59:59 BRT (salvo em UTC)
     hoje_br = datetime.now(tz_br).date()
     dias_para_proximo_domingo = (6 - hoje_br.weekday()) % 7
     if dias_para_proximo_domingo == 0:
-        dias_para_proximo_domingo = 7  # vai para o domingo seguinte
+        dias_para_proximo_domingo = 7   # se hoje é domingo, vai para o próximo
     proximo_domingo = hoje_br + timedelta(days=dias_para_proximo_domingo)
 
-    # Cria datetime com hora 23:59:59 (sem microssegundos) no fuso BRT
-    expiracao_br = datetime(
+    # Criação direta em UTC (20:59:59 UTC = 23:59:59 BRT)
+    data_expiracao_utc = datetime(
         proximo_domingo.year, proximo_domingo.month, proximo_domingo.day,
-        23, 59, 59, tzinfo=tz_br
+        20, 59, 59, tzinfo=pytz.UTC
     )
-    # Converte para UTC (como o banco armazena)
-    data_expiracao_utc = expiracao_br.astimezone(pytz.UTC)
-    # ============================================================
 
     nova_licenca = LicencaCliente(
         user_id=user.id,
         chave_licenca=chave,
         ciclo_inicio=ciclo_inicio,
         ciclo_fim=ciclo_fim,
-        tipo='semanal',
+        tipo='semanal',          # todos viram semanal (vitalicia não será mais usado)
         data_expiracao=data_expiracao_utc,
         status='ativa',
         conta_mt5=conta_mt5
@@ -248,65 +249,48 @@ def gerar_licenca_comissao(user, conta_mt5, semana_id=None):
 
 def gerar_licenca_vitalicia(user, conta_mt5):
     """
-    Gera uma nova licença vitalícia para o cliente compra.
-    Retorna (chave, mensagem, licenca_obj).
+    Mantida apenas para compatibilidade com código antigo.
+    Redireciona para a função unificada, mas retorna o mesmo tipo de resultado.
     """
-    existente = obter_licenca_ativa(user, tipo='vitalicia')
-    if existente:
-        return existente.chave_licenca, "Licença vitalícia já existente.", existente
-
-    chave = gerar_chave_vitalicia(conta_mt5)
-
-    nova_licenca = LicencaCliente(
-        user_id=user.id,
-        chave_licenca=chave,
-        ciclo_inicio=datetime.now(tz_br).date(),
-        ciclo_fim=datetime.now(tz_br).date(),
-        tipo='vitalicia',
-        data_expiracao=None,
-        status='ativa',
-        conta_mt5=conta_mt5
-    )
-    db.session.add(nova_licenca)
-    db.session.commit()
-
-    return chave, "Licença vitalícia gerada com sucesso.", nova_licenca
+    chave, msg, licenca, ja_existente = gerar_licenca_comissao(user, conta_mt5)
+    # Força o tipo para 'vitalicia' apenas para não quebrar registros anteriores
+    if licenca:
+        licenca.tipo = 'vitalicia'
+        db.session.commit()
+    return chave, msg, licenca
 
 
 def salvar_conta_mt5_e_gerar_vitalicia_se_necessario(user, nova_conta):
     """
     Atualiza a conta MT5 do usuário. Se o usuário for do tipo compra e ainda não tiver
-    licença vitalícia ativa, gera automaticamente.
-    Retorna (licenca_gerada, chave_licenca, mensagem)
+    licença ativa, gera uma licença semanal (não vitalícia).
     """
     user.conta_mt5 = nova_conta
     db.session.commit()
 
     if user.modelo_negocio == 'compra':
-        licenca = obter_licenca_ativa(user, tipo='vitalicia')
+        licenca = obter_licenca_ativa(user, tipo='semanal')  # agora busca semanal
         if not licenca:
-            chave, msg, _ = gerar_licenca_vitalicia(user, nova_conta)
+            chave, msg, _ = gerar_licenca_comissao(user, nova_conta)
             return True, chave, msg
         else:
-            return False, licenca.chave_licenca, "Licença vitalícia já existente."
+            return False, licenca.chave_licenca, "Licença já existente para este ciclo."
     return False, None, "Conta MT5 salva (usuário não é compra)."
 
 
 # ============================================================
-# EXPIRAÇÃO SEMANAL (CORRIGIDA COM UTC E LOGS)
+# EXPIRAÇÃO (UNIFICADA)
 # ============================================================
 
 def expirar_licencas_semanais():
     """
-    Marca como expiradas todas as licenças semanais cuja data_expiracão já passou.
-    Deve ser chamada por um job agendado (cron-job.org ou GitHub Actions) toda segunda-feira às 00:00 BRT.
-    Licenças expiradas não são excluídas, apenas têm status alterado para 'expirada'.
+    Marca como expiradas todas as licenças (semanais e vitalícias) cuja data_expiracão já passou.
+    Deve ser chamada por um job agendado (cron-job.org ou GitHub Actions) toda segunda-feira às 00:06 BRT.
     """
     agora_utc = datetime.now(pytz.UTC)
-    print(f"[CRON] Verificando licenças semanais ativas com expiração < {agora_utc.isoformat()} (UTC)")
+    print(f"[CRON] Verificando licenças ativas com expiração < {agora_utc.isoformat()} (UTC)")
 
     licencas = LicencaCliente.query.filter(
-        LicencaCliente.tipo == 'semanal',
         LicencaCliente.status == 'ativa',
         LicencaCliente.data_expiracao < agora_utc
     ).all()
@@ -314,7 +298,7 @@ def expirar_licencas_semanais():
     print(f"[CRON] Encontradas {len(licencas)} licenças para expirar.")
 
     for lic in licencas:
-        print(f"[CRON] Expirando licença ID {lic.id} (user {lic.user_id}, expiração {lic.data_expiracao})")
+        print(f"[CRON] Expirando licença ID {lic.id} (user {lic.user_id}, tipo {lic.tipo}, expiração {lic.data_expiracao})")
         lic.status = 'expirada'
 
     db.session.commit()
