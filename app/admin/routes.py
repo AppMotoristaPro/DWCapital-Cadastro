@@ -793,7 +793,7 @@ def cliente_licencas(id):
     licencas = LicencaCliente.query.filter_by(user_id=cliente.id).order_by(LicencaCliente.data_geracao.desc()).all()
     return render_template('admin/cliente_licencas.html', cliente=cliente, licencas=licencas)
 
-# ==================== NOVA ROTA: RELATÓRIO DE GESTÃO (com filtro de mês) ====================
+# ==================== ROTA: RELATÓRIO DE GESTÃO (APENAS DOWNLOAD) ====================
 
 @admin_bp.route('/relatorio_gestao', methods=['GET'])
 @admin_required
@@ -803,22 +803,26 @@ def relatorio_gestao():
     mes = request.args.get('mes')
     ano = request.args.get('ano')
     
-    if mes and ano:
-        try:
-            mes_int = int(mes)
-            ano_int = int(ano)
-            if 1 <= mes_int <= 12 and ano_int > 2000:
-                output = gerar_relatorio_gestao(mes_int, ano_int)
-                return send_file(output, as_attachment=True, download_name=f'relatorio_gestao_{ano_int}_{mes_int:02d}.xlsx')
-            else:
-                flash('Mês ou ano inválidos.', 'error')
-        except ValueError:
-            flash('Parâmetros inválidos.', 'error')
+    if not mes or not ano:
+        flash('Selecione o mês e o ano para gerar o relatório.', 'error')
+        return redirect(url_for('admin.clientes_list'))
     
-    # Se não houver parâmetros, exibe formulário de seleção
-    from datetime import datetime
-    hoje = datetime.now()
-    return render_template('admin/selecionar_mes.html', mes_atual=hoje.month, ano_atual=hoje.year)
+    try:
+        mes_int = int(mes)
+        ano_int = int(ano)
+        if not (1 <= mes_int <= 12 and ano_int > 2000):
+            flash('Mês ou ano inválidos.', 'error')
+            return redirect(url_for('admin.clientes_list'))
+    except ValueError:
+        flash('Parâmetros inválidos.', 'error')
+        return redirect(url_for('admin.clientes_list'))
+    
+    try:
+        output = gerar_relatorio_gestao(mes_int, ano_int)
+        return send_file(output, as_attachment=True, download_name=f'relatorio_gestao_{ano_int}_{mes_int:02d}.xlsx')
+    except Exception as e:
+        flash(f'Erro ao gerar relatório: {str(e)}', 'error')
+        return redirect(url_for('admin.clientes_list'))
 
 # ==================== FUNÇÕES AUXILIARES ====================
 

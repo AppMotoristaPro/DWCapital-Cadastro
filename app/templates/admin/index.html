@@ -10,9 +10,9 @@
             <button onclick="document.getElementById('modal-novo-acesso').classList.remove('hidden')" class="px-6 py-4 bg-royal hover:bg-royal-dark text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg transition">
                 Liberar Novo Acesso
             </button>
-            <a href="{{ url_for('admin.relatorio_gestao') }}" class="px-6 py-4 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg transition ml-4">
+            <button onclick="abrirModalRelatorio()" class="px-6 py-4 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg transition ml-4">
                 Relatório de Gestão
-            </a>
+            </button>
         </div>
     </div>
 
@@ -43,7 +43,7 @@
                         <th class="px-6 py-5">Alocações (Corretoras)</th>
                         <th class="px-6 py-5">Status</th>
                         <th class="px-8 py-5 text-right">Ações</th>
-                    </tr>
+                    <tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50">
                     {% for cliente in clientes %}
@@ -216,6 +216,37 @@
     </div>
 </div>
 
+<!-- Modal para selecionar mês/ano do relatório de gestão -->
+<div id="modal-relatorio" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
+    <div class="bg-white/90 backdrop-blur-2xl border border-white/40 w-full max-w-md rounded-[2.5rem] shadow-2xl p-10 relative">
+        <button type="button" onclick="fecharModalRelatorio()" class="absolute top-6 right-6 text-gray-400 hover:text-navy font-black text-xl transition">X</button>
+        <h2 class="text-2xl font-black text-navy mb-6">Relatório de Gestão</h2>
+        <p class="text-gray-500 mb-6 text-sm">Selecione o mês e ano para gerar o relatório.</p>
+        
+        <div class="space-y-5">
+            <div>
+                <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 block ml-1">Mês</label>
+                <select id="select-mes" class="w-full px-5 py-4 bg-white border border-gray-200 rounded-xl outline-none font-bold text-navy focus:border-royal shadow-sm">
+                    {% for m in range(1, 13) %}
+                    <option value="{{ m }}">{{ m }} - {{ ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][m-1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 block ml-1">Ano</label>
+                <select id="select-ano" class="w-full px-5 py-4 bg-white border border-gray-200 rounded-xl outline-none font-bold text-navy focus:border-royal shadow-sm">
+                    {% for a in range(2024, 2028) %}
+                    <option value="{{ a }}">{{ a }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button onclick="gerarRelatorio()" class="w-full py-4 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg transition mt-4">
+                Gerar Relatório
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
 function abrirModalFicha(templateId) {
     const templateContent = document.getElementById(templateId);
@@ -247,6 +278,26 @@ function filtrarClientes() {
             linha.style.display = 'none';
         }
     });
+}
+
+// Funções para o modal do relatório
+function abrirModalRelatorio() {
+    document.getElementById('modal-relatorio').classList.remove('hidden');
+}
+
+function fecharModalRelatorio() {
+    document.getElementById('modal-relatorio').classList.add('hidden');
+}
+
+function gerarRelatorio() {
+    var mes = document.getElementById('select-mes').value;
+    var ano = document.getElementById('select-ano').value;
+    if (mes && ano) {
+        window.location.href = "{{ url_for('admin.relatorio_gestao') }}?mes=" + mes + "&ano=" + ano;
+        fecharModalRelatorio();
+    } else {
+        alert('Selecione o mês e o ano.');
+    }
 }
 </script>
 {% endblock %}
