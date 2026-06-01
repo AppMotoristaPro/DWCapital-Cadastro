@@ -4,17 +4,11 @@ REGRAS APLICADAS:
 - Clientes isentos são EXCLUÍDOS de todos os cálculos (totais, médias, repasses).
 - Clientes sem nenhuma nota no período não entram nos cálculos agregados, mas aparecem em uma seção separada "Clientes sem movimentação".
 - Dias operados: removido indicador global.
-- Todos os cálculos usam o campo "liquido_pregao" (resultado do pregão após custos, antes do IR 19%).
-- Média diária global: soma dos "liquido_pregao" de dias POSITIVOS / número de dias úteis com nota anexada.
-- Média semanal global: média diária global × 5 (considerando 5 dias úteis por semana).
-- Total mensal global: soma dos "liquido_pregao" de dias POSITIVOS de todos os clientes (exceto isentos).
-- Repasse 30% (Todos clientes): soma dos "liquido_pregao" de dias POSITIVOS de todos os clientes (exceto isentos) × 0.30.
-- Repasse 30% (Comissionados): mesmo cálculo, mas apenas para clientes com modelo "comissao" e não isentos.
-- Clientes sem movimentação: listados em seção separada, sem cálculos financeiros.
-- Clientes comissionados: fundo azul claro nas linhas de detalhamento.
-- Clientes compra: fundo verde claro.
-- Indicadores removidos: dias operados global, repasse real (saldo mensal), repasse simulado (dias e saldo), colunas extras de repasse.
-- Colunas por cliente: Nome, CPF, Conta MT5, Modelo, Capital (R$), Média Diária (R$), Média Semanal (R$), Total Mensal (R$), Repasse 30% (R$), ROI (%).
+- Todos os cálculos de valores financeiros usam "liquido_pregao" (resultado do pregão após custos, antes do IR 19%).
+- O ROI Global é calculado com base no campo "bruto" (mesma lógica do dashboard admin):
+    ROI cliente = (média diária bruta / capital) * 100
+    ROI Global = média dos ROIs individuais (clientes com capital > 0 e dias positivos).
+- Colunas por cliente: Nome, CPF, Conta MT5, Modelo, Capital (R$), Média Diária (R$), Média Semanal (R$), Total Mensal (R$), Repasse 30% (R$).
 """
 
 from datetime import datetime
@@ -87,57 +81,79 @@ def gerar_relatorio_gestao(mes, ano):
     repasse_todos_clientes_total = 0.0      # 30% sobre soma_liquido_positivo_total
     repasse_comissionados_total = 0.0       # 30% sobre soma de liquido_pregao de comissionados
 
+    # Cálculo do ROI Global (mesma lógica do dashboard admin)
+    rois_clientes = []   # armazenar ROI de cada cliente (média diária bruta / capital * 100)
+
     # Dados por cliente (ativos e não isentos)
     dados_clientes = []
     clientes_sem_notas = []  # para clientes ativos não isentos sem nenhuma nota no mês
 
     for cliente in clientes_ativos:
         # Filtrar dias do mês para este cliente
-        dias = FaturaDiaria.query.join(Fatura).filter(
+        # Para valores financeiros: usa liquido_pregao > 0
+        # Para ROI: usa bruto > 0
+        dias_financeiros = FaturaDiaria.query.join(Fatura).filter(
             Fatura.user_id == cliente.id,
             FaturaDiaria.data_pregao >= primeiro_dia,
             FaturaDiaria.data_pregao <= ultimo_dia,
             FaturaDiaria.status == 'relatorio_enviado',
-            FaturaDiaria.liquido_pregao > 0   # APENAS DIAS POSITIVOS
+            FaturaDiaria.liquido_pregao > 0
+        ).all()
+
+        dias_roi = FaturaDiaria.query.join(Fatura).filter(
+            Fatura.user_id == cliente.id,
+            FaturaDiaria.data_pregao >= primeiro_dia,
+            FaturaDiaria.data_pregao <= ultimo_dia,
+            FaturaDiaria.status == 'relatorio_enviado',
+            FaturaDiaria.bruto > 0
         ).all()
 
         # Capital acumula sempre (mesmo se não tiver notas)
-        total_capital += cliente.capital_alocado or 0.0
+        capital_cliente = cliente.capital_alocado or 0.0
+        total_capital += capital_cliente
 
-        if not dias:
+        if not dias_financeiros:
             # Cliente sem notas positivas no mês
             clientes_sem_notas.append({
                 'nome': cliente.nome,
                 'cpf': cliente.cpf,
                 'conta_mt5': cliente.conta_mt5 or '',
                 'modelo': cliente.modelo_negocio,
-                'capital': cliente.capital_alocado or 0.0
+                'capital': capital_cliente
             })
+            # Ainda assim, se tiver dias_roi (bruto > 0), pode contribuir para ROI? 
+            # Para consistência com dashboard, só considera cliente se tiver pelo menos um dia com bruto > 0 e capital > 0
+            if dias_roi and capital_cliente > 0:
+                qtd_dias_roi = len(dias_roi)
+                soma_bruto = sum(d.bruto for d in dias_roi)
+                media_bruta = soma_bruto / qtd_dias_roi
+                roi_cliente = (media_bruta / capital_cliente) * 100
+                rois_clientes.append(roi_cliente)
             continue
 
-        # Cálculos para este cliente
-        qtd_dias = len(dias)
-        soma_liquido = sum(d.liquido_pregao for d in dias)  # soma apenas dos positivos
+        # Cálculos financeiros para este cliente (base liquido_pregao)
+        qtd_dias_fin = len(dias_financeiros)
+        soma_liquido = sum(d.liquido_pregao for d in dias_financeiros)
 
-        # Média diária = soma / dias
-        media_diaria = soma_liquido / qtd_dias if qtd_dias > 0 else 0.0
+        media_diaria = soma_liquido / qtd_dias_fin if qtd_dias_fin > 0 else 0.0
         media_semanal = media_diaria * 5
         total_mensal = soma_liquido
-
-        # Repasse 30% para este cliente (individual)
         repasse_cliente = soma_liquido * 0.30
 
-        # ROI (%) = (Total Mensal / Capital) * 100
-        capital_cliente = cliente.capital_alocado or 0.0
-        roi = (total_mensal / capital_cliente * 100) if capital_cliente > 0 else 0.0
-
-        # Acumular totais globais
-        total_dias_operados += qtd_dias
+        # Acumular totais globais (financeiros)
+        total_dias_operados += qtd_dias_fin
         soma_liquido_positivo_total += soma_liquido
         repasse_todos_clientes_total += repasse_cliente
-
         if cliente.modelo_negocio == 'comissao':
             repasse_comissionados_total += repasse_cliente
+
+        # Cálculo do ROI para este cliente (base bruto)
+        if dias_roi and capital_cliente > 0:
+            qtd_dias_roi = len(dias_roi)
+            soma_bruto = sum(d.bruto for d in dias_roi)
+            media_bruta = soma_bruto / qtd_dias_roi
+            roi_cliente = (media_bruta / capital_cliente) * 100
+            rois_clientes.append(roi_cliente)
 
         dados_clientes.append({
             'nome': cliente.nome,
@@ -145,15 +161,16 @@ def gerar_relatorio_gestao(mes, ano):
             'conta_mt5': cliente.conta_mt5 or '',
             'modelo': cliente.modelo_negocio,
             'capital': capital_cliente,
-            'dias_operados': qtd_dias,
             'media_diaria': media_diaria,
             'media_semanal': media_semanal,
             'total_mensal': total_mensal,
-            'repasse': repasse_cliente,
-            'roi': roi
+            'repasse': repasse_cliente
         })
 
-    # Calcular médias globais
+    # Calcular ROI Global (média dos ROIs individuais)
+    roi_global = sum(rois_clientes) / len(rois_clientes) if rois_clientes else 0.0
+
+    # Calcular médias globais (financeiras)
     media_diaria_global = soma_liquido_positivo_total / total_dias_operados if total_dias_operados > 0 else 0.0
     media_semanal_global = media_diaria_global * 5
     total_mensal_global = soma_liquido_positivo_total
@@ -183,6 +200,9 @@ def gerar_relatorio_gestao(mes, ano):
     linha += 1
     ws.cell(row=linha, column=1, value='REPASSE 30% (Comissionados) (R$)')
     ws.cell(row=linha, column=2, value=repasse_comissionados_total).number_format = currency_format
+    linha += 1
+    ws.cell(row=linha, column=1, value='ROI Médio Global (%)')
+    ws.cell(row=linha, column=2, value=round(roi_global, 2)).number_format = percent_format
 
     # Aplicar bordas e alinhamento nos totais
     for row in range(3, linha+1):
@@ -202,8 +222,7 @@ def gerar_relatorio_gestao(mes, ano):
 
         headers = [
             'Nome', 'CPF', 'Conta MT5', 'Modelo', 'Capital (R$)',
-            'Média Diária (R$)', 'Média Semanal (R$)', 'Total Mensal (R$)',
-            'Repasse 30% (R$)', 'ROI (%)'
+            'Média Diária (R$)', 'Média Semanal (R$)', 'Total Mensal (R$)', 'Repasse 30% (R$)'
         ]
         for idx, header in enumerate(headers):
             cell = ws.cell(row=linha, column=1+idx, value=header)
@@ -251,13 +270,8 @@ def gerar_relatorio_gestao(mes, ano):
             cell_repasse.border = thin_border
             cell_repasse.fill = bg_fill
 
-            cell_roi = ws.cell(row=linha, column=10, value=round(cli['roi'], 2))
-            cell_roi.number_format = percent_format
-            cell_roi.border = thin_border
-            cell_roi.fill = bg_fill
-
             # Alinhamento
-            for col in range(1, 11):
+            for col in range(1, 10):
                 cell = ws.cell(row=linha, column=col)
                 if col >= 5:
                     cell.alignment = right_align
@@ -300,8 +314,8 @@ def gerar_relatorio_gestao(mes, ano):
                     cell.alignment = left_align
             linha += 1
 
-    # Ajustar larguras (incluindo a nova coluna ROI)
-    column_widths = [30, 15, 12, 12, 15, 15, 15, 15, 18, 10]
+    # Ajustar larguras (sem a coluna de ROI)
+    column_widths = [30, 15, 12, 12, 15, 15, 15, 15, 18]
     for i, width in enumerate(column_widths, start=1):
         col_letter = chr(64 + i) if i <= 26 else 'A' + chr(64 + (i-26))
         ws.column_dimensions[col_letter].width = width

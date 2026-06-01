@@ -100,19 +100,18 @@ def calcular_ciclo_por_data(data_ref=None):
 
 def calcular_ciclo_anterior(data_ref=None):
     """
-    Retorna (inicio_ciclo, fim_ciclo) da semana completa anterior a data_ref.
+    Retorna (inicio_ciclo, fim_ciclo) da semana COMPLETAMENTE ANTERIOR à data_ref.
     Ciclo = sexta (início) a quinta (fim).
-    Se data_ref for None, usa hoje.
+    Exemplo: se hoje é 2026-06-01 (segunda), o ciclo atual começa em 2026-05-29 (sexta) e termina em 2026-06-04 (quinta).
+    O ciclo anterior começa em 2026-05-22 (sexta) e termina em 2026-05-28 (quinta).
     """
     if data_ref is None:
         data_ref = datetime.now(tz_br).date()
-    # Encontra a sexta anterior ou igual
+    # Encontra o início do ciclo atual
     dias_para_sexta = (data_ref.weekday() - 4) % 7
-    sexta = data_ref - timedelta(days=dias_para_sexta)
-    # Se a sexta é hoje, queremos o ciclo anterior
-    if sexta == data_ref:
-        sexta -= timedelta(days=7)
-    inicio = sexta
+    sexta_atual = data_ref - timedelta(days=dias_para_sexta)
+    # O ciclo anterior começa 7 dias antes
+    inicio = sexta_atual - timedelta(days=7)
     fim = inicio + timedelta(days=6)
     return inicio, fim
 
