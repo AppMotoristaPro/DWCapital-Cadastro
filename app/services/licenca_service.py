@@ -264,6 +264,8 @@ def salvar_conta_mt5_e_gerar_vitalicia_se_necessario(user, nova_conta):
     """
     Atualiza a conta MT5 do usuário. Se o usuário for do tipo compra e ainda não tiver
     licença ativa, gera uma licença semanal (não vitalícia).
+    CORREÇÃO: Agora trata corretamente os 4 valores retornados por gerar_licenca_comissao.
+    Retorna (licenca_gerada, chave_licenca, mensagem)
     """
     user.conta_mt5 = nova_conta
     db.session.commit()
@@ -271,7 +273,7 @@ def salvar_conta_mt5_e_gerar_vitalicia_se_necessario(user, nova_conta):
     if user.modelo_negocio == 'compra':
         licenca = obter_licenca_ativa(user, tipo='semanal')  # agora busca semanal
         if not licenca:
-            chave, msg, _ = gerar_licenca_comissao(user, nova_conta)
+            chave, msg, _, _ = gerar_licenca_comissao(user, nova_conta)
             return True, chave, msg
         else:
             return False, licenca.chave_licenca, "Licença já existente para este ciclo."
