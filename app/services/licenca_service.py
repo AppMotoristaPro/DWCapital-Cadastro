@@ -211,11 +211,24 @@ def gerar_licenca_comissao(user, conta_mt5, semana_id=None):
     # Gerar nova chave
     chave = gerar_chave_semanal(conta_mt5, semana_id)
 
-    # Data de expiração: domingo 23:59 do ciclo atual (não do anterior)
-    hoje = datetime.now(tz_br).date()
-    dias_para_domingo = (6 - hoje.weekday()) % 7
-    domingo = hoje + timedelta(days=dias_para_domingo)
-    data_expiracao = datetime(domingo.year, domingo.month, domingo.day, 23, 59, 59, tzinfo=tz_br)
+    # ============================================================
+    # CORREÇÃO DA DATA DE EXPIRAÇÃO
+    # ============================================================
+    # Calcula o próximo domingo (se hoje é domingo, vai para o próximo)
+    hoje_br = datetime.now(tz_br).date()
+    dias_para_proximo_domingo = (6 - hoje_br.weekday()) % 7
+    if dias_para_proximo_domingo == 0:
+        dias_para_proximo_domingo = 7  # vai para o domingo seguinte
+    proximo_domingo = hoje_br + timedelta(days=dias_para_proximo_domingo)
+
+    # Cria datetime com hora 23:59:59 (sem microssegundos) no fuso BRT
+    expiracao_br = datetime(
+        proximo_domingo.year, proximo_domingo.month, proximo_domingo.day,
+        23, 59, 59, tzinfo=tz_br
+    )
+    # Converte para UTC (como o banco armazena)
+    data_expiracao_utc = expiracao_br.astimezone(pytz.UTC)
+    # ============================================================
 
     nova_licenca = LicencaCliente(
         user_id=user.id,
@@ -223,7 +236,7 @@ def gerar_licenca_comissao(user, conta_mt5, semana_id=None):
         ciclo_inicio=ciclo_inicio,
         ciclo_fim=ciclo_fim,
         tipo='semanal',
-        data_expiracao=data_expiracao,
+        data_expiracao=data_expiracao_utc,
         status='ativa',
         conta_mt5=conta_mt5
     )
@@ -280,23 +293,28 @@ def salvar_conta_mt5_e_gerar_vitalicia_se_necessario(user, nova_conta):
 
 
 # ============================================================
-# EXPIRAÇÃO SEMANAL
+# EXPIRAÇÃO SEMANAL (CORRIGIDA COM UTC E LOGS)
 # ============================================================
 
 def expirar_licencas_semanais():
     """
     Marca como expiradas todas as licenças semanais cuja data_expiracão já passou.
-    Deve ser chamada por um job agendado (cron-job.org ou GitHub Actions) toda segunda-feira às 00:00.
+    Deve ser chamada por um job agendado (cron-job.org ou GitHub Actions) toda segunda-feira às 00:00 BRT.
     Licenças expiradas não são excluídas, apenas têm status alterado para 'expirada'.
     """
-    agora = datetime.now(tz_br)
+    agora_utc = datetime.now(pytz.UTC)
+    print(f"[CRON] Verificando licenças semanais ativas com expiração < {agora_utc.isoformat()} (UTC)")
+
     licencas = LicencaCliente.query.filter(
         LicencaCliente.tipo == 'semanal',
         LicencaCliente.status == 'ativa',
-        LicencaCliente.data_expiracao < agora
+        LicencaCliente.data_expiracao < agora_utc
     ).all()
 
+    print(f"[CRON] Encontradas {len(licencas)} licenças para expirar.")
+
     for lic in licencas:
+        print(f"[CRON] Expirando licença ID {lic.id} (user {lic.user_id}, expiração {lic.data_expiracao})")
         lic.status = 'expirada'
 
     db.session.commit()
