@@ -14,7 +14,7 @@ REGRAS APLICADAS:
 - Clientes comissionados: fundo azul claro nas linhas de detalhamento.
 - Clientes compra: fundo verde claro.
 - Indicadores removidos: dias operados global, repasse real (saldo mensal), repasse simulado (dias e saldo), colunas extras de repasse.
-- Colunas por cliente: Nome, CPF, Conta MT5, Modelo, Isento, Capital (R$), Média Diária (R$), Média Semanal (R$), Total Mensal (R$), Repasse 30% (R$).
+- Colunas por cliente: Nome, CPF, Conta MT5, Modelo, Capital (R$), Média Diária (R$), Média Semanal (R$), Total Mensal (R$), Repasse 30% (R$), ROI (%).
 """
 
 from datetime import datetime
@@ -60,6 +60,7 @@ def gerar_relatorio_gestao(mes, ano):
     left_align = Alignment(horizontal='left', vertical='center')
     right_align = Alignment(horizontal='right', vertical='center')
     currency_format = '"R$" #,##0.00'
+    percent_format = '0.00"%"'
 
     # ==================== 1. TOTAIS GERAIS ====================
     ws.merge_cells('A1:H1')
@@ -80,8 +81,7 @@ def gerar_relatorio_gestao(mes, ano):
     # Inicializar acumuladores globais
     total_capital = 0.0
     soma_liquido_positivo_total = 0.0   # soma de liquido_pregao de dias positivos
-    total_dias_operados = 0             # total de dias com nota (apenas dias positivos? Conforme item 5, sim)
-    # Para média diária: soma_liquido_positivo_total / total_dias_operados
+    total_dias_operados = 0             # total de dias com nota (apenas dias positivos)
 
     # Repasses
     repasse_todos_clientes_total = 0.0      # 30% sobre soma_liquido_positivo_total
@@ -127,6 +127,10 @@ def gerar_relatorio_gestao(mes, ano):
         # Repasse 30% para este cliente (individual)
         repasse_cliente = soma_liquido * 0.30
 
+        # ROI (%) = (Total Mensal / Capital) * 100
+        capital_cliente = cliente.capital_alocado or 0.0
+        roi = (total_mensal / capital_cliente * 100) if capital_cliente > 0 else 0.0
+
         # Acumular totais globais
         total_dias_operados += qtd_dias
         soma_liquido_positivo_total += soma_liquido
@@ -140,12 +144,13 @@ def gerar_relatorio_gestao(mes, ano):
             'cpf': cliente.cpf,
             'conta_mt5': cliente.conta_mt5 or '',
             'modelo': cliente.modelo_negocio,
-            'capital': cliente.capital_alocado or 0.0,
+            'capital': capital_cliente,
             'dias_operados': qtd_dias,
             'media_diaria': media_diaria,
             'media_semanal': media_semanal,
             'total_mensal': total_mensal,
-            'repasse': repasse_cliente
+            'repasse': repasse_cliente,
+            'roi': roi
         })
 
     # Calcular médias globais
@@ -197,7 +202,8 @@ def gerar_relatorio_gestao(mes, ano):
 
         headers = [
             'Nome', 'CPF', 'Conta MT5', 'Modelo', 'Capital (R$)',
-            'Média Diária (R$)', 'Média Semanal (R$)', 'Total Mensal (R$)', 'Repasse 30% (R$)'
+            'Média Diária (R$)', 'Média Semanal (R$)', 'Total Mensal (R$)',
+            'Repasse 30% (R$)', 'ROI (%)'
         ]
         for idx, header in enumerate(headers):
             cell = ws.cell(row=linha, column=1+idx, value=header)
@@ -245,8 +251,13 @@ def gerar_relatorio_gestao(mes, ano):
             cell_repasse.border = thin_border
             cell_repasse.fill = bg_fill
 
+            cell_roi = ws.cell(row=linha, column=10, value=round(cli['roi'], 2))
+            cell_roi.number_format = percent_format
+            cell_roi.border = thin_border
+            cell_roi.fill = bg_fill
+
             # Alinhamento
-            for col in range(1, 10):
+            for col in range(1, 11):
                 cell = ws.cell(row=linha, column=col)
                 if col >= 5:
                     cell.alignment = right_align
@@ -289,8 +300,8 @@ def gerar_relatorio_gestao(mes, ano):
                     cell.alignment = left_align
             linha += 1
 
-    # Ajustar larguras
-    column_widths = [30, 15, 12, 12, 15, 15, 15, 15, 18]
+    # Ajustar larguras (incluindo a nova coluna ROI)
+    column_widths = [30, 15, 12, 12, 15, 15, 15, 15, 18, 10]
     for i, width in enumerate(column_widths, start=1):
         col_letter = chr(64 + i) if i <= 26 else 'A' + chr(64 + (i-26))
         ws.column_dimensions[col_letter].width = width

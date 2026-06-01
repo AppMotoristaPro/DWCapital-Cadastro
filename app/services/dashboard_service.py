@@ -10,6 +10,9 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
     """
     Processa toda a matemática do dashboard admin: filtros de data, 
     faturamento bruto/líquido, cálculo de ROI Diário Médio e agregação do gráfico.
+    
+    O ROI considera todos os clientes (comissionados, compra e isentos) que possuem
+    pelo menos um dia com relatório enviado e valor bruto > 0.
     """
     # FRENTE 1: Retirado o filtro db.or_(User.is_isento == False, User.is_isento.is_(None)) 
     # para que o Bruto Consolidado puxe TODOS os usuários (normais, isentos e compras).
@@ -229,4 +232,3 @@ def obter_dados_dashboard_cliente(user_id, filtro_dia, filtro_semana_dia, filtro
         'chart_labels': chart_labels,
         'chart_data': chart_data
     }
-
