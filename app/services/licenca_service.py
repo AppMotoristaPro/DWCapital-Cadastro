@@ -140,33 +140,31 @@ def existe_licenca_para_ciclo(user, ciclo_inicio):
     return LicencaCliente.query.filter(
         LicencaCliente.user_id == user.id,
         LicencaCliente.ciclo_inicio == ciclo_inicio,
-        LicencaCliente.status != 'expirada'   # <-- IGNORA EXPIRADAS
+        LicencaCliente.status != 'expirada'
     ).first() is not None
 
 
 # ============================================================
-# CONDIÇÕES PARA COMISSÃO
+# CONDIÇÕES PARA COMISSÃO (CORRIGIDO PARA CLIENTES NOVOS)
 # ============================================================
 
 def verificar_condicoes_comissao(user, ciclo_inicio):
     """
-    Verifica se o cliente comissão pode gerar licença para o ciclo_inicio.
+    Verifica se o cliente comissão pode gerar licença para o ciclo_inicio informado.
     Retorna (status, mensagem, pendencias, licenca_existente)
     status pode ser:
         - True (liberado)
         - False (não liberado, erro)
         - "LICENCA_EXISTENTE" (já existe licença não expirada, retorna o objeto)
     """
-    # Caso especial: cliente novo (sem nenhuma fatura)
-    possui_fatura = Fatura.query.filter_by(user_id=user.id).first() is not None
-    if not possui_fatura:
-        return True, "Cliente novo. Licença liberada imediatamente.", {}, None
-
-    # Cliente existente: precisa da fatura do ciclo
+    # 1. Verificar se o cliente possui fatura para este ciclo específico
     fatura = Fatura.query.filter_by(user_id=user.id, data_inicio=ciclo_inicio).first()
-    if not fatura:
-        return False, f"Ciclo {ciclo_inicio.strftime('%d/%m/%Y')} não encontrado. Você precisa completar um ciclo antes de gerar nova licença.", {}, None
 
+    # Se não existir fatura para o ciclo anterior, cliente é NOVO → liberar licença
+    if not fatura:
+        return True, "Cliente novo (sem ciclo anterior). Licença liberada imediatamente.", {}, None
+
+    # 2. Cliente já tem histórico → aplicar regras normais
     # Notas pendentes?
     dias_pendentes = [d for d in fatura.dias if d.status not in ['relatorio_enviado', 'isento']]
     if dias_pendentes:
@@ -198,15 +196,10 @@ def gerar_licenca_comissao(user, conta_mt5, semana_id=None):
     Gera uma nova licença semanal ou retorna a existente (não expirada).
     Retorna (chave, mensagem, licenca_obj, ja_existente)
     """
-    possui_fatura = Fatura.query.filter_by(user_id=user.id).first() is not None
+    # O ciclo alvo é sempre o CICLO ANTERIOR (completo)
+    ciclo_inicio, ciclo_fim = calcular_ciclo_anterior()
 
-    if possui_fatura:
-        ciclo_inicio, ciclo_fim = calcular_ciclo_anterior()
-    else:
-        # Cliente novo: ciclo atual (a partir de hoje)
-        ciclo_inicio, ciclo_fim = calcular_ciclo_por_data()
-
-    # Verificar condições
+    # Verificar condições (agora com base no ciclo anterior)
     status, msg, _, licenca_existente = verificar_condicoes_comissao(user, ciclo_inicio)
 
     # Se já existe licença (não expirada), retornar ela
@@ -219,7 +212,7 @@ def gerar_licenca_comissao(user, conta_mt5, semana_id=None):
     # Gerar nova chave
     chave = gerar_chave_semanal(conta_mt5, semana_id)
 
-    # Data de expiração: domingo 23:59 do ciclo atual
+    # Data de expiração: domingo 23:59 do ciclo atual (não do anterior)
     hoje = datetime.now(tz_br).date()
     dias_para_domingo = (6 - hoje.weekday()) % 7
     domingo = hoje + timedelta(days=dias_para_domingo)
@@ -246,7 +239,6 @@ def gerar_licenca_vitalicia(user, conta_mt5):
     Gera uma nova licença vitalícia para o cliente compra.
     Retorna (chave, mensagem, licenca_obj).
     """
-    # Verificar se já existe licença vitalícia ativa
     existente = obter_licenca_ativa(user, tipo='vitalicia')
     if existente:
         return existente.chave_licenca, "Licença vitalícia já existente.", existente
