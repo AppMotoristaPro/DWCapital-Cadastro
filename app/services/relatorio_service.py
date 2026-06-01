@@ -7,7 +7,7 @@ import pytz
 from app import db
 from app.models import User, Fatura, FaturaDiaria
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 import tempfile
 import os
 
@@ -38,9 +38,8 @@ def gerar_relatorio_gestao():
     left_align = Alignment(horizontal='left', vertical='center')
     right_align = Alignment(horizontal='right', vertical='center')
 
-    # Formato de moeda brasileira
-    currency_format = numbers.FORMAT_CURRENCY_BRL_SIMPLE  # 'R$ #,##0.00'
-    # Ou para garantir: '"R$" #,##0.00'
+    # Formato de moeda brasileira (compatível com todas as versões do openpyxl)
+    currency_format = '"R$" #,##0.00'
 
     # ==================== 1. TOTAIS GERAIS ====================
     ws.merge_cells('A1:E1')
@@ -223,7 +222,7 @@ def gerar_relatorio_gestao():
     # Ajustar larguras das colunas
     column_widths = [30, 15, 12, 12, 18, 20, 20, 18, 18]
     for i, width in enumerate(column_widths, start=1):
-        col_letter = chr(64 + i) if i <= 26 else 'A' + chr(64 + (i-26))  # suporte até 52
+        col_letter = chr(64 + i) if i <= 26 else 'A' + chr(64 + (i-26))
         ws.column_dimensions[col_letter].width = width
 
     # Salvar em arquivo temporário
