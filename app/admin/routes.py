@@ -2,6 +2,7 @@ import os
 import random
 import string
 import requests
+import logging
 from tempfile import NamedTemporaryFile
 from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app, jsonify, send_file
 from flask_login import current_user
@@ -19,6 +20,7 @@ from app.utils.parsers.gerenciador_pdf import processar_pdf
 import cloudinary.uploader
 import pytz
 
+logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -793,7 +795,7 @@ def cliente_licencas(id):
     licencas = LicencaCliente.query.filter_by(user_id=cliente.id).order_by(LicencaCliente.data_geracao.desc()).all()
     return render_template('admin/cliente_licencas.html', cliente=cliente, licencas=licencas)
 
-# ==================== ROTA: RELATÓRIO DE GESTÃO (APENAS DOWNLOAD) ====================
+# ==================== ROTA: RELATÓRIO DE GESTÃO (com logging e limpeza) ====================
 
 @admin_bp.route('/relatorio_gestao', methods=['GET'])
 @admin_required
@@ -802,25 +804,48 @@ def relatorio_gestao():
 
     mes = request.args.get('mes')
     ano = request.args.get('ano')
-    
+    logger.error(f"[DEBUG] Relatório: mes={mes}, ano={ano}")
+
     if not mes or not ano:
+        logger.error("[DEBUG] Parâmetros ausentes")
         flash('Selecione o mês e o ano para gerar o relatório.', 'error')
         return redirect(url_for('admin.clientes_list'))
-    
+
     try:
         mes_int = int(mes)
         ano_int = int(ano)
         if not (1 <= mes_int <= 12 and ano_int > 2000):
+            logger.error(f"[DEBUG] Mês/ano inválidos: {mes_int}/{ano_int}")
             flash('Mês ou ano inválidos.', 'error')
             return redirect(url_for('admin.clientes_list'))
     except ValueError:
+        logger.error("[DEBUG] ValueError ao converter")
         flash('Parâmetros inválidos.', 'error')
         return redirect(url_for('admin.clientes_list'))
-    
+
     try:
+        logger.error(f"[DEBUG] Chamando gerar_relatorio_gestao({mes_int}, {ano_int})")
         output = gerar_relatorio_gestao(mes_int, ano_int)
-        return send_file(output, as_attachment=True, download_name=f'relatorio_gestao_{ano_int}_{mes_int:02d}.xlsx')
+        logger.error(f"[DEBUG] Arquivo gerado: {output}")
+        
+        # Enviar arquivo e depois remover
+        response = send_file(output, as_attachment=True, download_name=f'relatorio_gestao_{ano_int}_{mes_int:02d}.xlsx')
+        
+        # Registrar ação de download
+        registrar_log(f"Gerou relatório de gestão para {mes_int}/{ano_int}", "Relatórios")
+        
+        # Limpar arquivo temporário após envio (usando callback)
+        @response.call_on_close
+        def cleanup():
+            try:
+                os.unlink(output)
+                logger.error(f"[DEBUG] Arquivo temporário removido: {output}")
+            except Exception as e:
+                logger.error(f"[DEBUG] Erro ao remover arquivo: {e}")
+        
+        return response
     except Exception as e:
+        logger.error(f"[DEBUG] Exceção capturada: {str(e)}", exc_info=True)
         flash(f'Erro ao gerar relatório: {str(e)}', 'error')
         return redirect(url_for('admin.clientes_list'))
 
