@@ -35,7 +35,8 @@ def gerar_relatorio_gestao(mes, ano):
 
     wb = Workbook()
     ws = wb.active
-    ws.title = f"Gestão {mes}/{ano}"
+    # CORREÇÃO: substituir "/" por "-" no título da aba
+    ws.title = f"Gestao_{mes}_{ano}"   # Ex: "Gestao_5_2026"
 
     # Estilos
     header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
