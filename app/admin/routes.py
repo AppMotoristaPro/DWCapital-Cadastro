@@ -793,14 +793,32 @@ def cliente_licencas(id):
     licencas = LicencaCliente.query.filter_by(user_id=cliente.id).order_by(LicencaCliente.data_geracao.desc()).all()
     return render_template('admin/cliente_licencas.html', cliente=cliente, licencas=licencas)
 
-# ==================== NOVA ROTA: RELATÓRIO DE GESTÃO ====================
+# ==================== NOVA ROTA: RELATÓRIO DE GESTÃO (com filtro de mês) ====================
 
-@admin_bp.route('/relatorio_gestao')
+@admin_bp.route('/relatorio_gestao', methods=['GET'])
 @admin_required
 def relatorio_gestao():
     from app.services.relatorio_service import gerar_relatorio_gestao
-    output = gerar_relatorio_gestao()
-    return send_file(output, as_attachment=True, download_name='relatorio_gestao.xlsx')
+
+    mes = request.args.get('mes')
+    ano = request.args.get('ano')
+    
+    if mes and ano:
+        try:
+            mes_int = int(mes)
+            ano_int = int(ano)
+            if 1 <= mes_int <= 12 and ano_int > 2000:
+                output = gerar_relatorio_gestao(mes_int, ano_int)
+                return send_file(output, as_attachment=True, download_name=f'relatorio_gestao_{ano_int}_{mes_int:02d}.xlsx')
+            else:
+                flash('Mês ou ano inválidos.', 'error')
+        except ValueError:
+            flash('Parâmetros inválidos.', 'error')
+    
+    # Se não houver parâmetros, exibe formulário de seleção
+    from datetime import datetime
+    hoje = datetime.now()
+    return render_template('admin/selecionar_mes.html', mes_atual=hoje.month, ano_atual=hoje.year)
 
 # ==================== FUNÇÕES AUXILIARES ====================
 
