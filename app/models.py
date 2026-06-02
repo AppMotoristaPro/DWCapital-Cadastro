@@ -2,6 +2,8 @@ from app import db, login_manager
 from flask_login import UserMixin
 from datetime import datetime
 import pytz
+from sqlalchemy.orm import validates  # ALTERAÇÃO FASE 1 - para validação de CPF
+from app.utils.validators import validar_cpf  # ALTERAÇÃO FASE 1 - função de validação
 
 tz_br = pytz.timezone('America/Sao_Paulo')
 
@@ -48,6 +50,13 @@ class User(db.Model, UserMixin):
     # Relacionamentos de download e licenças
     downloads = db.relationship('DownloadControle', backref='cliente', lazy=True, cascade="all, delete-orphan")
     licencas = db.relationship('LicencaCliente', backref='cliente', lazy=True, cascade="all, delete-orphan")
+
+    # ALTERAÇÃO FASE 1 - Validação automática de CPF ao salvar/atualizar
+    @validates('cpf')
+    def validate_cpf(self, key, cpf):
+        if cpf and not validar_cpf(cpf):
+            raise ValueError("CPF inválido")
+        return cpf
 
 class ParcelaCompra(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -156,6 +165,8 @@ class LogAuditoria(db.Model):
     acao_detalhada = db.Column(db.Text, nullable=False)
     categoria = db.Column(db.String(50), nullable=False) 
     timestamp = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
+    # ALTERAÇÃO FASE 1 - Adiciona campo IP do admin
+    ip_address = db.Column(db.String(45), nullable=True)  # suporta IPv4 e IPv6
 
 class DocumentoTemplate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -230,8 +241,10 @@ class LicencaCliente(db.Model):
     status = db.Column(db.String(20), nullable=False, default='ativa')   # 'ativa', 'expirada', 'cancelada'
     conta_mt5 = db.Column(db.String(20), nullable=True)                  # redundante (cópia do User)
     
-    # Constraint unique removida para permitir múltiplas licenças por ciclo (histórico)
-    # __table_args__ = ()   # sem constraints adicionais
+    # ALTERAÇÃO FASE 1 - Adiciona constraint única para evitar duplicidade de licença por ciclo
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'ciclo_inicio', name='_user_ciclo_uc'),
+    )
 
     def __repr__(self):
         return f"<LicencaCliente user={self.user_id} tipo={self.tipo} ciclo={self.ciclo_inicio}>"

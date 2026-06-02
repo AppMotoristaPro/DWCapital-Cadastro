@@ -5,6 +5,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from app.models import User, AlocacaoCorretora
 from app import db, limiter
+from app.utils.validators import validar_cpf  # ALTERAÇÃO FASE 1 - importa validador de CPF
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
@@ -15,7 +16,7 @@ def gerar_matricula_unica():
             return mat
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
-@limiter.limit("5 per minute", methods=["POST"]) # <-- CORREÇÃO: Limita apenas envios de form, não recarregamentos
+@limiter.limit("5 per minute", methods=["POST"])
 def login():
     if current_user.is_authenticated:
         if getattr(current_user, 'precisa_trocar_senha', False):
@@ -31,12 +32,7 @@ def login():
         if user and check_password_hash(user.password_hash, senha):
             if user.status_acesso == 'ativo':
                 login_user(user)
-                
-                # ==========================================
-                # ATIVANDO A TRAVA DE VALIDADE DO LOGIN
-                # ==========================================
                 session.permanent = True
-                # ==========================================
                 
                 if getattr(user, 'precisa_trocar_senha', False):
                     return redirect(url_for('auth.forcar_troca_senha'))
@@ -87,6 +83,12 @@ def verificar_cpf():
 def primeiro_acesso():
     if request.method == 'POST':
         cpf = ''.join(filter(str.isdigit, request.form.get('cpf')))
+        
+        # ALTERAÇÃO FASE 1 - Valida os dígitos verificadores do CPF antes de qualquer operação
+        if not validar_cpf(cpf):
+            flash('CPF inválido. Verifique os dígitos e tente novamente.', 'error')
+            return render_template('auth/primeiro_acesso.html')
+        
         user = User.query.filter_by(cpf=cpf, status_acesso='pendente_cadastro').first()
 
         if user:

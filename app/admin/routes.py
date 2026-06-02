@@ -17,20 +17,25 @@ from app.services.documento_service import disparar_lote, disparar_unico
 from app.services.dashboard_service import obter_dados_dashboard
 from app.services.licenca_service import gerar_licenca_vitalicia, obter_licenca_ativa, expirar_licencas_semanais
 from app.utils.parsers.gerenciador_pdf import processar_pdf
+from app.utils.validators import validar_cpf  # ALTERAÇÃO FASE 1 - validação de CPF
 import cloudinary.uploader
 import pytz
+import re  # ALTERAÇÃO FASE 1 - para sanitização de nome de arquivo
 
 logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
+# ALTERAÇÃO FASE 1 - Função registrar_log agora captura IP do admin
 def registrar_log(acao, categoria):
     if current_user.is_authenticated:
+        ip = request.remote_addr
         novo_log = LogAuditoria(
             admin_id=current_user.id,
             admin_nome=current_user.nome,
             acao_detalhada=acao,
-            categoria=categoria
+            categoria=categoria,
+            ip_address=ip
         )
         db.session.add(novo_log)
 
@@ -56,6 +61,12 @@ def clientes_list():
 @admin_required
 def liberar_cliente():
     cpf = ''.join(filter(str.isdigit, request.form.get('cpf')))
+    
+    # ALTERAÇÃO FASE 1 - Validação do CPF antes de qualquer operação
+    if not validar_cpf(cpf):
+        flash('CPF inválido. Não é possível liberar acesso.', 'error')
+        return redirect(url_for('admin.clientes_list'))
+    
     nome_temp = request.form.get('nome_temp')
     is_isento = True if request.form.get('is_isento') else False
     modelo_negocio = request.form.get('modelo_negocio', 'comissao')
@@ -570,6 +581,23 @@ def cadastrar_template():
     nome = request.form.get('nome')
     arquivo_local = request.form.get('arquivo_local')
     is_onboarding = True if request.form.get('is_onboarding') else False
+    
+    # ALTERAÇÃO FASE 1 - Sanitização do nome do arquivo (path traversal)
+    if not re.match(r'^[a-zA-Z0-9_.-]+\.pdf$', arquivo_local):
+        flash('Nome de arquivo inválido. Use apenas letras, números, underscore, hífen e ponto, com extensão .pdf', 'error')
+        return redirect(url_for('admin.documentos'))
+    
+    # Verifica se o arquivo existe dentro da pasta permitida
+    base_dir = os.path.join(current_app.root_path, 'static', 'documentos')
+    caminho_completo = os.path.join(base_dir, arquivo_local)
+    caminho_real = os.path.realpath(caminho_completo)
+    if not caminho_real.startswith(os.path.realpath(base_dir)):
+        flash('Caminho de arquivo não permitido.', 'error')
+        return redirect(url_for('admin.documentos'))
+    
+    if not os.path.exists(caminho_real):
+        flash(f'O arquivo "{arquivo_local}" não foi encontrado na pasta static/documentos/.', 'error')
+        return redirect(url_for('admin.documentos'))
     
     novo_temp = DocumentoTemplate(nome=nome, arquivo_local=arquivo_local, is_onboarding=is_onboarding)
     db.session.add(novo_temp)

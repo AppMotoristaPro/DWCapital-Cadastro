@@ -16,6 +16,7 @@ import pytz
 import os
 from app import db
 from app.models import Fatura, LicencaCliente, User
+from sqlalchemy.exc import IntegrityError  # ALTERAÇÃO FASE 1 - para capturar erro de unicidade
 
 tz_br = pytz.timezone('America/Sao_Paulo')
 
@@ -242,9 +243,25 @@ def gerar_licenca_comissao(user, conta_mt5, semana_id=None):
         conta_mt5=conta_mt5
     )
     db.session.add(nova_licenca)
-    db.session.commit()
-
-    return chave, "Licença semanal gerada com sucesso.", nova_licenca, False
+    
+    # ALTERAÇÃO FASE 1 - Tratamento de race condition (IntegrityError)
+    try:
+        db.session.commit()
+        return chave, "Licença semanal gerada com sucesso.", nova_licenca, False
+    except IntegrityError:
+        db.session.rollback()
+        # Concorrência: outra requisição já criou a licença para este ciclo.
+        # Busca a licença existente (ativa) para o mesmo usuário e ciclo.
+        licenca_existente_concorrente = LicencaCliente.query.filter(
+            LicencaCliente.user_id == user.id,
+            LicencaCliente.ciclo_inicio == ciclo_inicio,
+            LicencaCliente.status == 'ativa'
+        ).first()
+        if licenca_existente_concorrente:
+            return licenca_existente_concorrente.chave_licenca, "Licença já existente para este ciclo.", licenca_existente_concorrente, True
+        else:
+            # Caso raro: conflito inesperado
+            return None, "Erro de concorrência. Tente novamente.", None, False
 
 
 def gerar_licenca_vitalicia(user, conta_mt5):
