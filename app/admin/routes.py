@@ -8,8 +8,8 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash,
 from flask_login import current_user
 from werkzeug.security import generate_password_hash
 from sqlalchemy.orm import joinedload
-from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria, DocumentoTemplate, DocumentoCliente, ParcelaCompra, VersaoRobo, DownloadControle, LicencaCliente
-from app import db, csrf, limiter  # ALTERAÇÃO FASE 3 - importa limiter para rate limiting
+from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria, DocumentoTemplate, DocumentoCliente, ParcelaCompra, VersaoRobo, DownloadControle, LicencaCliente, PremioSolicitacao
+from app import db, csrf, limiter
 from datetime import datetime, timedelta
 from app.utils.decorators import admin_required
 from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo, auto_gerar_ciclos_em_lote
@@ -18,6 +18,7 @@ from app.services.dashboard_service import obter_dados_dashboard
 from app.services.licenca_service import gerar_licenca_vitalicia, obter_licenca_ativa, expirar_licencas_semanais
 from app.utils.parsers.gerenciador_pdf import processar_pdf
 from app.utils.validators import validar_cpf
+from app.services.parcela_service import gerar_parcelas_compra_unificado, contar_indicacoes_com_entrada_paga
 import cloudinary.uploader
 import pytz
 import re
@@ -57,7 +58,9 @@ def clientes_list():
     page = request.args.get('page', 1, type=int)
     per_page = 20
     clientes = User.query.filter_by(role='cliente').options(joinedload(User.alocacoes)).order_by(User.nome.asc()).paginate(page=page, per_page=per_page, error_out=False)
-    return render_template('admin/index.html', clientes=clientes)
+    # Para o select de indicador no modal (clientes ativos)
+    clientes_ativos = User.query.filter_by(role='cliente', status_acesso='ativo').order_by(User.nome.asc()).all()
+    return render_template('admin/index.html', clientes=clientes, clientes_ativos=clientes_ativos)
 
 @admin_bp.route('/liberar_cliente', methods=['POST'])
 @admin_required
@@ -72,22 +75,45 @@ def liberar_cliente():
     is_isento = True if request.form.get('is_isento') else False
     modelo_negocio = request.form.get('modelo_negocio', 'comissao')
     
+    # Indicação (admin pode vincular manualmente)
+    indicador_id = request.form.get('indicador_id')
+    if indicador_id and indicador_id.isdigit():
+        indicador_id = int(indicador_id)
+    else:
+        indicador_id = None
+    
     if User.query.filter_by(cpf=cpf).first():
         flash('CPF já cadastrado.', 'error')
         return redirect(url_for('admin.clientes_list'))
 
-    novo = User(cpf=cpf, nome=nome_temp, role='cliente', status_acesso='pendente_cadastro', is_isento=is_isento, modelo_negocio=modelo_negocio)
+    novo = User(
+        cpf=cpf, 
+        nome=nome_temp, 
+        role='cliente', 
+        status_acesso='pendente_cadastro', 
+        is_isento=is_isento, 
+        modelo_negocio=modelo_negocio
+    )
+    
+    # Vincula indicação se for compra e indicador informado
+    if modelo_negocio == 'compra' and indicador_id:
+        indicador = User.query.get(indicador_id)
+        if indicador and indicador.role == 'cliente' and indicador.status_acesso == 'ativo':
+            novo.indicador_id = indicador_id
+            novo.is_indicado = True
+            novo.data_indicacao = datetime.now(tz_br)
+    
     db.session.add(novo)
     db.session.flush() 
     
     hoje = datetime.now(tz_br).date()
     
+    # Geração de parcelas (novo modelo unificado para compra)
     if modelo_negocio == 'compra':
-        p1 = ParcelaCompra(user_id=novo.id, ordem=1, valor=5000.0, data_vencimento=hoje)
-        p2 = ParcelaCompra(user_id=novo.id, ordem=2, valor=2500.0, data_vencimento=hoje + timedelta(days=30))
-        p3 = ParcelaCompra(user_id=novo.id, ordem=3, valor=2500.0, data_vencimento=hoje + timedelta(days=60))
-        db.session.add_all([p1, p2, p3])
+        parcelas = gerar_parcelas_compra_unificado(novo.id, data_inicio=hoje)
+        db.session.add_all(parcelas)
     else:
+        # Para comissão, cria a fatura semanal automaticamente (comportamento original)
         dias_para_sexta = (hoje.weekday() - 4) % 7
         inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
         fim_ciclo = inicio_ciclo + timedelta(days=6)
@@ -140,14 +166,11 @@ def editar_cliente(id):
         
         novo_modelo = request.form.get('modelo_negocio', 'comissao')
         
-        if novo_modelo == 'compra':
+        # Se o cliente está sendo alterado para compra e não tem parcelas, gerar as parcelas unificadas
+        if novo_modelo == 'compra' and not cliente.parcelas_licenca:
             hoje = datetime.now(tz_br).date()
-            has_parcelas = ParcelaCompra.query.filter_by(user_id=cliente.id).first()
-            if not has_parcelas:
-                p1 = ParcelaCompra(user_id=cliente.id, ordem=1, valor=5000.0, data_vencimento=hoje)
-                p2 = ParcelaCompra(user_id=cliente.id, ordem=2, valor=2500.0, data_vencimento=hoje + timedelta(days=30))
-                p3 = ParcelaCompra(user_id=cliente.id, ordem=3, valor=2500.0, data_vencimento=hoje + timedelta(days=60))
-                db.session.add_all([p1, p2, p3])
+            parcelas = gerar_parcelas_compra_unificado(cliente.id, data_inicio=hoje)
+            db.session.add_all(parcelas)
         
         cliente.modelo_negocio = novo_modelo
         
@@ -843,58 +866,120 @@ def cliente_licencas(id):
     licencas = LicencaCliente.query.filter_by(user_id=cliente.id).order_by(LicencaCliente.data_geracao.desc()).all()
     return render_template('admin/cliente_licencas.html', cliente=cliente, licencas=licencas)
 
-# ==================== ROTA: RELATÓRIO DE GESTÃO (com logging e limpeza) ====================
+# ==================== ROTAS DE GESTÃO DE PARCELAS (FASE E) ====================
 
-@admin_bp.route('/relatorio_gestao', methods=['GET'])
+@admin_bp.route('/parcelas')
 @admin_required
-# ALTERAÇÃO FASE 3 - Rate limiting para evitar geração excessiva de relatórios (2 por minuto)
-@limiter.limit("2 per minute")
-def relatorio_gestao():
-    from app.services.relatorio_service import gerar_relatorio_gestao
+def parcelas():
+    """Lista todas as parcelas de clientes compra (unificado)."""
+    status_filter = request.args.get('status', '')
+    search = request.args.get('search', '')
+    page = request.args.get('page', 1, type=int)
+    per_page = 30
+    
+    query = ParcelaCompra.query.join(User).filter(User.modelo_negocio == 'compra')
+    
+    if status_filter in ['pendente', 'pago']:
+        query = query.filter(ParcelaCompra.status == status_filter)
+    
+    if search:
+        query = query.filter(
+            db.or_(
+                User.nome.ilike(f'%{search}%'),
+                User.cpf.ilike(f'%{search}%')
+            )
+        )
+    
+    parcelas_paginadas = query.order_by(ParcelaCompra.data_vencimento.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    
+    return render_template('admin/parcelas.html', parcelas=parcelas_paginadas, status_filter=status_filter, search=search)
 
-    mes = request.args.get('mes')
-    ano = request.args.get('ano')
-    logger.error(f"[DEBUG] Relatório: mes={mes}, ano={ano}")
+@admin_bp.route('/parcela/pagar/<int:parcela_id>', methods=['POST'])
+@admin_required
+def parcela_pagar(parcela_id):
+    """Marca uma parcela como paga (admin)."""
+    parcela = ParcelaCompra.query.get_or_404(parcela_id)
+    if parcela.status == 'pago':
+        flash('Esta parcela já está paga.', 'warning')
+    else:
+        parcela.status = 'pago'
+        parcela.data_pagamento = datetime.now(tz_br)
+        db.session.commit()
+        registrar_log(f"Marcou a parcela ID {parcela.id} (ordem {parcela.ordem}, valor R${parcela.valor}) do cliente {parcela.cliente.nome} como PAGA.", "Pagamentos")
+        flash('Parcela marcada como paga com sucesso!', 'success')
+    
+    return redirect(url_for('admin.parcelas'))
 
-    if not mes or not ano:
-        logger.error("[DEBUG] Parâmetros ausentes")
-        flash('Selecione o mês e o ano para gerar o relatório.', 'error')
-        return redirect(url_for('admin.clientes_list'))
+# ==================== ROTAS DE GESTÃO DE PRÊMIOS (FASE E) ====================
 
-    try:
-        mes_int = int(mes)
-        ano_int = int(ano)
-        if not (1 <= mes_int <= 12 and ano_int > 2000):
-            logger.error(f"[DEBUG] Mês/ano inválidos: {mes_int}/{ano_int}")
-            flash('Mês ou ano inválidos.', 'error')
-            return redirect(url_for('admin.clientes_list'))
-    except ValueError:
-        logger.error("[DEBUG] ValueError ao converter")
-        flash('Parâmetros inválidos.', 'error')
-        return redirect(url_for('admin.clientes_list'))
+@admin_bp.route('/premios')
+@admin_required
+def premios():
+    """Lista todas as solicitações de prêmio dos indicadores."""
+    status_filter = request.args.get('status', '')
+    page = request.args.get('page', 1, type=int)
+    per_page = 30
+    
+    query = PremioSolicitacao.query
+    if status_filter:
+        query = query.filter(PremioSolicitacao.status == status_filter)
+    
+    solicitacoes = query.order_by(PremioSolicitacao.data_solicitacao.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    
+    # Para cada solicitação, calcular quantas indicações elegíveis o usuário tem (útil para auditoria)
+    for sol in solicitacoes.items:
+        sol.qtd_elegivel = contar_indicacoes_com_entrada_paga(sol.user_id)
+    
+    return render_template('admin/premios.html', solicitacoes=solicitacoes, status_filter=status_filter)
 
-    try:
-        logger.error(f"[DEBUG] Chamando gerar_relatorio_gestao({mes_int}, {ano_int})")
-        output = gerar_relatorio_gestao(mes_int, ano_int)
-        logger.error(f"[DEBUG] Arquivo gerado: {output}")
+@admin_bp.route('/premio/processar/<int:solicitacao_id>', methods=['POST'])
+@admin_required
+def processar_premio(solicitacao_id):
+    """Processa a solicitação de prêmio: aprovar, pagar, recusar."""
+    solicitacao = PremioSolicitacao.query.get_or_404(solicitacao_id)
+    acao = request.form.get('acao')
+    
+    if acao == 'aprovar':
+        if solicitacao.status != 'pendente':
+            flash('Esta solicitação não está pendente.', 'error')
+            return redirect(url_for('admin.premios'))
         
-        response = send_file(output, as_attachment=True, download_name=f'relatorio_gestao_{ano_int}_{mes_int:02d}.xlsx')
+        # Verificar novamente se ainda é elegível
+        qtd = contar_indicacoes_com_entrada_paga(solicitacao.user_id)
+        if qtd < 7:
+            flash('O indicador não atende mais aos requisitos (menos de 7 entradas pagas).', 'error')
+            return redirect(url_for('admin.premios'))
         
-        registrar_log(f"Gerou relatório de gestão para {mes_int}/{ano_int}", "Relatórios")
+        solicitacao.status = 'aprovado'
+        solicitacao.admin_id = current_user.id
+        solicitacao.data_aprovacao = datetime.now(tz_br)
         
-        @response.call_on_close
-        def cleanup():
-            try:
-                os.unlink(output)
-                logger.error(f"[DEBUG] Arquivo temporário removido: {output}")
-            except Exception as e:
-                logger.error(f"[DEBUG] Erro ao remover arquivo: {e}")
+        # Se o prêmio for em dinheiro, já marca como pago no mesmo ato (simula pagamento)
+        if solicitacao.tipo_premio == 'dinheiro':
+            solicitacao.status = 'pago'
+            solicitacao.data_pagamento = datetime.now(tz_br)
         
-        return response
-    except Exception as e:
-        logger.error(f"[DEBUG] Exceção capturada: {str(e)}", exc_info=True)
-        flash(f'Erro ao gerar relatório: {str(e)}', 'error')
-        return redirect(url_for('admin.clientes_list'))
+        db.session.commit()
+        
+        if solicitacao.tipo_premio == 'dinheiro':
+            registrar_log(f"Aprovou e pagou o prêmio de R$ 1.000,00 para o indicador {solicitacao.user.nome}.", "Premios")
+            flash('Prêmio aprovado e pago com sucesso!', 'success')
+        else:
+            registrar_log(f"Aprovou a concessão da Licença Vitalícia para o indicador {solicitacao.user.nome}.", "Premios")
+            flash('Licença vitalícia concedida com sucesso!', 'success')
+    
+    elif acao == 'recusar':
+        solicitacao.status = 'recusado'
+        solicitacao.admin_id = current_user.id
+        solicitacao.data_aprovacao = datetime.now(tz_br)
+        db.session.commit()
+        registrar_log(f"Recusou a solicitação de prêmio do indicador {solicitacao.user.nome}.", "Premios")
+        flash('Solicitação recusada.', 'success')
+    
+    else:
+        flash('Ação inválida.', 'error')
+    
+    return redirect(url_for('admin.premios'))
 
 # ==================== FUNÇÕES AUXILIARES ====================
 

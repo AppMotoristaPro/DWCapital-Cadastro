@@ -189,7 +189,7 @@
     </div>
 </div>
 
-<!-- Modais (idênticos ao original) -->
+<!-- Modais -->
 <div id="modal-ficha-global" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
     <div class="bg-white/90 backdrop-blur-2xl border border-white/40 w-full max-w-xl rounded-[2.5rem] shadow-2xl p-6 md:p-10 relative overflow-y-auto max-h-[90vh]">
         <button type="button" onclick="document.getElementById('modal-ficha-global').classList.add('hidden')" class="absolute top-6 right-6 md:top-8 md:right-8 text-gray-400 hover:text-gray-900 font-black text-xl transition">X</button>
@@ -211,6 +211,18 @@
             <div>
                 <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 block ml-1">Documento (CPF)</label>
                 <input type="text" name="cpf" required class="w-full px-5 py-4 bg-white border border-gray-200 rounded-xl outline-none focus:border-royal transition shadow-inner" placeholder="Apenas números">
+            </div>
+            
+            <!-- PROGRAMA DE INDICAÇÃO - Campo para selecionar indicador (admin pode vincular manualmente) -->
+            <div>
+                <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 block ml-1">Indicador (opcional)</label>
+                <select name="indicador_id" class="w-full px-5 py-4 bg-white border border-gray-200 rounded-xl outline-none focus:border-royal transition shadow-inner cursor-pointer font-bold text-navy text-sm">
+                    <option value="">Nenhum (sem indicação)</option>
+                    {% for indicador in clientes_ativos %}
+                        <option value="{{ indicador.id }}">{{ indicador.nome }} ({{ indicador.cpf }})</option>
+                    {% endfor %}
+                </select>
+                <p class="text-[9px] text-gray-400 mt-1 ml-1">Apenas para clientes do modelo <strong>Compra</strong>. O indicador deve ser um cliente ativo.</p>
             </div>
             
             <div>

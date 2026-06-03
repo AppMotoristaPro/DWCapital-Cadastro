@@ -1,0 +1,115 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_content %}
+<div class="max-w-7xl mx-auto relative z-10 pb-20">
+    <div class="flex justify-between items-end mb-8">
+        <div>
+            <h1 class="text-4xl font-black text-navy tracking-tight">Prêmios de Indicação</h1>
+            <p class="text-gray-500 mt-2 font-medium">Solicitações de prêmio dos indicadores.</p>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="mb-8 flex flex-wrap gap-4 bg-white/60 backdrop-blur-xl p-3 rounded-3xl shadow-sm border border-white w-full">
+        <form method="GET" class="flex flex-wrap gap-4 w-full">
+            <select name="status" class="px-5 py-3 outline-none text-sm font-bold text-gray-500 bg-white rounded-xl border border-gray-100 cursor-pointer shadow-inner">
+                <option value="">Todos os status</option>
+                <option value="pendente" {% if status_filter == 'pendente' %}selected{% endif %}>Pendente</option>
+                <option value="aprovado" {% if status_filter == 'aprovado' %}selected{% endif %}>Aprovado</option>
+                <option value="pago" {% if status_filter == 'pago' %}selected{% endif %}>Pago</option>
+                <option value="recusado" {% if status_filter == 'recusado' %}selected{% endif %}>Recusado</option>
+            </select>
+            <button type="submit" class="px-8 py-3 bg-navy text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition shadow-md">Filtrar</button>
+            <a href="{{ url_for('admin.premios') }}" class="px-6 py-3 bg-white hover:bg-red-50 text-gray-500 hover:text-red-500 border border-gray-200 rounded-xl font-black uppercase tracking-widest text-xs transition shadow-sm">Limpar</a>
+        </form>
+    </div>
+
+    <!-- Tabela de solicitações -->
+    <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-white/50 border-b border-gray-100 text-gray-400 text-[10px] font-black uppercase tracking-wider">
+                    <tr>
+                        <th class="px-8 py-5">Indicador</th>
+                        <th class="px-6 py-5">Tipo</th>
+                        <th class="px-6 py-5">Data Solicitação</th>
+                        <th class="px-6 py-5">Indicações Elegíveis</th>
+                        <th class="px-6 py-5">Status</th>
+                        <th class="px-8 py-5 text-right">Ações</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                    {% for sol in solicitacoes.items %}
+                    <tr class="hover:bg-gray-50/50 transition-colors">
+                        <td class="px-8 py-6">
+                            <div class="font-black text-navy">{{ sol.user.nome }}</div>
+                            <div class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{{ sol.user.cpf }}</div>
+                        </td>
+                        <td class="px-6 py-6">
+                            <span class="px-2 py-1 bg-blue-100 text-royal text-[9px] font-black rounded-lg">
+                                {% if sol.tipo_premio == 'dinheiro' %}R$ 1.000,00{% else %}Licença Vitalícia{% endif %}
+                            </span>
+                        </td>
+                        <td class="px-6 py-6 text-sm">{{ sol.data_solicitacao.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td class="px-6 py-6 text-sm font-bold">{{ sol.qtd_elegivel }} / 7</td>
+                        <td class="px-6 py-6">
+                            {% if sol.status == 'pendente' %}
+                                <span class="px-2 py-1 bg-yellow-100 text-yellow-700 text-[9px] font-black rounded-lg">Pendente</span>
+                            {% elif sol.status == 'aprovado' %}
+                                <span class="px-2 py-1 bg-blue-100 text-blue-700 text-[9px] font-black rounded-lg">Aprovado</span>
+                            {% elif sol.status == 'pago' %}
+                                <span class="px-2 py-1 bg-green-100 text-green-700 text-[9px] font-black rounded-lg">Pago</span>
+                            {% else %}
+                                <span class="px-2 py-1 bg-red-100 text-red-700 text-[9px] font-black rounded-lg">Recusado</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-8 py-6 text-right">
+                            {% if sol.status == 'pendente' %}
+                            <div class="flex justify-end gap-2">
+                                <form method="POST" action="{{ url_for('admin.processar_premio', solicitacao_id=sol.id) }}" onsubmit="return confirm('Deseja APROVAR este prêmio?')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="acao" value="aprovar">
+                                    <button type="submit" class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-[9px] font-black uppercase rounded-lg shadow-sm">Aprovar</button>
+                                </form>
+                                <form method="POST" action="{{ url_for('admin.processar_premio', solicitacao_id=sol.id) }}" onsubmit="return confirm('Deseja RECUSAR este prêmio?')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="acao" value="recusar">
+                                    <button type="submit" class="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-[9px] font-black uppercase rounded-lg shadow-sm">Recusar</button>
+                                </form>
+                            </div>
+                            {% else %}
+                                <span class="text-gray-400 text-[10px]">Processado</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="px-8 py-16 text-center text-gray-400 font-medium">Nenhuma solicitação de prêmio encontrada.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Paginação -->
+        {% if solicitacoes.pages > 1 %}
+        <div class="px-8 py-5 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
+            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Página {{ solicitacoes.page }} de {{ solicitacoes.pages }}</span>
+            <div class="flex items-center gap-2">
+                {% if solicitacoes.has_prev %}
+                <a href="{{ url_for('admin.premios', page=solicitacoes.prev_num, status=status_filter) }}" class="px-4 py-2 bg-white border border-gray-200 text-gray-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition shadow-sm">Anterior</a>
+                {% else %}
+                <span class="px-4 py-2 bg-gray-50 border border-gray-100 text-gray-300 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-not-allowed">Anterior</span>
+                {% endif %}
+
+                {% if solicitacoes.has_next %}
+                <a href="{{ url_for('admin.premios', page=solicitacoes.next_num, status=status_filter) }}" class="px-4 py-2 bg-white border border-gray-200 text-navy rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition shadow-sm">Próxima</a>
+                {% else %}
+                <span class="px-4 py-2 bg-gray-50 border border-gray-100 text-gray-300 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-not-allowed">Próxima</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
