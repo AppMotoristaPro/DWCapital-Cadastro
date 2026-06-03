@@ -9,7 +9,7 @@ from flask_login import current_user
 from werkzeug.security import generate_password_hash
 from sqlalchemy.orm import joinedload
 from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria, DocumentoTemplate, DocumentoCliente, ParcelaCompra, VersaoRobo, DownloadControle, LicencaCliente
-from app import db, csrf
+from app import db, csrf, limiter  # ALTERAÇÃO FASE 3 - importa limiter para rate limiting
 from datetime import datetime, timedelta
 from app.utils.decorators import admin_required
 from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo, auto_gerar_ciclos_em_lote
@@ -715,6 +715,8 @@ def excluir_todos_pendentes():
 
 @admin_bp.route('/robo/upload', methods=['GET', 'POST'])
 @admin_required
+# ALTERAÇÃO FASE 3 - Rate limiting para upload de nova versão (3 por minuto)
+@limiter.limit("3 per minute", methods=["POST"])
 def upload_versao_robo():
     if request.method == 'POST':
         versao = request.form.get('versao')
@@ -781,6 +783,8 @@ def publicar_versao_robo(id):
 
 @admin_bp.route('/forcar_licenca_vitalicia/<int:id>', methods=['POST'])
 @admin_required
+# ALTERAÇÃO FASE 3 - Rate limiting (5 por minuto por cliente, usando ID do cliente como chave)
+@limiter.limit("5 per minute", key_func=lambda: request.view_args.get('id', 'global'))
 def forcar_licenca_vitalicia(id):
     cliente = User.query.get_or_404(id)
     if cliente.modelo_negocio != 'compra':
@@ -843,6 +847,8 @@ def cliente_licencas(id):
 
 @admin_bp.route('/relatorio_gestao', methods=['GET'])
 @admin_required
+# ALTERAÇÃO FASE 3 - Rate limiting para evitar geração excessiva de relatórios (2 por minuto)
+@limiter.limit("2 per minute")
 def relatorio_gestao():
     from app.services.relatorio_service import gerar_relatorio_gestao
 
@@ -954,15 +960,19 @@ def _executar_reprocessamento_por_corretora(corretora_nome):
 
 @admin_bp.route('/reprocessar_btg', methods=['GET'])
 @admin_required
+# ALTERAÇÃO FASE 3 - Rate limiting para reprocessamento (2 por minuto)
+@limiter.limit("2 per minute")
 def reprocessar_btg():
     return _executar_reprocessamento_por_corretora('BTG')
 
 @admin_bp.route('/reprocessar_genial', methods=['GET'])
 @admin_required
+@limiter.limit("2 per minute")
 def reprocessar_genial():
     return _executar_reprocessamento_por_corretora('GENIAL')
 
 @admin_bp.route('/reprocessar_xp', methods=['GET'])
 @admin_required
+@limiter.limit("2 per minute")
 def reprocessar_xp():
     return _executar_reprocessamento_por_corretora('XP')

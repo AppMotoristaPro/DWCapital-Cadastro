@@ -9,7 +9,7 @@ import cloudinary.uploader
 from werkzeug.utils import secure_filename
 import requests
 import io
-from app import db
+from app import db, limiter  # ALTERAÇÃO FASE 3 - importa limiter para rate limiting
 from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, DocumentoTemplate, User
 from app.utils.parsers.gerenciador_pdf import processar_pdf
 from sqlalchemy.exc import IntegrityError
@@ -31,6 +31,7 @@ from app.services.licenca_service import (
     is_modo_teste,
     is_licenca_bloqueada
 )
+from app.utils.validators import validar_pdf_mime  # ALTERAÇÃO FASE 3 - validação MIME de PDF
 
 logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
@@ -206,6 +207,8 @@ def dados_pessoais():
 
 @client_bp.route('/faturas', methods=['GET', 'POST'])
 @login_required
+# ALTERAÇÃO FASE 3 - Rate limiting para upload de PDF (5 por minuto)
+@limiter.limit("5 per minute", methods=["POST"])
 def faturas():
     auto_gerar_ciclo(current_user)
     faturas_carregadas = Fatura.query.options(joinedload(Fatura.dias)).filter_by(user_id=current_user.id).order_by(Fatura.data_inicio.desc()).all()
@@ -258,6 +261,10 @@ def faturas():
         if not dia or dia.fatura_semanal.user_id != current_user.id:
             return jsonify({'success': False, 'error': 'ERRO_SEGURANCA', 'message': 'Acesso negado.'})
         if arquivo and arquivo.filename:
+            # ALTERAÇÃO FASE 3 - Validação da assinatura mágica do PDF
+            if not validar_pdf_mime(arquivo):
+                return jsonify({'success': False, 'error': 'PDF_INVALIDO', 'message': 'Arquivo não é um PDF válido (assinatura %PDF não encontrada).'})
+            
             nome_seguro = secure_filename(arquivo.filename)
             upload_folder = os.path.join(current_app.root_path, 'static', 'uploads')
             os.makedirs(upload_folder, exist_ok=True)
@@ -379,6 +386,8 @@ def robo_download():
 
 @client_bp.route('/robo/download', methods=['POST'])
 @login_required
+# ALTERAÇÃO FASE 3 - Rate limiting para download (3 por minuto)
+@limiter.limit("3 per minute")
 def baixar_robo():
     versao = versao_atual()
     if not versao:
@@ -428,6 +437,8 @@ def licenca_status():
 
 @client_bp.route('/licenca/gerar', methods=['POST'])
 @login_required
+# ALTERAÇÃO FASE 3 - Rate limiting para geração de licença (10 por minuto por usuário)
+@limiter.limit("10 per minute", key_func=lambda: current_user.id)
 def licenca_gerar():
     if is_licenca_bloqueada(current_user):
         return jsonify({
@@ -475,6 +486,8 @@ def licenca_visualizar():
 
 @client_bp.route('/api/salvar_conta_mt5', methods=['POST'])
 @login_required
+# ALTERAÇÃO FASE 3 - Rate limiting para salvar conta MT5 (5 por minuto)
+@limiter.limit("5 per minute")
 def api_salvar_conta_mt5():
     data = request.get_json()
     nova_conta = data.get('conta_mt5', '').strip()

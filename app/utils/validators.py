@@ -31,3 +31,21 @@ def validar_cpf(cpf: str) -> bool:
     
     # Compara com os dois últimos dígitos do CPF informado
     return cpf[-2:] == f"{digito1}{digito2}"
+
+
+# ALTERAÇÃO FASE 3 - Validação de MIME de PDF (assinatura mágica)
+def validar_pdf_mime(arquivo):
+    """
+    Verifica se o arquivo é um PDF válido pela assinatura mágica (%PDF).
+    
+    Args:
+        arquivo: Objeto FileStorage do Flask (request.files['...']).
+    
+    Returns:
+        bool: True se os primeiros 4 bytes forem b'%PDF', False caso contrário.
+    """
+    # Lê os primeiros 4 bytes do arquivo
+    header = arquivo.read(4)
+    # Volta o ponteiro para o início
+    arquivo.seek(0)
+    return header == b'%PDF'

@@ -5,6 +5,7 @@ from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_talisman import Talisman  # ALTERAÇÃO FASE 3
 from werkzeug.middleware.proxy_fix import ProxyFix
 import os
 from dotenv import load_dotenv
@@ -45,6 +46,9 @@ def create_app():
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
+    
+    # ALTERAÇÃO FASE 3 - Desabilita ordenação automática de chaves JSON (reduz fingerprinting)
+    app.config['JSON_SORT_KEYS'] = False
 
     cloudinary.config(
         cloud_name = os.getenv('CLOUDINARY_CLOUD_NAME'),
@@ -61,6 +65,45 @@ def create_app():
     
     login_manager.login_view = 'auth.login'
     
+    # ALTERAÇÃO FASE 3 - Configuração do Talisman (headers de segurança)
+    force_https = os.getenv('FORCE_HTTPS', 'false').lower() == 'true'
+    Talisman(
+        app,
+        force_https=force_https,
+        frame_options='DENY',
+        content_security_policy={
+            'default-src': "'self'",
+            'script-src': [
+                "'self'",
+                "'unsafe-inline'",   # necessário para scripts inline do Tailwind/JS
+                'cdn.tailwindcss.com',
+                'cdn.jsdelivr.net',
+                'https://api.qrserver.com',
+                'https://cdn.jsdelivr.net'
+            ],
+            'style-src': [
+                "'self'",
+                "'unsafe-inline'",
+                'fonts.googleapis.com',
+                'cdn.tailwindcss.com'
+            ],
+            'font-src': ["'self'", 'fonts.gstatic.com', 'data:'],
+            'img-src': ["'self'", 'data:', 'res.cloudinary.com', 'https://api.qrserver.com'],
+            'connect-src': ["'self'"],
+            'frame-ancestors': "'none'"
+        },
+        content_security_policy_nonce_in=['script-src'],
+        force_file_save=False
+    )
+    
+    # ALTERAÇÃO FASE 3 - Remove o header Server e adiciona headers de segurança adicionais
+    @app.after_request
+    def security_headers(response):
+        response.headers.pop('Server', None)
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'  # redundante, mas seguro
+        return response
+
     app.jinja_env.filters['format_brl'] = format_brl
     app.jinja_env.filters['to_tz_br'] = to_tz_br
 
