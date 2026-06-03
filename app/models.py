@@ -40,6 +40,15 @@ class User(db.Model, UserMixin):
     termo_assinado = db.Column(db.Boolean, default=False)
     docusign_envelope_id = db.Column(db.String(100), nullable=True)
     
+    # ==================== PROGRAMA DE INDICAÇÃO ====================
+    indicador_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    is_indicado = db.Column(db.Boolean, default=False)
+    data_indicacao = db.Column(db.DateTime, nullable=True)
+    
+    # Relacionamentos
+    indicado_por = db.relationship('User', remote_side=[id], backref='indicacoes')
+    # ================================================================
+    
     faturas = db.relationship('Fatura', backref='cliente', lazy=True, cascade="all, delete-orphan")
     alocacoes = db.relationship('AlocacaoCorretora', backref='cliente', lazy=True, cascade="all, delete-orphan")
     logs = db.relationship('LogAuditoria', backref='admin', lazy=True)
@@ -188,6 +197,29 @@ class DocumentoCliente(db.Model):
     data_assinatura = db.Column(db.DateTime, nullable=True)
 
     template = db.relationship('DocumentoTemplate', backref='documentos_enviados')
+
+# =============================================================================
+# PROGRAMA DE INDICAÇÃO - SOLICITAÇÕES DE PRÊMIO
+# =============================================================================
+
+class PremioSolicitacao(db.Model):
+    """Registra as solicitações de prêmio dos indicadores."""
+    __tablename__ = 'premio_solicitacao'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    data_solicitacao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
+    status = db.Column(db.String(20), default='pendente')  # pendente, aprovado, pago, recusado
+    tipo_premio = db.Column(db.String(20), nullable=False)  # 'dinheiro' ou 'vitalicia'
+    valor = db.Column(db.Float, default=1000.0)
+    admin_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    data_aprovacao = db.Column(db.DateTime, nullable=True)
+    data_pagamento = db.Column(db.DateTime, nullable=True)
+    observacao = db.Column(db.Text, nullable=True)
+    
+    # Relacionamentos
+    user = db.relationship('User', foreign_keys=[user_id], backref='solicitacoes_premio')
+    admin = db.relationship('User', foreign_keys=[admin_id])
 
 # =============================================================================
 # CONTROLE DE VERSÃO DO ROBÔ E LICENÇAS

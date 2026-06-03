@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="min-h-screen flex items-center justify-center bg-corporate-gradient p-4">
+    <div class="max-w-md w-full bg-white/5 backdrop-blur-2xl rounded-2xl p-8 border border-white/10">
+        <div class="text-center mb-8">
+            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="DW Capital" class="h-16 mx-auto mb-4">
+            <h2 class="text-2xl font-black text-white">Você foi convidado!</h2>
+            <p class="text-gray-400 text-sm mt-2">{{ indicador.nome }} te convidou para se juntar à DW Capital.</p>
+        </div>
+        
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            
+            <div class="mb-6">
+                <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Seu CPF</label>
+                <input type="text" name="cpf" id="cpf" placeholder="000.000.000-00" required
+                       class="w-full px-4 py-3 bg-navy/40 border border-white/5 rounded-xl text-white outline-none focus:border-royal">
+            </div>
+            
+            <div class="mb-8 space-y-4">
+                <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Escolha seu modelo</label>
+                
+                <div class="bg-navy/30 border border-white/5 rounded-xl p-4 cursor-pointer hover:border-royal transition" onclick="selecionarModelo('comissao')">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <input type="radio" name="modelo" value="comissao" id="modelo_comissao" class="w-4 h-4">
+                                <label for="modelo_comissao" class="font-bold text-white">Comissionado</label>
+                            </div>
+                            <p class="text-xs text-gray-400 mt-2 ml-6">Você receberá 30% dos lucros do robô. Sem custo inicial.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-navy/30 border border-white/5 rounded-xl p-4 cursor-pointer hover:border-royal transition" onclick="selecionarModelo('compra')">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <input type="radio" name="modelo" value="compra" id="modelo_compra" class="w-4 h-4">
+                                <label for="modelo_compra" class="font-bold text-white">Compra de Licença</label>
+                            </div>
+                            <p class="text-xs text-gray-400 mt-2 ml-6">Invista R$ 3.000 + 9x R$ 500. Acesso vitalício ao robô.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <button type="submit" class="w-full py-3 bg-royal hover:bg-royal-dark text-white rounded-xl font-black text-sm transition">
+                Continuar Cadastro
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+function selecionarModelo(modelo) {
+    document.getElementById(`modelo_${modelo}`).checked = true;
+}
+</script>
+{% endblock %}

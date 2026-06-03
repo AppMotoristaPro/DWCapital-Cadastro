@@ -9,8 +9,8 @@ import cloudinary.uploader
 from werkzeug.utils import secure_filename
 import requests
 import io
-from app import db, limiter  # ALTERAÇÃO FASE 3 - importa limiter para rate limiting
-from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, DocumentoTemplate, User
+from app import db, limiter
+from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, DocumentoTemplate, User, PremioSolicitacao  # PROGRAMA DE INDICAÇÃO - adicionado PremioSolicitacao
 from app.utils.parsers.gerenciador_pdf import processar_pdf
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
@@ -31,7 +31,8 @@ from app.services.licenca_service import (
     is_modo_teste,
     is_licenca_bloqueada
 )
-from app.utils.validators import validar_pdf_mime  # ALTERAÇÃO FASE 3 - validação MIME de PDF
+from app.utils.validators import validar_pdf_mime
+from app.services.parcela_service import contar_indicacoes_com_entrada_paga  # PROGRAMA DE INDICAÇÃO
 
 logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
@@ -207,13 +208,11 @@ def dados_pessoais():
 
 @client_bp.route('/faturas', methods=['GET', 'POST'])
 @login_required
-# ALTERAÇÃO FASE 3 - Rate limiting para upload de PDF (5 por minuto)
 @limiter.limit("5 per minute", methods=["POST"])
 def faturas():
     auto_gerar_ciclo(current_user)
     faturas_carregadas = Fatura.query.options(joinedload(Fatura.dias)).filter_by(user_id=current_user.id).order_by(Fatura.data_inicio.desc()).all()
 
-    # Pré-calcular o subtotal exato para cada fatura
     for fatura in faturas_carregadas:
         if current_user.modelo_negocio == 'compra':
             subtotal = sum(dia.liquido for dia in fatura.dias if dia.status == 'relatorio_enviado')
@@ -261,7 +260,6 @@ def faturas():
         if not dia or dia.fatura_semanal.user_id != current_user.id:
             return jsonify({'success': False, 'error': 'ERRO_SEGURANCA', 'message': 'Acesso negado.'})
         if arquivo and arquivo.filename:
-            # ALTERAÇÃO FASE 3 - Validação da assinatura mágica do PDF
             if not validar_pdf_mime(arquivo):
                 return jsonify({'success': False, 'error': 'PDF_INVALIDO', 'message': 'Arquivo não é um PDF válido (assinatura %PDF não encontrada).'})
             
@@ -386,7 +384,6 @@ def robo_download():
 
 @client_bp.route('/robo/download', methods=['POST'])
 @login_required
-# ALTERAÇÃO FASE 3 - Rate limiting para download (3 por minuto)
 @limiter.limit("3 per minute")
 def baixar_robo():
     versao = versao_atual()
@@ -437,7 +434,6 @@ def licenca_status():
 
 @client_bp.route('/licenca/gerar', methods=['POST'])
 @login_required
-# ALTERAÇÃO FASE 3 - Rate limiting para geração de licença (10 por minuto por usuário)
 @limiter.limit("10 per minute", key_func=lambda: current_user.id)
 def licenca_gerar():
     if is_licenca_bloqueada(current_user):
@@ -486,7 +482,6 @@ def licenca_visualizar():
 
 @client_bp.route('/api/salvar_conta_mt5', methods=['POST'])
 @login_required
-# ALTERAÇÃO FASE 3 - Rate limiting para salvar conta MT5 (5 por minuto)
 @limiter.limit("5 per minute")
 def api_salvar_conta_mt5():
     data = request.get_json()
@@ -511,6 +506,82 @@ def api_salvar_conta_mt5():
 @login_required
 def gerar_licenca_antiga():
     return licenca_gerar()
+
+# ==================== PROGRAMA DE INDICAÇÃO ====================
+
+@client_bp.route('/indicacoes')
+@login_required
+def indicacoes():
+    """Tela do indicador: mostra link de indicação, lista de indicados e progresso do prêmio."""
+    # Lista de clientes indicados por este usuário
+    indicados = User.query.filter_by(indicador_id=current_user.id, is_indicado=True).all()
+    
+    dados_indicados = []
+    for ind in indicados:
+        parcela_entrada = ParcelaCompra.query.filter_by(user_id=ind.id, ordem=1).first()
+        parcelas_semanais = ParcelaCompra.query.filter(
+            ParcelaCompra.user_id == ind.id,
+            ParcelaCompra.ordem >= 2
+        ).order_by(ParcelaCompra.ordem).all()
+        
+        pagas = sum(1 for p in parcelas_semanais if p.status == 'pago')
+        total = len(parcelas_semanais)
+        
+        dados_indicados.append({
+            'cliente': ind,
+            'entrada_paga': parcela_entrada and parcela_entrada.status == 'pago',
+            'parcelas_pagas': pagas,
+            'total_parcelas': total,
+            'valor_pendente': sum(p.valor for p in parcelas_semanais if p.status == 'pendente')
+        })
+    
+    # Link de indicação (para ser copiado)
+    link_indicacao = url_for('auth.indicacao', ref=current_user.id, _external=True)
+    
+    # Contagem de indicações elegíveis para prêmio (entrada paga)
+    count_entradas_pagas = contar_indicacoes_com_entrada_paga(current_user.id)
+    elegivel_premio = count_entradas_pagas >= 7
+    
+    return render_template('client/indicacoes.html',
+                           indicados=dados_indicados,
+                           link_indicacao=link_indicacao,
+                           count_entradas_pagas=count_entradas_pagas,
+                           elegivel_premio=elegivel_premio)
+
+
+@client_bp.route('/solicitar_premio', methods=['POST'])
+@login_required
+def solicitar_premio():
+    """Cliente solicita o prêmio (R$ 1.000 ou licença vitalícia)."""
+    data = request.get_json()
+    tipo = data.get('tipo')
+    
+    if tipo not in ['dinheiro', 'vitalicia']:
+        return jsonify({"success": False, "message": "Tipo de prêmio inválido."}), 400
+    
+    # Verifica se ainda é elegível
+    count = contar_indicacoes_com_entrada_paga(current_user.id)
+    if count < 7:
+        return jsonify({"success": False, "message": "Você ainda não atingiu 7 indicações com entrada paga."}), 400
+    
+    # Verifica se já existe uma solicitação pendente para este usuário
+    solicitacao_existente = PremioSolicitacao.query.filter_by(
+        user_id=current_user.id,
+        status='pendente'
+    ).first()
+    if solicitacao_existente:
+        return jsonify({"success": False, "message": "Você já possui uma solicitação de prêmio pendente."}), 400
+    
+    nova_solicitacao = PremioSolicitacao(
+        user_id=current_user.id,
+        tipo_premio=tipo,
+        status='pendente',
+        valor=1000.0 if tipo == 'dinheiro' else 0.0
+    )
+    db.session.add(nova_solicitacao)
+    db.session.commit()
+    
+    return jsonify({"success": True, "message": "Solicitação enviada com sucesso! Aguarde a aprovação do administrador."})
 
 @client_bp.route('/ajuda')
 @login_required

@@ -1,0 +1,143 @@
+{% extends "client/layout.html" %}
+{% block client_content %}
+<div class="max-w-7xl mx-auto pb-20">
+    <div class="flex justify-between items-end mb-8">
+        <div>
+            <h1 class="text-4xl font-black text-navy tracking-tight">Minhas Indicações</h1>
+            <p class="text-gray-500 mt-2 font-medium">Compartilhe seu link e ganhe prêmios!</p>
+        </div>
+    </div>
+
+    <!-- Seção: Link de Indicação -->
+    <div class="bg-white/80 backdrop-blur-xl rounded-2xl p-8 mb-10 shadow-sm border border-white">
+        <h2 class="text-xl font-black text-navy mb-4">Seu link exclusivo</h2>
+        <p class="text-gray-500 text-sm mb-4">Compartilhe este link com seus contatos. Quando eles se cadastrarem como <strong>Compra de Licença</strong>, você ganha pontos!</p>
+        <div class="flex flex-col sm:flex-row gap-4">
+            <input type="text" id="link-indicacao" value="{{ link_indicacao }}" readonly class="flex-1 px-5 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-700 font-mono text-sm outline-none">
+            <button onclick="copiarLink()" class="px-6 py-3 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">Copiar Link</button>
+        </div>
+    </div>
+
+    <!-- Seção: Lista de Indicados -->
+    <div class="bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-white overflow-hidden mb-10">
+        <div class="px-8 py-6 border-b border-gray-100 bg-white/50">
+            <h2 class="text-xl font-black text-navy">Pessoas que você indicou</h2>
+            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Acompanhe o progresso de cada um</p>
+        </div>
+        {% if indicados %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-gray-50/80 border-b border-gray-100 text-gray-400 text-[10px] font-black uppercase tracking-wider">
+                    <tr>
+                        <th class="px-8 py-4">Nome</th>
+                        <th class="px-6 py-4">CPF</th>
+                        <th class="px-6 py-4">Entrada (R$ 3.000)</th>
+                        <th class="px-6 py-4">Parcelas Semanais</th>
+                        <th class="px-6 py-4">Valor Pendente</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50 bg-white">
+                    {% for ind in indicados %}
+                    <tr class="hover:bg-gray-50/50 transition-colors">
+                        <td class="px-8 py-5 font-bold text-navy">{{ ind.cliente.nome }}</td>
+                        <td class="px-6 py-5 text-sm">{{ ind.cliente.cpf }}</td>
+                        <td class="px-6 py-5">
+                            {% if ind.entrada_paga %}
+                                <span class="px-2 py-1 bg-green-100 text-green-700 text-[9px] font-black rounded-lg">Paga</span>
+                            {% else %}
+                                <span class="px-2 py-1 bg-yellow-100 text-yellow-700 text-[9px] font-black rounded-lg">Pendente</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-5">
+                            <div class="flex items-center gap-2">
+                                <div class="w-24 bg-gray-200 rounded-full h-2">
+                                    <div class="bg-green-600 h-2 rounded-full" style="width: {{ (ind.parcelas_pagas / ind.total_parcelas * 100) if ind.total_parcelas else 0 }}%"></div>
+                                </div>
+                                <span class="text-xs font-bold">{{ ind.parcelas_pagas }} de {{ ind.total_parcelas }}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-5 text-red-600 font-bold">R$ {{ ind.valor_pendente|format_brl }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-12 text-center text-gray-400 font-medium">
+            Você ainda não indicou ninguém. Compartilhe seu link!
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Seção: Prêmio -->
+    <div class="bg-gradient-to-r from-purple-50 to-white p-8 rounded-2xl border border-purple-200 shadow-sm">
+        <div class="flex flex-col md:flex-row justify-between items-center gap-6">
+            <div>
+                <h2 class="text-2xl font-black text-navy mb-2">🏆 Prêmio por Indicações</h2>
+                <p class="text-gray-600">Indique <strong class="text-royal">7 pessoas</strong> que pagaram a entrada (R$ 3.000) e ganhe <strong class="text-green-600">R$ 1.000</strong> ou uma <strong class="text-royal">Licença Vitalícia</strong>!</p>
+                <p class="text-sm text-gray-500 mt-2">Você já tem <strong>{{ count_entradas_pagas }}</strong> de 7 indicações elegíveis.</p>
+                <div class="w-full bg-gray-200 rounded-full h-3 mt-3">
+                    <div class="bg-royal h-3 rounded-full" style="width: {{ (count_entradas_pagas / 7 * 100) if count_entradas_pagas else 0 }}%"></div>
+                </div>
+            </div>
+            <div>
+                {% if elegivel_premio %}
+                    <button onclick="abrirModalPremio()" class="px-8 py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg transition">Solicitar Prêmio</button>
+                {% else %}
+                    <button disabled class="px-8 py-4 bg-gray-300 text-gray-500 rounded-xl font-black uppercase tracking-widest text-xs cursor-not-allowed shadow-sm">Ainda não elegível</button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para escolher o prêmio -->
+<div id="modal-premio" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-8 relative">
+        <button onclick="fecharModalPremio()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-900 text-xl font-black">&times;</button>
+        <h3 class="text-2xl font-black text-navy mb-4">Escolha seu prêmio</h3>
+        <p class="text-gray-500 mb-6">Você atingiu 7 indicações com entrada paga! Selecione uma opção:</p>
+        <div class="space-y-4">
+            <button onclick="solicitarPremio('dinheiro')" class="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-sm transition">💰 R$ 1.000,00</button>
+            <button onclick="solicitarPremio('vitalicia')" class="w-full py-3 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-sm transition">🔓 Licença Vitalícia</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function copiarLink() {
+    const input = document.getElementById('link-indicacao');
+    input.select();
+    input.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(input.value);
+    alert('Link copiado para a área de transferência!');
+}
+
+function abrirModalPremio() {
+    document.getElementById('modal-premio').classList.remove('hidden');
+}
+function fecharModalPremio() {
+    document.getElementById('modal-premio').classList.add('hidden');
+}
+async function solicitarPremio(tipo) {
+    try {
+        const response = await fetch("{{ url_for('client.solicitar_premio') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({ tipo: tipo })
+        });
+        const data = await response.json();
+        alert(data.message);
+        if (data.success) {
+            window.location.reload();
+        }
+    } catch (e) {
+        alert('Erro ao enviar solicitação.');
+    }
+    fecharModalPremio();
+}
+</script>
+{% endblock %}

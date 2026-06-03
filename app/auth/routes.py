@@ -1,12 +1,16 @@
 import random
 import string
+from datetime import datetime
 from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify, session
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from app.models import User, AlocacaoCorretora
 from app import db, limiter
-from app.utils.validators import validar_cpf  # ALTERAÇÃO FASE 1 - importa validador de CPF
+from app.utils.validators import validar_cpf
+from app.services.parcela_service import gerar_parcelas_compra_unificado  # PROGRAMA DE INDICAÇÃO
+import pytz
 
+tz_br = pytz.timezone('America/Sao_Paulo')
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
 def gerar_matricula_unica():
@@ -79,68 +83,155 @@ def verificar_cpf():
 
     return jsonify({'valido': True, 'mensagem': 'CPF liberado!'})
 
-@auth_bp.route('/primeiro_acesso', methods=['GET', 'POST'])
-def primeiro_acesso():
+# ==================== PROGRAMA DE INDICAÇÃO ====================
+
+@auth_bp.route('/indicacao', methods=['GET', 'POST'])
+def indicacao():
+    ref = request.args.get('ref')
+    if not ref or not ref.isdigit():
+        flash('Link de indicação inválido.', 'error')
+        return redirect(url_for('auth.login'))
+    
+    indicador = User.query.get(int(ref))
+    if not indicador or indicador.role != 'cliente' or indicador.status_acesso != 'ativo':
+        flash('Link de indicação inválido.', 'error')
+        return redirect(url_for('auth.login'))
+    
     if request.method == 'POST':
         cpf = ''.join(filter(str.isdigit, request.form.get('cpf')))
+        modelo = request.form.get('modelo')
         
-        # ALTERAÇÃO FASE 1 - Valida os dígitos verificadores do CPF antes de qualquer operação
+        if not validar_cpf(cpf):
+            flash('CPF inválido. Verifique os dígitos.', 'error')
+            return render_template('auth/indicacao.html', indicador=indicador)
+        
+        if modelo not in ['comissao', 'compra']:
+            flash('Selecione um modelo válido.', 'error')
+            return render_template('auth/indicacao.html', indicador=indicador)
+        
+        # Verifica se CPF já existe
+        user_existente = User.query.filter_by(cpf=cpf).first()
+        if user_existente:
+            flash('Este CPF já está cadastrado. Faça login.', 'error')
+            return redirect(url_for('auth.login'))
+        
+        # Cria usuário pendente
+        novo_user = User(
+            cpf=cpf,
+            role='cliente',
+            status_acesso='pendente_cadastro',
+            modelo_negocio=modelo,
+            indicador_id=indicador.id,
+            is_indicado=(modelo == 'compra'),
+            data_indicacao=datetime.now(tz_br) if modelo == 'compra' else None
+        )
+        db.session.add(novo_user)
+        db.session.commit()
+        
+        # Armazena na sessão para o próximo passo
+        session['cpf_cadastro'] = cpf
+        session['modelo_cadastro'] = modelo
+        
+        flash('CPF validado! Complete seu cadastro abaixo.', 'success')
+        return redirect(url_for('auth.primeiro_acesso'))
+    
+    # GET - exibe o formulário
+    return render_template('auth/indicacao.html', indicador=indicador)
+
+# ==================== PRIMEIRO ACESSO MODIFICADO ====================
+
+@auth_bp.route('/primeiro_acesso', methods=['GET', 'POST'])
+def primeiro_acesso():
+    cpf_sessao = session.get('cpf_cadastro')
+    modelo_sessao = session.get('modelo_cadastro')
+    
+    if request.method == 'GET':
+        if cpf_sessao and modelo_sessao:
+            user = User.query.filter_by(cpf=cpf_sessao, status_acesso='pendente_cadastro').first()
+            if user:
+                return render_template('auth/primeiro_acesso.html', 
+                                       cpf_preenchido=cpf_sessao,
+                                       modelo_pre_selecionado=modelo_sessao)
+        return render_template('auth/primeiro_acesso.html', cpf_preenchido=None, modelo_pre_selecionado=None)
+    
+    # POST - processa o cadastro
+    cpf = ''.join(filter(str.isdigit, request.form.get('cpf')))
+    
+    # Se veio de indicação, usa o CPF da sessão (mais seguro)
+    if cpf_sessao:
+        cpf = cpf_sessao
+    else:
+        # Validação normal para cadastro manual (sem indicação)
         if not validar_cpf(cpf):
             flash('CPF inválido. Verifique os dígitos e tente novamente.', 'error')
             return render_template('auth/primeiro_acesso.html')
-        
-        user = User.query.filter_by(cpf=cpf, status_acesso='pendente_cadastro').first()
+    
+    user = User.query.filter_by(cpf=cpf, status_acesso='pendente_cadastro').first()
+    
+    if not user:
+        # Se não existir, pode ser tentativa de cadastro manual sem liberação prévia (bloqueado)
+        flash('CPF não liberado. Entre em contato com o suporte.', 'error')
+        return render_template('auth/primeiro_acesso.html')
+    
+    # Se veio de indicação, o modelo_negocio já está definido; caso contrário, usa o do formulário
+    if not user.modelo_negocio:
+        user.modelo_negocio = request.form.get('modelo_negocio', 'comissao')
+    
+    # Valida capital mínimo e processa dados do formulário (código original)
+    corretoras_selecionadas = request.form.getlist('corretora[]')
+    capitais_alocados = request.form.getlist('capital[]')
+    
+    for cap in capitais_alocados:
+        if cap and float(cap) < 10000:
+            flash('Operação cancelada: O capital mínimo exigido por corretora é de R$ 10.000,00.', 'error')
+            return render_template('auth/primeiro_acesso.html')
 
-        if user:
-            corretoras_selecionadas = request.form.getlist('corretora[]')
-            capitais_alocados = request.form.getlist('capital[]')
-            
-            for cap in capitais_alocados:
-                if cap and float(cap) < 10000:
-                    flash('Operação cancelada: O capital mínimo exigido por corretora é de R$ 10.000,00.', 'error')
-                    return render_template('auth/primeiro_acesso.html')
-
-            nome_raw = request.form.get('nome', '')
-            user.nome = nome_raw.strip().title()
-            user.email = request.form.get('email')
-            user.celular = request.form.get('celular')
-            
-            rua = request.form.get('rua', '')
-            numero = request.form.get('numero', '')
-            bairro = request.form.get('bairro', '')
-            cidade = request.form.get('cidade', '')
-            estado = request.form.get('estado', '')
-            cep = request.form.get('cep', '')
-            
-            user.endereco = f"{rua}, {numero} - {bairro}, {cidade}/{estado} - CEP: {cep}"
-            user.password_hash = generate_password_hash(request.form.get('senha'))
-            user.matricula = gerar_matricula_unica() 
-            user.status_acesso = 'ativo'
-            
-            AlocacaoCorretora.query.filter_by(user_id=user.id).delete()
-            
-            soma_capital = 0.0 
-            
-            for corretora, capital in zip(corretoras_selecionadas, capitais_alocados):
-                if corretora and capital:
-                    valor_capital = float(capital)
-                    nova_alocacao = AlocacaoCorretora(
-                        user_id=user.id,
-                        nome_corretora=corretora.upper(),
-                        capital_alocado=valor_capital
-                    )
-                    db.session.add(nova_alocacao)
-                    soma_capital += valor_capital 
-            
-            user.capital_alocado = soma_capital 
-            
-            db.session.commit()
-            flash('Cadastro concluído com sucesso! Bem-vindo à DW Capital.', 'auth_success')
-            return redirect(url_for('auth.login'))
-        
-        flash('CPF não liberado ou cadastro já ativo.', 'error')
-
-    return render_template('auth/primeiro_acesso.html')
+    nome_raw = request.form.get('nome', '')
+    user.nome = nome_raw.strip().title()
+    user.email = request.form.get('email')
+    user.celular = request.form.get('celular')
+    
+    rua = request.form.get('rua', '')
+    numero = request.form.get('numero', '')
+    bairro = request.form.get('bairro', '')
+    cidade = request.form.get('cidade', '')
+    estado = request.form.get('estado', '')
+    cep = request.form.get('cep', '')
+    
+    user.endereco = f"{rua}, {numero} - {bairro}, {cidade}/{estado} - CEP: {cep}"
+    user.password_hash = generate_password_hash(request.form.get('senha'))
+    user.matricula = gerar_matricula_unica() 
+    user.status_acesso = 'ativo'
+    
+    AlocacaoCorretora.query.filter_by(user_id=user.id).delete()
+    
+    soma_capital = 0.0 
+    
+    for corretora, capital in zip(corretoras_selecionadas, capitais_alocados):
+        if corretora and capital:
+            valor_capital = float(capital)
+            nova_alocacao = AlocacaoCorretora(
+                user_id=user.id,
+                nome_corretora=corretora.upper(),
+                capital_alocado=valor_capital
+            )
+            db.session.add(nova_alocacao)
+            soma_capital += valor_capital 
+    
+    user.capital_alocado = soma_capital 
+    
+    # Geração de parcelas (apenas para compra)
+    if user.modelo_negocio == 'compra':
+        parcelas = gerar_parcelas_compra_unificado(user.id)
+        db.session.add_all(parcelas)
+    
+    # Limpa a sessão (se veio de indicação)
+    session.pop('cpf_cadastro', None)
+    session.pop('modelo_cadastro', None)
+    
+    db.session.commit()
+    flash('Cadastro concluído com sucesso! Bem-vindo à DW Capital.', 'auth_success')
+    return redirect(url_for('auth.login'))
 
 @auth_bp.route('/logout')
 def logout():
