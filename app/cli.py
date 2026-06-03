@@ -5,6 +5,7 @@ from sqlalchemy import text
 from app import db
 from app.models import User, AlocacaoCorretora
 from werkzeug.security import generate_password_hash
+from app.services.fatura_service import auto_gerar_ciclos_em_lote  # ALTERAÇÃO FASE 2
 
 def register_cli_commands(app):
     
@@ -91,3 +92,16 @@ def register_cli_commands(app):
         
         db.session.commit()
         click.echo(f"✅ MIGRAÇÃO CONCLUÍDA! {alocacoes_criadas} alocações geradas e {faturas_corrigidas} dias corrigidos.")
+
+    # ALTERAÇÃO FASE 2 - Comando para gerar ciclos em lote via cron
+    @app.cli.command('gerar-ciclos')
+    @with_appcontext
+    def gerar_ciclos():
+        """Gera automaticamente os ciclos semanais para todos os clientes ativos (deve ser executado via cron)."""
+        click.echo("Iniciando geração de ciclos em lote...")
+        clientes_ativos = User.query.filter_by(role='cliente', status_acesso='ativo').all()
+        if not clientes_ativos:
+            click.echo("Nenhum cliente ativo encontrado.")
+            return
+        auto_gerar_ciclos_em_lote(clientes_ativos)
+        click.echo(f"✅ Ciclos processados para {len(clientes_ativos)} clientes ativos.")

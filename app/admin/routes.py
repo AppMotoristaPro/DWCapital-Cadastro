@@ -17,16 +17,15 @@ from app.services.documento_service import disparar_lote, disparar_unico
 from app.services.dashboard_service import obter_dados_dashboard
 from app.services.licenca_service import gerar_licenca_vitalicia, obter_licenca_ativa, expirar_licencas_semanais
 from app.utils.parsers.gerenciador_pdf import processar_pdf
-from app.utils.validators import validar_cpf  # ALTERAÇÃO FASE 1 - validação de CPF
+from app.utils.validators import validar_cpf
 import cloudinary.uploader
 import pytz
-import re  # ALTERAÇÃO FASE 1 - para sanitização de nome de arquivo
+import re
 
 logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
-# ALTERAÇÃO FASE 1 - Função registrar_log agora captura IP do admin
 def registrar_log(acao, categoria):
     if current_user.is_authenticated:
         ip = request.remote_addr
@@ -54,7 +53,10 @@ def dashboard():
 @admin_bp.route('/clientes')
 @admin_required
 def clientes_list():
-    clientes = User.query.filter_by(role='cliente').options(joinedload(User.alocacoes)).order_by(User.nome.asc()).all()
+    # ALTERAÇÃO FASE 2 - Paginação (20 clientes por página)
+    page = request.args.get('page', 1, type=int)
+    per_page = 20
+    clientes = User.query.filter_by(role='cliente').options(joinedload(User.alocacoes)).order_by(User.nome.asc()).paginate(page=page, per_page=per_page, error_out=False)
     return render_template('admin/index.html', clientes=clientes)
 
 @admin_bp.route('/liberar_cliente', methods=['POST'])
@@ -62,7 +64,6 @@ def clientes_list():
 def liberar_cliente():
     cpf = ''.join(filter(str.isdigit, request.form.get('cpf')))
     
-    # ALTERAÇÃO FASE 1 - Validação do CPF antes de qualquer operação
     if not validar_cpf(cpf):
         flash('CPF inválido. Não é possível liberar acesso.', 'error')
         return redirect(url_for('admin.clientes_list'))
@@ -263,8 +264,9 @@ def pagamentos():
             if data_cad <= (inicio_ciclo + timedelta(days=6)):
                 ativos.append(c)
         
-        auto_gerar_ciclos_em_lote(ativos, data_base=inicio_ciclo)
-            
+        # ALTERAÇÃO FASE 2 - Removida a chamada síncrona auto_gerar_ciclos_em_lote
+        # Agora os ciclos devem ser gerados por um job agendado (cron) usando o comando flask gerar-ciclos
+        
         user_ids = [c.id for c in ativos]
         faturas_do_ciclo = []
         if user_ids:
@@ -814,6 +816,20 @@ def cron_expirar_licencas():
     registrar_log(f"Job automático: expirou {quantidade} licenças semanais.", "Sistema")
     return jsonify({"status": "ok", "expiradas": quantidade}), 200
 
+@admin_bp.route('/cron/gerar_ciclos', methods=['POST'])
+@csrf.exempt
+def cron_gerar_ciclos():
+    token = request.headers.get('X-Cron-Secret')
+    if token != os.environ.get('CRON_SECRET'):
+        return jsonify({"error": "Não autorizado"}), 403
+    
+    from app.services.fatura_service import auto_gerar_ciclos_em_lote
+    clientes_ativos = User.query.filter_by(role='cliente', status_acesso='ativo').all()
+    if clientes_ativos:
+        auto_gerar_ciclos_em_lote(clientes_ativos)
+        return jsonify({"status": "ok", "clientes_processados": len(clientes_ativos)}), 200
+    return jsonify({"status": "ok", "clientes_processados": 0}), 200
+
 # ==================== NOVA ROTA: HISTÓRICO DE LICENÇAS ====================
 
 @admin_bp.route('/cliente_licencas/<int:id>')
@@ -856,13 +872,10 @@ def relatorio_gestao():
         output = gerar_relatorio_gestao(mes_int, ano_int)
         logger.error(f"[DEBUG] Arquivo gerado: {output}")
         
-        # Enviar arquivo e depois remover
         response = send_file(output, as_attachment=True, download_name=f'relatorio_gestao_{ano_int}_{mes_int:02d}.xlsx')
         
-        # Registrar ação de download
         registrar_log(f"Gerou relatório de gestão para {mes_int}/{ano_int}", "Relatórios")
         
-        # Limpar arquivo temporário após envio (usando callback)
         @response.call_on_close
         def cleanup():
             try:

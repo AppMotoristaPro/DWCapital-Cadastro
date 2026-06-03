@@ -43,10 +43,10 @@
                         <th class="px-6 py-5">Alocações (Corretoras)</th>
                         <th class="px-6 py-5">Status</th>
                         <th class="px-8 py-5 text-right">Ações</th>
-                    <tr>
+                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50">
-                    {% for cliente in clientes %}
+                    {% for cliente in clientes.items %}
                     <tr class="hover:bg-gray-50/50 transition-colors linha-cliente {% if cliente.status_acesso == 'inativo' %}opacity-60{% endif %}" 
                         data-nome="{{ cliente.nome }}" 
                         data-cpf="{{ cliente.cpf }}" 
@@ -166,9 +166,30 @@
                 </tbody>
             </table>
         </div>
+
+        <!-- ALTERAÇÃO FASE 2 - Navegação de páginas -->
+        {% if clientes.pages > 1 %}
+        <div class="px-8 py-5 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
+            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Página {{ clientes.page }} de {{ clientes.pages }}</span>
+            <div class="flex items-center gap-2">
+                {% if clientes.has_prev %}
+                <a href="{{ url_for('admin.clientes_list', page=clientes.prev_num) }}" class="px-4 py-2 bg-white border border-gray-200 text-gray-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition shadow-sm">Anterior</a>
+                {% else %}
+                <span class="px-4 py-2 bg-gray-50 border border-gray-100 text-gray-300 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-not-allowed">Anterior</span>
+                {% endif %}
+
+                {% if clientes.has_next %}
+                <a href="{{ url_for('admin.clientes_list', page=clientes.next_num) }}" class="px-4 py-2 bg-white border border-gray-200 text-navy rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition shadow-sm">Próxima</a>
+                {% else %}
+                <span class="px-4 py-2 bg-gray-50 border border-gray-100 text-gray-300 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-not-allowed">Próxima</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 
+<!-- Modais (idênticos ao original) -->
 <div id="modal-ficha-global" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
     <div class="bg-white/90 backdrop-blur-2xl border border-white/40 w-full max-w-xl rounded-[2.5rem] shadow-2xl p-6 md:p-10 relative overflow-y-auto max-h-[90vh]">
         <button type="button" onclick="document.getElementById('modal-ficha-global').classList.add('hidden')" class="absolute top-6 right-6 md:top-8 md:right-8 text-gray-400 hover:text-gray-900 font-black text-xl transition">X</button>
@@ -280,7 +301,6 @@ function filtrarClientes() {
     });
 }
 
-// Funções para o modal do relatório
 function abrirModalRelatorio() {
     document.getElementById('modal-relatorio').classList.remove('hidden');
 }
