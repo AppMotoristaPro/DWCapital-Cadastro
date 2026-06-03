@@ -92,7 +92,7 @@ def create_app():
             'connect-src': ["'self'"],
             'frame-ancestors': "'none'"
         },
-        content_security_policy_nonce_in=['script-src'],
+        # content_security_policy_nonce_in=['script-src'],  # ← REMOVIDO para permitir scripts inline
         force_file_save=False
     )
     
