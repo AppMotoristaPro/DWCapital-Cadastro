@@ -31,7 +31,7 @@
                 <thead class="bg-white/50 border-b border-gray-100 text-gray-400 text-[10px] font-black uppercase tracking-wider">
                     <tr>
                         <th class="px-8 py-5">Indicador</th>
-                        <th class="px-6 py-5">Tipo</th>
+                        <th class="px-6 py-5">Tipo / Valor</th>
                         <th class="px-6 py-5">Data Solicitação</th>
                         <th class="px-6 py-5">Indicações Elegíveis</th>
                         <th class="px-6 py-5">Status</th>
@@ -47,11 +47,15 @@
                         </td>
                         <td class="px-6 py-6">
                             <span class="px-2 py-1 bg-blue-100 text-royal text-[9px] font-black rounded-lg">
-                                {% if sol.tipo_premio == 'dinheiro' %}R$ 1.000,00{% else %}Licença Vitalícia{% endif %}
+                                {% if sol.tipo_premio == 'dinheiro' %}
+                                    R$ {{ "%.2f"|format(sol.valor) }}
+                                {% else %}
+                                    Licença Vitalícia
+                                {% endif %}
                             </span>
                         </td>
-                        <td class="px-6 py-6 text-sm">{{ sol.data_solicitacao.strftime('%d/%m/%Y %H:%M') }}</td>
-                        <td class="px-6 py-6 text-sm font-bold">{{ sol.qtd_elegivel }} / 7</td>
+                        <td class="px-6 py-6 text-sm">{{ sol.data_solicitacao.strftime('%d/%m/%Y %H:%M') }}<\/td>
+                        <td class="px-6 py-6 text-sm font-bold">{{ sol.qtd_elegivel }} / 7<\/td>
                         <td class="px-6 py-6">
                             {% if sol.status == 'pendente' %}
                                 <span class="px-2 py-1 bg-yellow-100 text-yellow-700 text-[9px] font-black rounded-lg">Pendente</span>
@@ -62,7 +66,7 @@
                             {% else %}
                                 <span class="px-2 py-1 bg-red-100 text-red-700 text-[9px] font-black rounded-lg">Recusado</span>
                             {% endif %}
-                        </td>
+                        <\/td>
                         <td class="px-8 py-6 text-right">
                             {% if sol.status == 'pendente' %}
                             <div class="flex justify-end gap-2">
@@ -80,11 +84,11 @@
                             {% else %}
                                 <span class="text-gray-400 text-[10px]">Processado</span>
                             {% endif %}
-                        </td>
+                        <\/td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6" class="px-8 py-16 text-center text-gray-400 font-medium">Nenhuma solicitação de prêmio encontrada.</td>
+                        <td colspan="6" class="px-8 py-16 text-center text-gray-400 font-medium">Nenhuma solicitação de prêmio encontrada.<\/td>
                     </tr>
                     {% endfor %}
                 </tbody>

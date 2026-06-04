@@ -140,6 +140,8 @@ def liberar_cliente():
     cpf = ''.join(filter(str.isdigit, request.form.get('cpf')))
     
     if not validar_cpf(cpf):
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({"success": False, "message": "CPF inválido. Verifique os dígitos."}), 400
         flash('CPF inválido. Não é possível liberar acesso.', 'error')
         return redirect(url_for('admin.clientes_list'))
     
@@ -154,6 +156,8 @@ def liberar_cliente():
         indicador_id = None
     
     if User.query.filter_by(cpf=cpf).first():
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({"success": False, "message": "CPF já cadastrado."}), 400
         flash('CPF já cadastrado.', 'error')
         return redirect(url_for('admin.clientes_list'))
 
@@ -203,6 +207,9 @@ def liberar_cliente():
     registrar_log(f"Liberou novo acesso pré-cadastro para o CPF {cpf} (Nome: {nome_temp}, Isento: {status_isento_str}, Modelo: {modelo_negocio.upper()}).", "Clientes")
     
     db.session.commit()
+    
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({"success": True, "message": "Cliente liberado com sucesso!"}), 200
     flash('Acesso liberado e conta inicial preparada com contratos de onboarding na fila!', 'success')
     return redirect(url_for('admin.clientes_list'))
 

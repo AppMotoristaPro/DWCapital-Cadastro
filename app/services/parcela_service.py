@@ -45,9 +45,16 @@ def gerar_parcelas_compra_unificado(user_id: int, data_inicio: datetime.date = N
     )
     parcelas.append(p1)
     
-    # Parcelas 2 a 10 – semanais (R$ 500,00 cada)
+    # Encontra o primeiro sábado após data_inicio
+    # weekday: segunda=0, terça=1, ..., sábado=5, domingo=6
+    dias_para_sabado = (5 - data_inicio.weekday()) % 7
+    if dias_para_sabado == 0:
+        dias_para_sabado = 7  # se já for sábado, vai para o próximo
+    primeiro_sabado = data_inicio + timedelta(days=dias_para_sabado)
+    
+    # Parcelas 2 a 10 – semanais (sábados)
     for i in range(2, 11):
-        vencimento = data_inicio + timedelta(days=7 * (i - 1))
+        vencimento = primeiro_sabado + timedelta(days=7 * (i-2))
         parcela = ParcelaCompra(
             user_id=user_id,
             ordem=i,
