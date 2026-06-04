@@ -54,11 +54,9 @@ def dashboard():
 @admin_bp.route('/clientes')
 @admin_required
 def clientes_list():
-    # ALTERAÇÃO FASE 2 - Paginação (20 clientes por página)
     page = request.args.get('page', 1, type=int)
     per_page = 20
     clientes = User.query.filter_by(role='cliente').options(joinedload(User.alocacoes)).order_by(User.nome.asc()).paginate(page=page, per_page=per_page, error_out=False)
-    # Para o select de indicador no modal (clientes ativos)
     clientes_ativos = User.query.filter_by(role='cliente', status_acesso='ativo').order_by(User.nome.asc()).all()
     return render_template('admin/index.html', clientes=clientes, clientes_ativos=clientes_ativos)
 
@@ -75,7 +73,6 @@ def liberar_cliente():
     is_isento = True if request.form.get('is_isento') else False
     modelo_negocio = request.form.get('modelo_negocio', 'comissao')
     
-    # Indicação (admin pode vincular manualmente)
     indicador_id = request.form.get('indicador_id')
     if indicador_id and indicador_id.isdigit():
         indicador_id = int(indicador_id)
@@ -95,7 +92,6 @@ def liberar_cliente():
         modelo_negocio=modelo_negocio
     )
     
-    # Vincula indicação se for compra e indicador informado
     if modelo_negocio == 'compra' and indicador_id:
         indicador = User.query.get(indicador_id)
         if indicador and indicador.role == 'cliente' and indicador.status_acesso == 'ativo':
@@ -108,12 +104,10 @@ def liberar_cliente():
     
     hoje = datetime.now(tz_br).date()
     
-    # Geração de parcelas (novo modelo unificado para compra)
     if modelo_negocio == 'compra':
         parcelas = gerar_parcelas_compra_unificado(novo.id, data_inicio=hoje)
         db.session.add_all(parcelas)
     else:
-        # Para comissão, cria a fatura semanal automaticamente (comportamento original)
         dias_para_sexta = (hoje.weekday() - 4) % 7
         inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
         fim_ciclo = inicio_ciclo + timedelta(days=6)
@@ -166,7 +160,6 @@ def editar_cliente(id):
         
         novo_modelo = request.form.get('modelo_negocio', 'comissao')
         
-        # Se o cliente está sendo alterado para compra e não tem parcelas, gerar as parcelas unificadas
         if novo_modelo == 'compra' and not cliente.parcelas_licenca:
             hoje = datetime.now(tz_br).date()
             parcelas = gerar_parcelas_compra_unificado(cliente.id, data_inicio=hoje)
@@ -286,9 +279,6 @@ def pagamentos():
             data_cad = c.data_cadastro.date() if c.data_cadastro else datetime.min.date()
             if data_cad <= (inicio_ciclo + timedelta(days=6)):
                 ativos.append(c)
-        
-        # ALTERAÇÃO FASE 2 - Removida a chamada síncrona auto_gerar_ciclos_em_lote
-        # Agora os ciclos devem ser gerados por um job agendado (cron) usando o comando flask gerar-ciclos
         
         user_ids = [c.id for c in ativos]
         faturas_do_ciclo = []
@@ -601,12 +591,10 @@ def cadastrar_template():
     arquivo_local = request.form.get('arquivo_local')
     is_onboarding = True if request.form.get('is_onboarding') else False
     
-    # ALTERAÇÃO FASE 1 - Sanitização do nome do arquivo (path traversal)
     if not re.match(r'^[a-zA-Z0-9_.-]+\.pdf$', arquivo_local):
         flash('Nome de arquivo inválido. Use apenas letras, números, underscore, hífen e ponto, com extensão .pdf', 'error')
         return redirect(url_for('admin.documentos'))
     
-    # Verifica se o arquivo existe dentro da pasta permitida
     base_dir = os.path.join(current_app.root_path, 'static', 'documentos')
     caminho_completo = os.path.join(base_dir, arquivo_local)
     caminho_real = os.path.realpath(caminho_completo)
@@ -732,7 +720,6 @@ def excluir_todos_pendentes():
 
 @admin_bp.route('/robo/upload', methods=['GET', 'POST'])
 @admin_required
-# ALTERAÇÃO FASE 3 - Rate limiting para upload de nova versão (3 por minuto)
 @limiter.limit("3 per minute", methods=["POST"])
 def upload_versao_robo():
     if request.method == 'POST':
@@ -800,7 +787,6 @@ def publicar_versao_robo(id):
 
 @admin_bp.route('/forcar_licenca_vitalicia/<int:id>', methods=['POST'])
 @admin_required
-# ALTERAÇÃO FASE 3 - Rate limiting (5 por minuto por cliente, usando ID do cliente como chave)
 @limiter.limit("5 per minute", key_func=lambda: request.view_args.get('id', 'global'))
 def forcar_licenca_vitalicia(id):
     cliente = User.query.get_or_404(id)
@@ -864,7 +850,6 @@ def cliente_licencas(id):
 
 @admin_bp.route('/relatorio_gestao', methods=['GET'])
 @admin_required
-# ALTERAÇÃO FASE 3 - Rate limiting para evitar geração excessiva de relatórios (2 por minuto)
 @limiter.limit("2 per minute")
 def relatorio_gestao():
     from app.services.relatorio_service import gerar_relatorio_gestao
@@ -957,6 +942,37 @@ def parcela_pagar(parcela_id):
     
     return redirect(url_for('admin.parcelas'))
 
+# ==================== NOVA ROTA: COMPRAS DIRETAS (FASE 2) ====================
+
+@admin_bp.route('/parcelas_diretas')
+@admin_required
+def parcelas_diretas():
+    """Lista todas as parcelas de clientes compra NÃO INDICADOS (compra direta)."""
+    status_filter = request.args.get('status', '')
+    search = request.args.get('search', '')
+    page = request.args.get('page', 1, type=int)
+    per_page = 30
+    
+    query = ParcelaCompra.query.join(User).filter(
+        User.modelo_negocio == 'compra',
+        User.is_indicado == False  # apenas clientes que não foram indicados
+    )
+    
+    if status_filter in ['pendente', 'pago']:
+        query = query.filter(ParcelaCompra.status == status_filter)
+    
+    if search:
+        query = query.filter(
+            db.or_(
+                User.nome.ilike(f'%{search}%'),
+                User.cpf.ilike(f'%{search}%')
+            )
+        )
+    
+    parcelas_paginadas = query.order_by(ParcelaCompra.data_vencimento.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    
+    return render_template('admin/parcelas.html', parcelas=parcelas_paginadas, status_filter=status_filter, search=search)
+
 # ==================== ROTAS DE GESTÃO DE PRÊMIOS (FASE E) ====================
 
 @admin_bp.route('/premios')
@@ -973,7 +989,6 @@ def premios():
     
     solicitacoes = query.order_by(PremioSolicitacao.data_solicitacao.desc()).paginate(page=page, per_page=per_page, error_out=False)
     
-    # Para cada solicitação, calcular quantas indicações elegíveis o usuário tem (útil para auditoria)
     for sol in solicitacoes.items:
         sol.qtd_elegivel = contar_indicacoes_com_entrada_paga(sol.user_id)
     
@@ -991,7 +1006,6 @@ def processar_premio(solicitacao_id):
             flash('Esta solicitação não está pendente.', 'error')
             return redirect(url_for('admin.premios'))
         
-        # Verificar novamente se ainda é elegível
         qtd = contar_indicacoes_com_entrada_paga(solicitacao.user_id)
         if qtd < 7:
             flash('O indicador não atende mais aos requisitos (menos de 7 entradas pagas).', 'error')
@@ -1001,7 +1015,6 @@ def processar_premio(solicitacao_id):
         solicitacao.admin_id = current_user.id
         solicitacao.data_aprovacao = datetime.now(tz_br)
         
-        # Se o prêmio for em dinheiro, já marca como pago no mesmo ato (simula pagamento)
         if solicitacao.tipo_premio == 'dinheiro':
             solicitacao.status = 'pago'
             solicitacao.data_pagamento = datetime.now(tz_br)
@@ -1009,8 +1022,8 @@ def processar_premio(solicitacao_id):
         db.session.commit()
         
         if solicitacao.tipo_premio == 'dinheiro':
-            registrar_log(f"Aprovou e pagou o prêmio de R$ 1.000,00 para o indicador {solicitacao.user.nome}.", "Premios")
-            flash('Prêmio aprovado e pago com sucesso!', 'success')
+            registrar_log(f"Aprovou e pagou o prêmio de R$ {solicitacao.valor:.2f} para o indicador {solicitacao.user.nome}.", "Premios")
+            flash(f'Prêmio de R$ {solicitacao.valor:.2f} aprovado e pago!', 'success')
         else:
             registrar_log(f"Aprovou a concessão da Licença Vitalícia para o indicador {solicitacao.user.nome}.", "Premios")
             flash('Licença vitalícia concedida com sucesso!', 'success')
@@ -1092,7 +1105,6 @@ def _executar_reprocessamento_por_corretora(corretora_nome):
 
 @admin_bp.route('/reprocessar_btg', methods=['GET'])
 @admin_required
-# ALTERAÇÃO FASE 3 - Rate limiting para reprocessamento (2 por minuto)
 @limiter.limit("2 per minute")
 def reprocessar_btg():
     return _executar_reprocessamento_por_corretora('BTG')

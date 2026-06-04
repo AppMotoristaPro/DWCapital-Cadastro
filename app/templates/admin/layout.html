@@ -27,20 +27,27 @@
                     <a href="{{ url_for('admin.pagamentos') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint and request.endpoint.startswith('admin.pagamentos') %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-slate-300 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
                         Pagamentos
                     </a>
-                    <!-- Link Vendas (admin.licencas) removido pois não é mais utilizado -->
+                    <!-- Link Vendas (admin.licencas) removido -->
                     <a href="{{ url_for('admin.documentos') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint == 'admin.documentos' %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-slate-300 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
                         Assinaturas
                     </a>
                     <a href="{{ url_for('admin.upload_versao_robo') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint == 'admin.upload_versao_robo' %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-slate-300 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
                         Versões do Robô
                     </a>
-                    <!-- PROGRAMA DE INDICAÇÃO - Links do admin -->
-                    <a href="{{ url_for('admin.parcelas') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint == 'admin.parcelas' %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-slate-300 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
-                        Parcelas (Compra)
-                    </a>
-                    <a href="{{ url_for('admin.premios') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint == 'admin.premios' %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-slate-300 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
-                        Prêmios
-                    </a>
+                    
+                    <!-- PROGRAMA DE INDICAÇÃO - Dropdown Compras -->
+                    <div class="relative group">
+                        <button class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 text-slate-300 hover:bg-white/5 hover:text-white border border-transparent inline-flex items-center gap-1">
+                            Compras
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        <div class="absolute left-0 mt-1 w-56 bg-navy/95 backdrop-blur-2xl border border-white/10 rounded-xl shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                            <a href="{{ url_for('admin.parcelas') }}" class="block px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-300 hover:bg-white/5 hover:text-white rounded-t-xl">Compras Via Indicação</a>
+                            <a href="{{ url_for('admin.parcelas_diretas') }}" class="block px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-300 hover:bg-white/5 hover:text-white">Compras Diretas</a>
+                            <a href="{{ url_for('admin.premios') }}" class="block px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-300 hover:bg-white/5 hover:text-white rounded-b-xl">Prêmios de Indicação</a>
+                        </div>
+                    </div>
+                    
                     <a href="{{ url_for('admin.atividades') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint == 'admin.atividades' %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-blue-200 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
                         Atividades
                     </a>
@@ -61,17 +68,28 @@
             </div>
         </div>
 
+        <!-- Mobile menu -->
         <div id="mobile-menu" class="hidden lg:hidden bg-navy border-t border-white/5 absolute w-full shadow-2xl">
             <div class="px-6 py-4 space-y-2 flex flex-col">
                 <a href="{{ url_for('admin.dashboard') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'admin.dashboard' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Tela Inicial</a>
                 <a href="{{ url_for('admin.clientes_list') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'admin.clientes_list' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Clientes</a>
                 <a href="{{ url_for('admin.pagamentos') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint and request.endpoint.startswith('admin.pagamentos') %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Pagamentos</a>
-                <!-- Link Vendas removido no mobile também -->
                 <a href="{{ url_for('admin.documentos') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'admin.documentos' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Assinaturas</a>
                 <a href="{{ url_for('admin.upload_versao_robo') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'admin.upload_versao_robo' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Versões do Robô</a>
-                <!-- PROGRAMA DE INDICAÇÃO - Links no mobile -->
-                <a href="{{ url_for('admin.parcelas') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'admin.parcelas' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Parcelas (Compra)</a>
-                <a href="{{ url_for('admin.premios') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'admin.premios' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Prêmios</a>
+                
+                <!-- Mobile dropdown (accordion simplificado) -->
+                <div>
+                    <button onclick="toggleMobileCompras()" class="w-full text-left px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest text-slate-300 hover:bg-white/5 flex justify-between items-center">
+                        Compras
+                        <svg id="mobile-compras-icon" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div id="mobile-compras-submenu" class="hidden pl-4 space-y-1">
+                        <a href="{{ url_for('admin.parcelas') }}" class="block px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-300 hover:bg-white/5 rounded-lg">Compras Via Indicação</a>
+                        <a href="{{ url_for('admin.parcelas_diretas') }}" class="block px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-300 hover:bg-white/5 rounded-lg">Compras Diretas</a>
+                        <a href="{{ url_for('admin.premios') }}" class="block px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-300 hover:bg-white/5 rounded-lg">Prêmios de Indicação</a>
+                    </div>
+                </div>
+                
                 <a href="{{ url_for('admin.atividades') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'admin.atividades' %}bg-royal/20 text-royal border border-royal/30{% else %}text-blue-200 hover:bg-white/5 hover:text-white{% endif %}">Atividades</a>
                 <div class="h-px w-full bg-white/5 my-2"></div>
                 <a href="{{ url_for('auth.logout') }}" class="px-4 py-3 text-center bg-red-400/10 text-red-400 hover:bg-red-500 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition">Sair do Sistema</a>
@@ -88,6 +106,18 @@
     function toggleMobileMenu() {
         const menu = document.getElementById('mobile-menu');
         menu.classList.toggle('hidden');
+    }
+    
+    function toggleMobileCompras() {
+        const submenu = document.getElementById('mobile-compras-submenu');
+        const icon = document.getElementById('mobile-compras-icon');
+        if (submenu.classList.contains('hidden')) {
+            submenu.classList.remove('hidden');
+            icon.classList.add('rotate-180');
+        } else {
+            submenu.classList.add('hidden');
+            icon.classList.remove('rotate-180');
+        }
     }
 </script>
 {% endblock %}
