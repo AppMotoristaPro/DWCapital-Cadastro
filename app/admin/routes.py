@@ -39,6 +39,80 @@ def registrar_log(acao, categoria):
         )
         db.session.add(novo_log)
 
+# ==================== FUNÇÃO AUXILIAR PARA AGREGAR CLIENTES ====================
+
+def _agregar_clientes_parcelas(query_parcelas):
+    """
+    Recebe uma query de ParcelaCompra (já com joins) e retorna uma lista de dicionários
+    com dados agregados por cliente, incluindo a lista de parcelas.
+    """
+    parcelas = query_parcelas.all()
+    clientes_dict = {}
+    
+    hoje = datetime.now(tz_br).date()
+    
+    for p in parcelas:
+        cliente = p.cliente
+        if cliente.id not in clientes_dict:
+            # Dados agregados do cliente
+            clientes_dict[cliente.id] = {
+                'id': cliente.id,
+                'nome': cliente.nome,
+                'cpf': cliente.cpf,
+                'is_indicado': cliente.is_indicado,
+                'parcelas': [],
+                'total_parcelas': 0,
+                'parcelas_pagas': 0,
+                'valor_total': 0.0,
+                'valor_pago': 0.0,
+                'valor_pendente': 0.0,
+                'proximo_vencimento': None,
+                'parcela_atual': None,  # ex: "3/10"
+                'status_geral': 'pago'  # pago, parcial, inadimplente
+            }
+        
+        # Adiciona a parcela à lista do cliente
+        clientes_dict[cliente.id]['parcelas'].append(p)
+        clientes_dict[cliente.id]['total_parcelas'] += 1
+        if p.status == 'pago':
+            clientes_dict[cliente.id]['parcelas_pagas'] += 1
+            clientes_dict[cliente.id]['valor_pago'] += p.valor
+        else:
+            clientes_dict[cliente.id]['valor_pendente'] += p.valor
+            
+            # Verifica vencimento para status e próximo vencimento
+            if p.data_vencimento < hoje:
+                clientes_dict[cliente.id]['status_geral'] = 'inadimplente'
+            elif clientes_dict[cliente.id]['status_geral'] != 'inadimplente':
+                clientes_dict[cliente.id]['status_geral'] = 'parcial'
+            
+            # Próximo vencimento (menor data_vencimento pendente)
+            if (clientes_dict[cliente.id]['proximo_vencimento'] is None or 
+                p.data_vencimento < clientes_dict[cliente.id]['proximo_vencimento']):
+                clientes_dict[cliente.id]['proximo_vencimento'] = p.data_vencimento
+            
+            # Parcela atual (menor ordem pendente)
+            if (clientes_dict[cliente.id]['parcela_atual'] is None or 
+                p.ordem < clientes_dict[cliente.id]['parcela_atual']):
+                clientes_dict[cliente.id]['parcela_atual'] = p.ordem
+        
+        clientes_dict[cliente.id]['valor_total'] += p.valor
+    
+    # Se todas as parcelas estão pagas, status geral = pago
+    for cliente_id, dados in clientes_dict.items():
+        if dados['parcelas_pagas'] == dados['total_parcelas']:
+            dados['status_geral'] = 'pago'
+        
+        # Formata parcela atual para exibição
+        if dados['parcela_atual']:
+            dados['parcela_atual_exibicao'] = f"{dados['parcela_atual']}/{dados['total_parcelas']}"
+        else:
+            dados['parcela_atual_exibicao'] = f"{dados['total_parcelas']}/{dados['total_parcelas']}"
+    
+    # Ordena clientes por nome
+    clientes = sorted(clientes_dict.values(), key=lambda x: x['nome'])
+    return clientes
+
 # ==================== ROTAS EXISTENTES ====================
 
 @admin_bp.route('/')
@@ -898,18 +972,18 @@ def relatorio_gestao():
         flash(f'Erro ao gerar relatório: {str(e)}', 'error')
         return redirect(url_for('admin.clientes_list'))
     
-# ==================== ROTAS DE GESTÃO DE PARCELAS (FASE E) ====================
+# ==================== ROTAS DE GESTÃO DE PARCELAS (FASE 3) ====================
 
 @admin_bp.route('/parcelas')
 @admin_required
 def parcelas():
-    """Lista todas as parcelas de clientes compra (unificado)."""
+    """Lista clientes compra com dados agregados (via indicação)."""
     status_filter = request.args.get('status', '')
     search = request.args.get('search', '')
     page = request.args.get('page', 1, type=int)
-    per_page = 30
+    per_page = 20
     
-    query = ParcelaCompra.query.join(User).filter(User.modelo_negocio == 'compra')
+    query = ParcelaCompra.query.join(User).filter(User.modelo_negocio == 'compra', User.is_indicado == True)
     
     if status_filter in ['pendente', 'pago']:
         query = query.filter(ParcelaCompra.status == status_filter)
@@ -922,40 +996,44 @@ def parcelas():
             )
         )
     
-    parcelas_paginadas = query.order_by(ParcelaCompra.data_vencimento.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    # Busca todos os clientes da consulta (sem paginação na agregação, depois paginamos manualmente)
+    clientes_agregados = _agregar_clientes_parcelas(query)
     
-    return render_template('admin/parcelas.html', parcelas=parcelas_paginadas, status_filter=status_filter, search=search)
-
-@admin_bp.route('/parcela/pagar/<int:parcela_id>', methods=['POST'])
-@admin_required
-def parcela_pagar(parcela_id):
-    """Marca uma parcela como paga (admin)."""
-    parcela = ParcelaCompra.query.get_or_404(parcela_id)
-    if parcela.status == 'pago':
-        flash('Esta parcela já está paga.', 'warning')
-    else:
-        parcela.status = 'pago'
-        parcela.data_pagamento = datetime.now(tz_br)
-        db.session.commit()
-        registrar_log(f"Marcou a parcela ID {parcela.id} (ordem {parcela.ordem}, valor R${parcela.valor}) do cliente {parcela.cliente.nome} como PAGA.", "Pagamentos")
-        flash('Parcela marcada como paga com sucesso!', 'success')
+    # Paginação manual (pois a agregação é feita em memória)
+    total = len(clientes_agregados)
+    start = (page - 1) * per_page
+    end = start + per_page
+    clientes_paginados = clientes_agregados[start:end]
     
-    return redirect(url_for('admin.parcelas'))
-
-# ==================== NOVA ROTA: COMPRAS DIRETAS (FASE 2) ====================
+    # Cria objeto de paginação compatível com o template
+    class Paginacao:
+        def __init__(self, items, page, per_page, total):
+            self.items = items
+            self.page = page
+            self.per_page = per_page
+            self.total = total
+            self.pages = (total + per_page - 1) // per_page
+            self.has_prev = page > 1
+            self.has_next = page < self.pages
+            self.prev_num = page - 1 if self.has_prev else None
+            self.next_num = page + 1 if self.has_next else None
+    
+    paginacao = Paginacao(clientes_paginados, page, per_page, total)
+    
+    return render_template('admin/parcelas.html', clientes=paginacao, status_filter=status_filter, search=search, tipo='indicacao')
 
 @admin_bp.route('/parcelas_diretas')
 @admin_required
 def parcelas_diretas():
-    """Lista todas as parcelas de clientes compra NÃO INDICADOS (compra direta)."""
+    """Lista clientes compra NÃO indicados (compra direta) com dados agregados."""
     status_filter = request.args.get('status', '')
     search = request.args.get('search', '')
     page = request.args.get('page', 1, type=int)
-    per_page = 30
+    per_page = 20
     
     query = ParcelaCompra.query.join(User).filter(
         User.modelo_negocio == 'compra',
-        User.is_indicado == False  # apenas clientes que não foram indicados
+        User.is_indicado == False
     )
     
     if status_filter in ['pendente', 'pago']:
@@ -969,9 +1047,42 @@ def parcelas_diretas():
             )
         )
     
-    parcelas_paginadas = query.order_by(ParcelaCompra.data_vencimento.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    clientes_agregados = _agregar_clientes_parcelas(query)
     
-    return render_template('admin/parcelas.html', parcelas=parcelas_paginadas, status_filter=status_filter, search=search)
+    total = len(clientes_agregados)
+    start = (page - 1) * per_page
+    end = start + per_page
+    clientes_paginados = clientes_agregados[start:end]
+    
+    class Paginacao:
+        def __init__(self, items, page, per_page, total):
+            self.items = items
+            self.page = page
+            self.per_page = per_page
+            self.total = total
+            self.pages = (total + per_page - 1) // per_page
+            self.has_prev = page > 1
+            self.has_next = page < self.pages
+            self.prev_num = page - 1 if self.has_prev else None
+            self.next_num = page + 1 if self.has_next else None
+    
+    paginacao = Paginacao(clientes_paginados, page, per_page, total)
+    
+    return render_template('admin/parcelas.html', clientes=paginacao, status_filter=status_filter, search=search, tipo='direta')
+
+@admin_bp.route('/parcela/pagar/<int:parcela_id>', methods=['POST'])
+@admin_required
+def parcela_pagar(parcela_id):
+    """Marca uma parcela como paga (admin)."""
+    parcela = ParcelaCompra.query.get_or_404(parcela_id)
+    if parcela.status == 'pago':
+        return jsonify({'success': False, 'message': 'Esta parcela já está paga.'}), 400
+    else:
+        parcela.status = 'pago'
+        parcela.data_pagamento = datetime.now(tz_br)
+        db.session.commit()
+        registrar_log(f"Marcou a parcela ID {parcela.id} (ordem {parcela.ordem}, valor R${parcela.valor}) do cliente {parcela.cliente.nome} como PAGA.", "Pagamentos")
+        return jsonify({'success': True, 'message': 'Parcela marcada como paga!'})
 
 # ==================== ROTAS DE GESTÃO DE PRÊMIOS (FASE E) ====================
 

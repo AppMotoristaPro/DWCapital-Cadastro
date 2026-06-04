@@ -4,14 +4,18 @@
 <div class="max-w-7xl mx-auto relative z-10 pb-20">
     <div class="flex justify-between items-end mb-8">
         <div>
-            <h1 class="text-4xl font-black text-navy tracking-tight">Parcelas de Clientes (Compra)</h1>
-            <p class="text-gray-500 mt-2 font-medium">Acompanhe e gerencie as parcelas do programa de indicação.</p>
+            <h1 class="text-4xl font-black text-navy tracking-tight">
+                {% if tipo == 'direta' %}Compras Diretas{% else %}Compras Via Indicação{% endif %}
+            </h1>
+            <p class="text-gray-500 mt-2 font-medium">
+                {% if tipo == 'direta' %}Clientes que compraram o robô sem indicação.{% else %}Clientes que foram indicados por outros parceiros.{% endif %}
+            </p>
         </div>
     </div>
 
     <!-- Filtros -->
     <div class="mb-8 flex flex-wrap gap-4 bg-white/60 backdrop-blur-xl p-3 rounded-3xl shadow-sm border border-white w-full">
-        <form method="GET" class="flex flex-wrap gap-4 w-full">
+        <form method="GET" class="flex flex-wrap gap-4 w-full" id="form-filtros">
             <input type="text" name="search" value="{{ search }}" placeholder="Buscar por nome ou CPF..." class="flex-1 px-5 py-3 outline-none text-sm font-bold text-navy bg-white rounded-xl border border-gray-100 shadow-inner">
             <select name="status" class="px-5 py-3 outline-none text-sm font-bold text-gray-500 bg-white rounded-xl border border-gray-100 cursor-pointer shadow-inner">
                 <option value="">Todos os status</option>
@@ -19,63 +23,111 @@
                 <option value="pago" {% if status_filter == 'pago' %}selected{% endif %}>Pago</option>
             </select>
             <button type="submit" class="px-8 py-3 bg-navy text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition shadow-md">Filtrar</button>
-            <a href="{{ url_for('admin.parcelas') }}" class="px-6 py-3 bg-white hover:bg-red-50 text-gray-500 hover:text-red-500 border border-gray-200 rounded-xl font-black uppercase tracking-widest text-xs transition shadow-sm">Limpar</a>
+            <a href="{{ url_for('admin.parcelas' if tipo == 'indicacao' else 'admin.parcelas_diretas') }}" class="px-6 py-3 bg-white hover:bg-red-50 text-gray-500 hover:text-red-500 border border-gray-200 rounded-xl font-black uppercase tracking-widest text-xs transition shadow-sm">Limpar</a>
         </form>
     </div>
 
-    <!-- Tabela de parcelas -->
+    <!-- Tabela de clientes -->
     <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden">
         <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
+            <table class="w-full text-left border-collapse" id="tabela-clientes">
                 <thead class="bg-white/50 border-b border-gray-100 text-gray-400 text-[10px] font-black uppercase tracking-wider">
                     <tr>
                         <th class="px-8 py-5">Cliente</th>
-                        <th class="px-6 py-5">Parcela</th>
-                        <th class="px-6 py-5">Valor</th>
-                        <th class="px-6 py-5">Vencimento</th>
+                        <th class="px-6 py-5">Parcela Atual</th>
+                        <th class="px-6 py-5">Valor Pendente</th>
+                        <th class="px-6 py-5">Próx. Vencimento</th>
                         <th class="px-6 py-5">Status</th>
-                        <th class="px-6 py-5">Data Pagamento</th>
-                        <th class="px-8 py-5 text-right">Ação</th>
+                        <th class="px-8 py-5 text-right">Ações</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-50">
-                    {% for parcela in parcelas.items %}
-                    <tr class="hover:bg-gray-50/50 transition-colors">
-                        <td class="px-8 py-6">
-                            <div class="font-black text-navy">{{ parcela.cliente.nome }}</div>
-                            <div class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{{ parcela.cliente.cpf }} | ID: {{ parcela.cliente.id }}</div>
-                        </td>
-                        <td class="px-6 py-6 text-sm font-bold">{{ parcela.ordem }}ª parcela</td>
-                        <td class="px-6 py-6 text-sm font-bold {% if parcela.status == 'pendente' %}text-red-600{% else %}text-green-600{% endif %}">R$ {{ parcela.valor|format_brl }}</td>
-                        <td class="px-6 py-6 text-sm">{{ parcela.data_vencimento.strftime('%d/%m/%Y') }}</td>
-                        <td class="px-6 py-6">
-                            {% if parcela.status == 'pago' %}
-                                <span class="px-2 py-1 bg-green-100 text-green-700 text-[9px] font-black rounded-lg">PAGO</span>
-                            {% else %}
-                                <span class="px-2 py-1 bg-red-100 text-red-600 text-[9px] font-black rounded-lg">PENDENTE</span>
+                    {% for cliente in clientes.items %}
+                    <tr class="hover:bg-gray-50/50 transition-colors cursor-pointer cliente-row" data-cliente-id="{{ cliente.id }}">
+                        <td class="px-8 py-6" onclick="toggleDetalhes({{ cliente.id }})">
+                            <div class="font-black text-navy">{{ cliente.nome }}</div>
+                            <div class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{{ cliente.cpf }} | ID: {{ cliente.id }}</div>
+                            {% if cliente.is_indicado %}
+                            <span class="inline-block mt-1 px-2 py-0.5 bg-purple-100 text-purple-700 text-[8px] font-black rounded-full">Indicado</span>
                             {% endif %}
                         </td>
-                        <td class="px-6 py-6 text-sm">
-                            {% if parcela.data_pagamento %}
-                                {{ parcela.data_pagamento.strftime('%d/%m/%Y %H:%M') }}
+                        <td class="px-6 py-6 text-sm font-bold" onclick="toggleDetalhes({{ cliente.id }})">{{ cliente.parcela_atual_exibicao }}</td>
+                        <td class="px-6 py-6 text-sm font-bold text-red-600" onclick="toggleDetalhes({{ cliente.id }})">R$ {{ cliente.valor_pendente|format_brl }}</td>
+                        <td class="px-6 py-6 text-sm" onclick="toggleDetalhes({{ cliente.id }})">
+                            {% if cliente.proximo_vencimento %}
+                                {{ cliente.proximo_vencimento.strftime('%d/%m/%Y') }}
                             {% else %}
                                 —
                             {% endif %}
                         </td>
-                        <td class="px-8 py-6 text-right">
-                            {% if parcela.status == 'pendente' %}
-                            <form method="POST" action="{{ url_for('admin.parcela_pagar', parcela_id=parcela.id) }}" onsubmit="return confirm('Deseja marcar esta parcela como PAGA?')">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-[10px] font-black uppercase rounded-lg transition shadow-sm">Marcar Pago</button>
-                            </form>
+                        <td class="px-6 py-6" onclick="toggleDetalhes({{ cliente.id }})">
+                            {% if cliente.status_geral == 'pago' %}
+                                <span class="px-2 py-1 bg-green-100 text-green-700 text-[9px] font-black rounded-lg">Pago</span>
+                            {% elif cliente.status_geral == 'inadimplente' %}
+                                <span class="px-2 py-1 bg-red-100 text-red-700 text-[9px] font-black rounded-lg">Inadimplente</span>
                             {% else %}
-                                <span class="text-gray-400 text-[10px]">—</span>
+                                <span class="px-2 py-1 bg-yellow-100 text-yellow-700 text-[9px] font-black rounded-lg">Parcial</span>
                             {% endif %}
+                        </td>
+                        <td class="px-8 py-6 text-right">
+                            <button onclick="toggleDetalhes({{ cliente.id }})" class="text-royal hover:text-royal-dark text-[10px] font-black uppercase">Detalhes</button>
+                        </td>
+                    </tr>
+                    <!-- Linha expansível com parcelas detalhadas -->
+                    <tr id="detalhes-{{ cliente.id }}" class="hidden bg-gray-50 border-t border-gray-100">
+                        <td colspan="6" class="px-8 py-6">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left border-collapse">
+                                    <thead class="bg-gray-100 text-gray-500 text-[9px] font-black uppercase tracking-wider">
+                                        <tr>
+                                            <th class="px-4 py-3">Parcela</th>
+                                            <th class="px-4 py-3">Valor</th>
+                                            <th class="px-4 py-3">Vencimento</th>
+                                            <th class="px-4 py-3">Status</th>
+                                            <th class="px-4 py-3">Data Pagamento</th>
+                                            <th class="px-4 py-3 text-right">Ação</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for parcela in cliente.parcelas %}
+                                        <tr class="border-b border-gray-100">
+                                            <td class="px-4 py-4 text-sm font-bold">{{ parcela.ordem }}ª</td>
+                                            <td class="px-4 py-4 text-sm">R$ {{ parcela.valor|format_brl }}</td>
+                                            <td class="px-4 py-4 text-sm">{{ parcela.data_vencimento.strftime('%d/%m/%Y') }}</td>
+                                            <td class="px-4 py-4">
+                                                {% if parcela.status == 'pago' %}
+                                                    <span class="px-2 py-0.5 bg-green-100 text-green-700 text-[8px] font-black rounded-full">PAGO</span>
+                                                {% else %}
+                                                    <span class="px-2 py-0.5 bg-red-100 text-red-600 text-[8px] font-black rounded-full">PENDENTE</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="px-4 py-4 text-sm">
+                                                {% if parcela.data_pagamento %}
+                                                    {{ parcela.data_pagamento.strftime('%d/%m/%Y %H:%M') }}
+                                                {% else %}
+                                                    —
+                                                {% endif %}
+                                            </td>
+                                            <td class="px-4 py-4 text-right">
+                                                {% if parcela.status == 'pendente' %}
+                                                <button onclick="marcarParcelaPaga({{ parcela.id }}, {{ cliente.id }})" 
+                                                        class="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-[9px] font-black uppercase rounded-lg transition shadow-sm">
+                                                    Marcar Pago
+                                                </button>
+                                                {% else %}
+                                                    <span class="text-gray-400 text-[9px]">—</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
                         </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="7" class="px-8 py-16 text-center text-gray-400 font-medium">Nenhuma parcela encontrada.</td>
+                        <td colspan="6" class="px-8 py-16 text-center text-gray-400 font-medium">Nenhum cliente encontrado.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -83,18 +135,18 @@
         </div>
 
         <!-- Paginação -->
-        {% if parcelas.pages > 1 %}
+        {% if clientes.pages > 1 %}
         <div class="px-8 py-5 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
-            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Página {{ parcelas.page }} de {{ parcelas.pages }}</span>
+            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Página {{ clientes.page }} de {{ clientes.pages }}</span>
             <div class="flex items-center gap-2">
-                {% if parcelas.has_prev %}
-                <a href="{{ url_for('admin.parcelas', page=parcelas.prev_num, status=status_filter, search=search) }}" class="px-4 py-2 bg-white border border-gray-200 text-gray-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition shadow-sm">Anterior</a>
+                {% if clientes.has_prev %}
+                <a href="{{ url_for('admin.parcelas' if tipo == 'indicacao' else 'admin.parcelas_diretas', page=clientes.prev_num, status=status_filter, search=search) }}" class="px-4 py-2 bg-white border border-gray-200 text-gray-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition shadow-sm">Anterior</a>
                 {% else %}
                 <span class="px-4 py-2 bg-gray-50 border border-gray-100 text-gray-300 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-not-allowed">Anterior</span>
                 {% endif %}
 
-                {% if parcelas.has_next %}
-                <a href="{{ url_for('admin.parcelas', page=parcelas.next_num, status=status_filter, search=search) }}" class="px-4 py-2 bg-white border border-gray-200 text-navy rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition shadow-sm">Próxima</a>
+                {% if clientes.has_next %}
+                <a href="{{ url_for('admin.parcelas' if tipo == 'indicacao' else 'admin.parcelas_diretas', page=clientes.next_num, status=status_filter, search=search) }}" class="px-4 py-2 bg-white border border-gray-200 text-navy rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition shadow-sm">Próxima</a>
                 {% else %}
                 <span class="px-4 py-2 bg-gray-50 border border-gray-100 text-gray-300 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-not-allowed">Próxima</span>
                 {% endif %}
@@ -103,4 +155,6 @@
         {% endif %}
     </div>
 </div>
+
+<script src="{{ url_for('static', filename='js/admin_parcelas.js') }}"></script>
 {% endblock %}
