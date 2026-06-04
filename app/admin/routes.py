@@ -388,12 +388,6 @@ def pagamentos():
             repasse_global=repasse_global
         )
 
-@admin_bp.route('/licencas')
-@admin_required
-def licencas():
-    clientes_compra = User.query.filter_by(role='cliente', modelo_negocio='compra').options(joinedload(User.parcelas_licenca)).order_by(User.nome.asc()).all()
-    return render_template('admin/licencas.html', clientes=clientes_compra)
-
 @admin_bp.route('/pagamentos/exportar_pendencias')
 @admin_required
 def exportar_pendencias():

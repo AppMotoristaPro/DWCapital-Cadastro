@@ -27,13 +27,10 @@
                     <a href="{{ url_for('admin.pagamentos') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint and request.endpoint.startswith('admin.pagamentos') %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-slate-300 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
                         Pagamentos
                     </a>
-                    <a href="{{ url_for('admin.licencas') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint and request.endpoint.startswith('admin.licencas') %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-slate-300 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
-                        Vendas
-                    </a>
-                    <a href="{{ url_for('admin.documentos') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint and request.endpoint.startswith('admin.documentos') %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-slate-300 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
+                    <!-- Link Vendas (admin.licencas) removido pois não é mais utilizado -->
+                    <a href="{{ url_for('admin.documentos') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint == 'admin.documentos' %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-slate-300 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
                         Assinaturas
                     </a>
-                    <!-- Link Robô -->
                     <a href="{{ url_for('admin.upload_versao_robo') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint == 'admin.upload_versao_robo' %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-slate-300 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
                         Versões do Robô
                     </a>
@@ -69,8 +66,8 @@
                 <a href="{{ url_for('admin.dashboard') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'admin.dashboard' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Tela Inicial</a>
                 <a href="{{ url_for('admin.clientes_list') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'admin.clientes_list' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Clientes</a>
                 <a href="{{ url_for('admin.pagamentos') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint and request.endpoint.startswith('admin.pagamentos') %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Pagamentos</a>
-                <a href="{{ url_for('admin.licencas') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint and request.endpoint.startswith('admin.licencas') %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Vendas</a>
-                <a href="{{ url_for('admin.documentos') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint and request.endpoint.startswith('admin.documentos') %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Assinaturas</a>
+                <!-- Link Vendas removido no mobile também -->
+                <a href="{{ url_for('admin.documentos') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'admin.documentos' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Assinaturas</a>
                 <a href="{{ url_for('admin.upload_versao_robo') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'admin.upload_versao_robo' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Versões do Robô</a>
                 <!-- PROGRAMA DE INDICAÇÃO - Links no mobile -->
                 <a href="{{ url_for('admin.parcelas') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'admin.parcelas' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Parcelas (Compra)</a>
