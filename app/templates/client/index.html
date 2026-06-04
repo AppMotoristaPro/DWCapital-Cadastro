@@ -36,35 +36,38 @@
     </form>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
+        <!-- Card Performance Bruta -->
         <div class="bg-white/80 backdrop-blur-xl border border-white p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 transition-transform duration-300 flex flex-col justify-between">
-            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Performance Bruta</p>
-            <p class="text-3xl font-black text-navy mt-1 leading-tight">R$ {{ bruto_total|format_brl }}</p>
-            <p class="text-[9px] text-gray-400 font-bold mt-2 uppercase">
-                {% if user.modelo_negocio == 'compra' %}
-                    Antes do IR 19% (Sem Repasse)
-                {% else %}
-                    Antes do IR 19% e 30% DWCapital
-                {% endif %}
-            </p>
+            <div>
+                <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Performance Bruta</p>
+                <p class="text-3xl font-black text-navy mt-1 leading-tight">R$ {{ bruto_total|format_brl }}</p>
+            </div>
+            <button onclick="abrirExplicacao('bruto')" class="text-[9px] text-royal hover:underline mt-3 flex items-center gap-1 justify-center">
+                ❓ Entenda seus resultados
+            </button>
         </div>
 
+        <!-- Card Líquido Operacional -->
         <div class="bg-white/80 backdrop-blur-xl border border-white p-8 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 transition-transform duration-300 flex flex-col justify-between">
-            <p class="text-[10px] font-black text-royal uppercase tracking-widest mb-2">Líquido Operacional</p>
-            <p class="text-3xl font-black text-navy mt-1 leading-tight">R$ {{ liquido_total|format_brl }}</p>
-            <p class="text-[9px] text-royal font-bold mt-2 uppercase">Resultado pós-taxa IR 19%</p>
+            <div>
+                <p class="text-[10px] font-black text-royal uppercase tracking-widest mb-2">Líquido Operacional</p>
+                <p class="text-3xl font-black text-navy mt-1 leading-tight">R$ {{ liquido_total|format_brl }}</p>
+            </div>
+            <button onclick="abrirExplicacao('liquido')" class="text-[9px] text-royal hover:underline mt-3 flex items-center gap-1 justify-center">
+                ❓ Entenda seus resultados
+            </button>
         </div>
         
+        <!-- Card Lucro Limpo -->
         <div class="bg-gradient-to-br from-green-500 to-green-700 p-8 rounded-[2rem] shadow-[0_8px_30px_rgba(34,197,94,0.3)] hover:-translate-y-1 transition-transform duration-300 relative overflow-hidden flex flex-col justify-between">
             <div class="absolute -right-6 -top-6 w-32 h-32 bg-white/20 rounded-full blur-2xl"></div>
-            <p class="text-[10px] font-black text-green-100 uppercase tracking-widest mb-2 relative z-10">Lucro Limpo (Crédito)</p>
-            <p class="text-3xl font-black text-white relative z-10 leading-tight">R$ {{ lucro_parceiro_total|format_brl }}</p>
-            <p class="text-[9px] text-green-100 font-bold mt-2 relative z-10 uppercase leading-relaxed">
-                {% if user.modelo_negocio == 'compra' %}
-                    Resultado Integral Pós-taxas Operacionais
-                {% else %}
-                    Resultado Pós-taxas e pós-repasse 30%
-                {% endif %}
-            </p>
+            <div>
+                <p class="text-[10px] font-black text-green-100 uppercase tracking-widest mb-2 relative z-10">Lucro Limpo (Crédito)</p>
+                <p class="text-3xl font-black text-white relative z-10 leading-tight">R$ {{ lucro_parceiro_total|format_brl }}</p>
+            </div>
+            <button onclick="abrirExplicacao('lucro')" class="text-[9px] text-green-200 hover:text-white mt-3 flex items-center gap-1 justify-center relative z-10">
+                ❓ Entenda seus resultados
+            </button>
         </div>
     </div>
 
@@ -104,6 +107,16 @@
         </div>
     </div>
 </div>
+
+<!-- Modal de explicação -->
+<div id="modal-explicacao" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
+    <div class="bg-white w-full max-w-3xl max-h-[80vh] overflow-y-auto rounded-2xl shadow-2xl p-6 relative border border-gray-100">
+        <button onclick="fecharExplicacao()" class="absolute top-3 right-3 text-gray-400 hover:text-gray-600 text-2xl font-black">&times;</button>
+        <div id="modal-explicacao-conteudo"></div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/client_dashboard_help.js') }}"></script>
 
 <script>
     document.addEventListener("DOMContentLoaded", function() {

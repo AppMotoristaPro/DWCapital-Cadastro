@@ -32,7 +32,7 @@ from app.services.licenca_service import (
     is_licenca_bloqueada
 )
 from app.utils.validators import validar_pdf_mime
-from app.services.parcela_service import contar_indicacoes_com_entrada_paga, calcular_premio_acumulado  # PROGRAMA DE INDICAÇÃO
+from app.services.parcela_service import contar_indicacoes_com_entrada_paga, calcular_premio_acumulado
 
 logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
@@ -583,6 +583,86 @@ def solicitar_premio():
     db.session.commit()
     
     return jsonify({"success": True, "message": f"Solicitação de R$ {valor_final:,.2f} enviada com sucesso! Aguarde a aprovação do administrador."})
+
+# ==================== ROTA DE EXPLICAÇÃO DO DASHBOARD ====================
+
+@client_bp.route('/api/explicacao_dashboard', methods=['GET'])
+@login_required
+def api_explicacao_dashboard():
+    """Retorna os dados diários (bruto, custos, líquido, IRRF) para explicar os resultados."""
+    filtro_dia = request.args.get('dia')
+    filtro_semana_dia = request.args.get('semana_dia')
+    filtro_ano = request.args.get('ano')
+    
+    faturas_base = Fatura.query.filter_by(user_id=current_user.id).options(joinedload(Fatura.dias))
+    
+    if filtro_dia:
+        dt_dia = datetime.strptime(filtro_dia, '%Y-%m-%d').date()
+        faturas = faturas_base.filter(Fatura.data_inicio <= dt_dia, Fatura.data_fim >= dt_dia).all()
+        periodo = f"Dia {dt_dia.strftime('%d/%m/%Y')}"
+    elif filtro_semana_dia:
+        dt_ref = datetime.strptime(filtro_semana_dia, '%Y-%m-%d').date()
+        dias_para_sexta = (dt_ref.weekday() - 4) % 7
+        dt_inicio_sem = dt_ref - timedelta(days=dias_para_sexta)
+        dt_fim_sem = dt_inicio_sem + timedelta(days=6)
+        faturas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_sem, Fatura.data_inicio <= dt_fim_sem).all()
+        periodo = f"Ciclo {dt_inicio_sem.strftime('%d/%m/%Y')} a {dt_fim_sem.strftime('%d/%m/%Y')}"
+    elif filtro_ano:
+        ano = int(filtro_ano)
+        dt_inicio_ano = datetime(ano, 1, 1).date()
+        dt_fim_ano = datetime(ano, 12, 31).date()
+        faturas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_ano, Fatura.data_inicio <= dt_fim_ano).all()
+        periodo = f"Ano {ano}"
+    else:
+        faturas = faturas_base.order_by(Fatura.data_inicio.desc()).limit(10).all()
+        if faturas:
+            periodo = f"Últimas {len(faturas)} semanas"
+        else:
+            periodo = "Período atual"
+    
+    dias = []
+    totais = {'bruto': 0.0, 'liquido': 0.0, 'repasse': 0.0}
+    is_comissao = (current_user.modelo_negocio != 'compra' and not current_user.is_isento)
+    
+    for fatura in faturas:
+        for dia in fatura.dias:
+            if dia.status != 'relatorio_enviado':
+                continue
+            # Cálculo dos custos (taxas B3 + IRRF1)
+            custos = (dia.taxas_b3 or 0.0) + (dia.irrf_1 or 0.0)
+            liquido_pregao = dia.liquido_pregao or 0.0
+            if liquido_pregao > 0:
+                irrf_19 = liquido_pregao * 0.19
+            else:
+                irrf_19 = 0.0
+            liquido_real = liquido_pregao - irrf_19
+            if is_comissao:
+                repasse = (dia.repasse or 0.0)
+            else:
+                repasse = 0.0  # licença ou isento
+            
+            dias.append({
+                'data': dia.data_pregao.isoformat(),
+                'data_formatada': dia.data_pregao.strftime('%d/%m/%Y'),
+                'bruto': dia.bruto or 0.0,
+                'custos_b3_irrf1': custos,
+                'liquido_pregao': liquido_pregao,
+                'irrf_19': irrf_19,
+                'liquido': liquido_real,
+                'repasse': repasse,
+                'is_comissao': is_comissao
+            })
+            totais['bruto'] += dia.bruto or 0.0
+            totais['liquido'] += liquido_real
+            totais['repasse'] += repasse
+    
+    return jsonify({
+        'periodo': periodo,
+        'dias': dias,
+        'totais': totais,
+        'is_isento': current_user.is_isento,
+        'modelo_negocio': current_user.modelo_negocio
+    })
 
 @client_bp.route('/ajuda')
 @login_required
