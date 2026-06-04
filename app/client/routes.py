@@ -10,7 +10,7 @@ from werkzeug.utils import secure_filename
 import requests
 import io
 from app import db, limiter
-from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, DocumentoTemplate, User, PremioSolicitacao  # PROGRAMA DE INDICAÇÃO - adicionado PremioSolicitacao
+from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, DocumentoTemplate, User, PremioSolicitacao
 from app.utils.parsers.gerenciador_pdf import processar_pdf
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
@@ -32,7 +32,7 @@ from app.services.licenca_service import (
     is_licenca_bloqueada
 )
 from app.utils.validators import validar_pdf_mime
-from app.services.parcela_service import contar_indicacoes_com_entrada_paga  # PROGRAMA DE INDICAÇÃO
+from app.services.parcela_service import contar_indicacoes_com_entrada_paga, calcular_premio_acumulado  # PROGRAMA DE INDICAÇÃO
 
 logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
@@ -538,33 +538,31 @@ def indicacoes():
     # Link de indicação (para ser copiado)
     link_indicacao = url_for('auth.indicacao', ref=current_user.id, _external=True)
     
-    # Contagem de indicações elegíveis para prêmio (entrada paga)
-    count_entradas_pagas = contar_indicacoes_com_entrada_paga(current_user.id)
-    elegivel_premio = count_entradas_pagas >= 7
+    # Cálculo do prêmio acumulado
+    premio = calcular_premio_acumulado(current_user.id)
     
     return render_template('client/indicacoes.html',
                            indicados=dados_indicados,
                            link_indicacao=link_indicacao,
-                           count_entradas_pagas=count_entradas_pagas,
-                           elegivel_premio=elegivel_premio)
+                           premio=premio)
 
 
 @client_bp.route('/solicitar_premio', methods=['POST'])
 @login_required
 def solicitar_premio():
-    """Cliente solicita o prêmio (R$ 1.000 ou licença vitalícia)."""
+    """Cliente solicita o prêmio (R$ 1.000 por indicação elegível, total acumulado)."""
     data = request.get_json()
     tipo = data.get('tipo')
     
     if tipo not in ['dinheiro', 'vitalicia']:
         return jsonify({"success": False, "message": "Tipo de prêmio inválido."}), 400
     
-    # Verifica se ainda é elegível
-    count = contar_indicacoes_com_entrada_paga(current_user.id)
-    if count < 7:
+    # Verifica elegibilidade atual
+    premio = calcular_premio_acumulado(current_user.id)
+    if not premio['pode_solicitar']:
         return jsonify({"success": False, "message": "Você ainda não atingiu 7 indicações com entrada paga."}), 400
     
-    # Verifica se já existe uma solicitação pendente para este usuário
+    # Verifica se já existe uma solicitação pendente
     solicitacao_existente = PremioSolicitacao.query.filter_by(
         user_id=current_user.id,
         status='pendente'
@@ -572,16 +570,19 @@ def solicitar_premio():
     if solicitacao_existente:
         return jsonify({"success": False, "message": "Você já possui uma solicitação de prêmio pendente."}), 400
     
+    # Valor do prêmio (acumulado) se for dinheiro, caso contrário 0
+    valor_final = premio['valor_acumulado'] if tipo == 'dinheiro' else 0.0
+    
     nova_solicitacao = PremioSolicitacao(
         user_id=current_user.id,
         tipo_premio=tipo,
         status='pendente',
-        valor=1000.0 if tipo == 'dinheiro' else 0.0
+        valor=valor_final
     )
     db.session.add(nova_solicitacao)
     db.session.commit()
     
-    return jsonify({"success": True, "message": "Solicitação enviada com sucesso! Aguarde a aprovação do administrador."})
+    return jsonify({"success": True, "message": f"Solicitação de R$ {valor_final:,.2f} enviada com sucesso! Aguarde a aprovação do administrador."})
 
 @client_bp.route('/ajuda')
 @login_required

@@ -4,6 +4,7 @@ Serviço de parcelas unificado para clientes compra (programa de indicação).
 Fornece funções para:
 - Gerar as 10 parcelas de um novo cliente compra: entrada R$ 3.000 + 9x R$ 500 semanais.
 - Contar quantas indicações de um usuário já pagaram a entrada (parcela 1).
+- Calcular o prêmio acumulado do indicador.
 """
 
 from datetime import datetime, timedelta
@@ -80,3 +81,27 @@ def contar_indicacoes_com_entrada_paga(user_id: int) -> int:
         if parcela_entrada:
             count += 1
     return count
+
+
+def calcular_premio_acumulado(user_id: int) -> dict:
+    """
+    Calcula o prêmio acumulado do indicador.
+    
+    Args:
+        user_id (int): ID do indicador.
+    
+    Returns:
+        dict: {
+            'quantidade_elegivel': int,
+            'valor_acumulado': float,
+            'pode_solicitar': bool
+        }
+    """
+    qtd = contar_indicacoes_com_entrada_paga(user_id)
+    valor_acumulado = qtd * 1000.0
+    pode_solicitar = qtd >= 7
+    return {
+        'quantidade_elegivel': qtd,
+        'valor_acumulado': valor_acumulado,
+        'pode_solicitar': pode_solicitar
+    }

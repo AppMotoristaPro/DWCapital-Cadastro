@@ -74,15 +74,19 @@
         <div class="flex flex-col md:flex-row justify-between items-center gap-6">
             <div>
                 <h2 class="text-2xl font-black text-navy mb-2">🏆 Prêmio por Indicações</h2>
-                <p class="text-gray-600">Indique <strong class="text-royal">7 pessoas</strong> que pagaram a entrada (R$ 3.000) e ganhe <strong class="text-green-600">R$ 1.000</strong> ou uma <strong class="text-royal">Licença Vitalícia</strong>!</p>
-                <p class="text-sm text-gray-500 mt-2">Você já tem <strong>{{ count_entradas_pagas }}</strong> de 7 indicações elegíveis.</p>
+                <p class="text-gray-600">Você ganha <strong class="text-green-600">R$ 1.000,00</strong> por cada indicação que pagar a <strong>entrada (R$ 3.000)</strong>.</p>
+                <p class="text-gray-600">Quando atingir <strong class="text-royal">7 indicações elegíveis</strong>, poderá solicitar o prêmio <strong>acumulado</strong> (até R$ 7.000)!</p>
+                <p class="text-sm text-gray-500 mt-2">
+                    Você tem <strong>{{ premio.quantidade_elegivel }}</strong> indicações elegíveis, 
+                    acumulou <strong class="text-green-600">R$ {{ "%.2f"|format(premio.valor_acumulado) }}</strong>.
+                </p>
                 <div class="w-full bg-gray-200 rounded-full h-3 mt-3">
-                    <div class="bg-royal h-3 rounded-full" style="width: {{ (count_entradas_pagas / 7 * 100) if count_entradas_pagas else 0 }}%"></div>
+                    <div class="bg-royal h-3 rounded-full" style="width: {{ (premio.quantidade_elegivel / 7 * 100) if premio.quantidade_elegivel else 0 }}%"></div>
                 </div>
             </div>
             <div>
-                {% if elegivel_premio %}
-                    <button onclick="abrirModalPremio()" class="px-8 py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg transition">Solicitar Prêmio</button>
+                {% if premio.pode_solicitar %}
+                    <button onclick="abrirModalPremio()" class="px-8 py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg transition">Solicitar Prêmio (R$ {{ "%.2f"|format(premio.valor_acumulado) }})</button>
                 {% else %}
                     <button disabled class="px-8 py-4 bg-gray-300 text-gray-500 rounded-xl font-black uppercase tracking-widest text-xs cursor-not-allowed shadow-sm">Ainda não elegível</button>
                 {% endif %}
@@ -96,10 +100,10 @@
     <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-8 relative">
         <button onclick="fecharModalPremio()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-900 text-xl font-black">&times;</button>
         <h3 class="text-2xl font-black text-navy mb-4">Escolha seu prêmio</h3>
-        <p class="text-gray-500 mb-6">Você atingiu 7 indicações com entrada paga! Selecione uma opção:</p>
+        <p class="text-gray-500 mb-6">Você atingiu 7 indicações elegíveis! Seu prêmio acumulado é de <strong class="text-green-600">R$ {{ "%.2f"|format(premio.valor_acumulado) }}</strong>. Escolha uma opção:</p>
         <div class="space-y-4">
-            <button onclick="solicitarPremio('dinheiro')" class="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-sm transition">💰 R$ 1.000,00</button>
-            <button onclick="solicitarPremio('vitalicia')" class="w-full py-3 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-sm transition">🔓 Licença Vitalícia</button>
+            <button onclick="solicitarPremio('dinheiro')" class="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-sm transition">💰 Receber R$ {{ "%.2f"|format(premio.valor_acumulado) }}</button>
+            <button onclick="solicitarPremio('vitalicia')" class="w-full py-3 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-sm transition">🔓 Licença Vitalícia (sem valor monetário)</button>
         </div>
     </div>
 </div>
