@@ -525,26 +525,68 @@ def isentar_dia_global():
     data_str = request.form.get('data_isencao')
     ciclo_str = request.form.get('ciclo_atual')
     
+    if not data_str or not ciclo_str:
+        flash('Dados insuficientes para isentar o dia.', 'error')
+        return redirect(url_for('admin.pagamentos'))
+    
     try:
         data_alvo = datetime.strptime(data_str, '%Y-%m-%d').date()
-        dias_afetados = FaturaDiaria.query.filter_by(data_pregao=data_alvo).all()
+        inicio_ciclo = datetime.strptime(ciclo_str, '%Y-%m-%d').date()
+        
+        # Buscar todas as faturas do ciclo atual
+        faturas_ciclo = Fatura.query.filter_by(data_inicio=inicio_ciclo).all()
+        if not faturas_ciclo:
+            flash(f'Nenhuma fatura encontrada para o ciclo {inicio_ciclo}.', 'warning')
+            return redirect(url_for('admin.pagamentos', ciclo=ciclo_str))
+        
+        # Coletar IDs das faturas do ciclo
+        fatura_ids = [f.id for f in faturas_ciclo]
+        
+        # Buscar apenas os dias da data alvo que pertencem a essas faturas
+        dias_afetados = FaturaDiaria.query.filter(
+            FaturaDiaria.data_pregao == data_alvo,
+            FaturaDiaria.fatura_id.in_(fatura_ids)
+        ).all()
+        
+        if not dias_afetados:
+            flash(f'Nenhum dia {data_alvo} encontrado para o ciclo selecionado.', 'warning')
+            return redirect(url_for('admin.pagamentos', ciclo=ciclo_str))
         
         faturas_afetadas = set()
+        sucesso = 0
+        erros = 0
+        
         for dia in dias_afetados:
-            dia.zerar_valores(isentar=True)
-            faturas_afetadas.add(dia.fatura_semanal)
-            
+            try:
+                dia.zerar_valores(isentar=True)
+                faturas_afetadas.add(dia.fatura_semanal)
+                sucesso += 1
+            except Exception as e:
+                db.session.rollback()  # rollback parcial (apenas deste dia)
+                erros += 1
+                logger.error(f"Erro ao isentar dia {dia.id} (cliente {dia.fatura_semanal.cliente.nome}): {e}")
+        
+        # Recalcular totais apenas das faturas que foram modificadas com sucesso
         for fatura in faturas_afetadas:
-            fatura.recalcular_totais()
+            try:
+                fatura.recalcular_totais()
+            except Exception as e:
+                erros += 1
+                logger.error(f"Erro ao recalcular fatura {fatura.id}: {e}")
         
         db.session.commit()
-            
-        registrar_log(f"Isentou globalmente o dia {data_alvo.strftime('%d/%m/%Y')} para toda a base.", "Pagamentos")
-        flash(f'O dia {data_alvo.strftime("%d/%m/%Y")} foi isentado para todos os clientes!', 'success')
+        
+        if sucesso > 0:
+            registrar_log(f"Isentou globalmente o dia {data_alvo} para {sucesso} clientes do ciclo {inicio_ciclo}.", "Pagamentos")
+            flash(f'{sucesso} cliente(s) tiveram o dia {data_alvo} isentado(s).', 'success')
+        if erros > 0:
+            flash(f'{erros} erro(s) ocorreram durante a operação. Verifique os logs.', 'error')
         
     except Exception as e:
+        db.session.rollback()
+        logger.error(f"Erro fatal em isentar_dia_global: {e}")
         flash(f'Erro ao isentar dia: {str(e)}', 'error')
-        
+    
     return redirect(url_for('admin.pagamentos', ciclo=ciclo_str))
 
 @admin_bp.route('/pagamentos/isentar_dia/<int:dia_id>', methods=['POST'])
