@@ -3,7 +3,6 @@ async function abrirExplicacao(tipo) {
     const modal = document.getElementById('modal-explicacao');
     const conteudo = document.getElementById('modal-explicacao-conteudo');
     
-    // Pega os filtros atuais da URL
     const urlParams = new URLSearchParams(window.location.search);
     const params = {};
     if (urlParams.has('dia')) params.dia = urlParams.get('dia');
@@ -20,15 +19,13 @@ async function abrirExplicacao(tipo) {
         
         const totalBruto = data.totais.bruto;
         const totalLiquido = data.totais.liquido;
-        const totalRepasse = data.totais.repasse;
-        const qtdDias = data.dias.length;
         const isComissao = (data.modelo_negocio !== 'compra' && !data.is_isento);
-        const percentual = isComissao ? 0.7 : 1.0;
-        const percentualTexto = (percentual === 1) ? '100%' : '70%';
+        const multiplicador = isComissao ? 0.7 : 1.0;
+        const percentualTexto = (multiplicador === 1) ? '100%' : '70%';
+        const lucroCliente = totalLiquido * multiplicador;
         
         let html = '';
         
-        // Card 1: Performance Bruta
         if (tipo === 'bruto') {
             html = `
                 <div class="flex items-start gap-4">
@@ -39,9 +36,9 @@ async function abrirExplicacao(tipo) {
                             <strong class="text-royal">Olá! Vou te explicar como chegamos na Performance Bruta.</strong><br><br>
                             A <strong>Performance Bruta</strong> é a soma de todos os <strong class="text-navy">“Líquidos do Pregão”</strong> de cada dia que você enviou a nota de corretagem.<br>
                             O Líquido do Pregão é o valor após os custos da B3 e o IRRF de 1%.<br><br>
-                            No período selecionado, você enviou notas em <strong>${qtdDias} dias</strong>.<br>
+                            No período selecionado, você enviou notas em <strong>${data.dias.length} dias</strong>.<br>
                             Somando todos eles, chegamos a:<br>
-                            <span class="text-2xl font-black text-green-600 block text-center my-3">R$ ${totalBruto.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                            <span class="text-2xl font-black text-green-600 block text-center my-3">R$ ${totalBruto.toFixed(2)}</span>
                             <span class="text-[10px] text-gray-500 block text-center">Este é o valor bruto que aparece no card.</span><br>
                             <span class="text-xs text-gray-600">💡 <strong>Atenção:</strong> aqui <strong>ainda não foi descontado o IRRF de 19%</strong> sobre os lucros. Esse desconto aparece no próximo card (Líquido Operacional).</span>
                         </p>
@@ -49,7 +46,6 @@ async function abrirExplicacao(tipo) {
                 </div>
             `;
         } 
-        // Card 2: Líquido Operacional
         else if (tipo === 'liquido') {
             html = `
                 <div class="flex items-start gap-4">
@@ -62,7 +58,7 @@ async function abrirExplicacao(tipo) {
                             • <strong>Se o dia teve lucro</strong> (Líquido do Pregão > 0), subtraímos 19% de imposto.<br>
                             • <strong>Se o dia teve prejuízo</strong> (Líquido do Pregão ≤ 0), <strong>não pagamos IRRF</strong> (apenas carregamos o prejuízo).<br><br>
                             Somando todos os dias, chegamos ao <strong>Líquido Operacional</strong>:<br>
-                            <span class="text-2xl font-black text-green-600 block text-center my-3">R$ ${totalLiquido.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                            <span class="text-2xl font-black text-green-600 block text-center my-3">R$ ${totalLiquido.toFixed(2)}</span>
                             <span class="text-[10px] text-gray-500 block text-center">Este é o valor líquido após IRRF.</span><br>
                             <span class="text-xs text-gray-600">📌 Exemplo: se um dia você teve R$ 1.000 de lucro, o IRRF foi R$ 190, sobrando R$ 810. Se teve prejuízo de R$ 500, ficou -R$ 500.</span>
                         </p>
@@ -70,9 +66,8 @@ async function abrirExplicacao(tipo) {
                 </div>
             `;
         } 
-        // Card 3: Lucro Limpo
         else if (tipo === 'lucro') {
-            const mensagemFinal = (percentual === 1) 
+            const mensagemFinal = (multiplicador === 1) 
                 ? 'Você fica com <strong>100%</strong> do Líquido Operacional.' 
                 : 'Você recebe <strong>70%</strong> do Líquido Operacional (a DW Capital fica com 30%).';
             html = `
@@ -81,13 +76,13 @@ async function abrirExplicacao(tipo) {
                     <div class="flex-1 bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-6 shadow-md relative">
                         <div class="absolute -left-3 top-5 w-4 h-4 bg-yellow-50 border-l-2 border-b-2 border-yellow-200 transform rotate-45"></div>
                         <p class="text-sm text-gray-700 leading-relaxed">
-                            <strong class="text-royal">Este é o valor que você efetivamente recebe (seu lucro limpo).</strong><br><br>
+                            <strong class="text-royal">Este é o valor que você efetivamente recebe (seu lucro total).</strong><br><br>
                             Aplicamos a regra de repasse:<br>
                             • ${mensagemFinal}<br>
                             No seu caso:<br>
-                            <strong class="text-navy">Líquido Operacional = R$ ${totalLiquido.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong><br>
+                            <strong class="text-navy">Líquido Operacional = R$ ${totalLiquido.toFixed(2)}</strong><br>
                             <strong class="text-navy">Seu percentual = ${percentualTexto}</strong><br>
-                            <span class="text-xl font-black text-green-600 block text-center my-3">R$ ${totalRepasse.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                            <span class="text-xl font-black text-green-600 block text-center my-3">R$ ${lucroCliente.toFixed(2)}</span>
                             <span class="text-[10px] text-gray-500 block text-center">Este é o valor que vai para a sua conta.</span><br>
                             <span class="text-xs text-gray-600">📌 Dica: Se você tiver dúvidas sobre os valores diários, clique no link abaixo.</span>
                         </p>
@@ -99,16 +94,13 @@ async function abrirExplicacao(tipo) {
             `;
         }
         
-        // Botão fechar e armazenar dados para detalhamento
         html += `
             <div class="mt-6 flex justify-end">
                 <button onclick="fecharExplicacao()" class="px-4 py-2 bg-navy text-white rounded-lg text-xs font-black uppercase tracking-widest">Fechar</button>
             </div>
         `;
         
-        // Armazena os dados brutos para uso no detalhamento diário
         window.dadosExplicacao = data;
-        
         conteudo.innerHTML = html;
     } catch (err) {
         console.error('Erro ao carregar dados:', err);
@@ -120,12 +112,9 @@ function fecharExplicacao() {
     document.getElementById('modal-explicacao').classList.add('hidden');
 }
 
-// Função opcional para exibir o detalhamento diário (tabela)
 function abrirDetalhamentoDiario() {
     if (!window.dadosExplicacao) return;
     const data = window.dadosExplicacao;
-    // Monta a tabela (igual à versão anterior)
-    const tipo = 'bruto'; // ou dinâmico? Vamos mostrar uma tabela resumida
     let titulo = '📊 Detalhamento por dia';
     let colunas = ['Data', 'Líquido do Pregão', 'IRRF 19%', 'Líquido Real'];
     let linhaDados = data.dias.map(d => [

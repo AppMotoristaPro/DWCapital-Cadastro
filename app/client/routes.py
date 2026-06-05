@@ -633,6 +633,7 @@ def api_explicacao_dashboard():
                 continue
             # Cálculo dos custos (taxas B3 + IRRF1)
             custos = (dia.taxas_b3 or 0.0) + (dia.irrf_1 or 0.0)
+            # CORREÇÃO: Performance Bruta usa liquido_pregao (igual ao card)
             liquido_pregao = dia.liquido_pregao or 0.0
             if liquido_pregao > 0:
                 irrf_19 = liquido_pregao * 0.19
@@ -642,12 +643,12 @@ def api_explicacao_dashboard():
             if is_comissao:
                 repasse = (dia.repasse or 0.0)
             else:
-                repasse = 0.0  # licença ou isento
+                repasse = 0.0
             
             dias.append({
                 'data': dia.data_pregao.isoformat(),
                 'data_formatada': dia.data_pregao.strftime('%d/%m/%Y'),
-                'bruto': dia.bruto or 0.0,
+                'bruto': liquido_pregao,  # Agora é o mesmo que o card (líquido do pregão)
                 'custos_b3_irrf1': custos,
                 'liquido_pregao': liquido_pregao,
                 'irrf_19': irrf_19,
@@ -655,7 +656,7 @@ def api_explicacao_dashboard():
                 'repasse': repasse,
                 'is_comissao': is_comissao
             })
-            totais['bruto'] += dia.bruto or 0.0
+            totais['bruto'] += liquido_pregao
             totais['liquido'] += liquido_real
             totais['repasse'] += repasse
     
