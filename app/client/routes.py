@@ -614,11 +614,14 @@ def api_explicacao_dashboard():
         faturas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_ano, Fatura.data_inicio <= dt_fim_ano).all()
         periodo = f"Ano {ano}"
     else:
-        faturas = faturas_base.order_by(Fatura.data_inicio.desc()).limit(10).all()
-        if faturas:
-            periodo = f"Últimas {len(faturas)} semanas"
+        # CORREÇÃO: comportamento igual ao dashboard – pegar apenas a última fatura (última semana)
+        ultima_fatura = faturas_base.order_by(Fatura.data_inicio.desc()).first()
+        if ultima_fatura:
+            faturas = [ultima_fatura]
+            periodo = f"Semana de {ultima_fatura.data_inicio.strftime('%d/%m/%Y')} a {ultima_fatura.data_fim.strftime('%d/%m/%Y')}"
         else:
-            periodo = "Período atual"
+            faturas = []
+            periodo = "Nenhuma fatura encontrada"
     
     dias = []
     totais = {'bruto': 0.0, 'liquido': 0.0, 'repasse': 0.0}
