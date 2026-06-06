@@ -167,3 +167,49 @@ def auto_gerar_ciclos_em_lote(users, data_base=None):
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
+
+# ==================== NOVA FUNÇÃO EXTRAÍDA DA ROTA /faturas ====================
+
+def garantir_dias_faltantes_para_fatura(user, fatura):
+    """
+    Garante que a fatura tenha exatamente os 5 dias úteis da semana, sem sábados/domingos.
+    Remove dias de fim de semana existentes e cria os dias que estão faltando para cada corretora.
+    Retorna True se houve alguma alteração no banco, False caso contrário.
+    """
+    data_cadastro = user.data_cadastro.date() if user.data_cadastro else datetime.min.date()
+    houve_alteracao = False
+
+    # 1. Remove dias de fim de semana (sábado/domingo) que possam ter sido criados erroneamente
+    for dia in list(fatura.dias):
+        if dia.data_pregao.weekday() >= 5:  # sábado=5, domingo=6
+            db.session.delete(dia)
+            houve_alteracao = True
+
+    # 2. Determina os 5 dias úteis da semana (segunda a sexta)
+    dias_uteis = []
+    data_atual = fatura.data_inicio
+    while len(dias_uteis) < 5 and data_atual <= fatura.data_fim:
+        if data_atual.weekday() < 5:
+            dias_uteis.append(data_atual)
+        data_atual += timedelta(days=1)
+
+    # 3. Conjunto de (data, corretora) já existente
+    dias_existentes = {(d.data_pregao, d.nome_corretora) for d in fatura.dias}
+
+    # 4. Cria os dias faltantes
+    for data in dias_uteis:
+        for alocacao in user.alocacoes:
+            if (data, alocacao.nome_corretora) not in dias_existentes:
+                is_isento = data < data_cadastro
+                status_dia = 'isento' if is_isento else 'pendente'
+                novo_dia = FaturaDiaria(
+                    fatura_id=fatura.id,
+                    data_pregao=data,
+                    nome_corretora=alocacao.nome_corretora,
+                    status=status_dia,
+                    is_isento=is_isento
+                )
+                db.session.add(novo_dia)
+                houve_alteracao = True
+
+    return houve_alteracao

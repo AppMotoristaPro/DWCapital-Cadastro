@@ -5,13 +5,10 @@ import pytz
 import logging
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify, session, abort, send_file
 from flask_login import login_required, current_user
-import cloudinary.uploader
-from werkzeug.utils import secure_filename
 import requests
 import io
 from app import db, limiter
 from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, DocumentoTemplate, User, PremioSolicitacao
-from app.utils.parsers.gerenciador_pdf import processar_pdf
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo
@@ -31,7 +28,6 @@ from app.services.licenca_service import (
     is_modo_teste,
     is_licenca_bloqueada
 )
-from app.utils.validators import validar_pdf_mime
 from app.services.parcela_service import contar_indicacoes_com_entrada_paga, calcular_premio_acumulado
 
 logger = logging.getLogger(__name__)
@@ -221,78 +217,25 @@ def faturas():
         fatura.subtotal_exibicao = subtotal
 
     if request.method == 'GET':
-        houve_alteracao = False
-        data_cadastro = current_user.data_cadastro.date() if current_user.data_cadastro else datetime.min.date()
+        from app.services.fatura_service import garantir_dias_faltantes_para_fatura
+        houve_alteracao_global = False
         for fatura in faturas_carregadas:
-            for dia in list(fatura.dias):
-                if dia.data_pregao.weekday() >= 5:
-                    db.session.delete(dia)
-                    houve_alteracao = True
-            datas_da_semana = []
-            data_atual = fatura.data_inicio
-            
-            while len(datas_da_semana) < 5 and data_atual <= fatura.data_fim:
-                if data_atual.weekday() < 5:
-                    datas_da_semana.append(data_atual)
-                data_atual += timedelta(days=1)
-                
-            dias_existentes = { (d.data_pregao, d.nome_corretora) for d in fatura.dias }
-            
-            for data in datas_da_semana:
-                for alocacao in current_user.alocacoes:
-                    if (data, alocacao.nome_corretora) not in dias_existentes:
-                        is_isento = data < data_cadastro
-                        status_dia = 'isento' if is_isento else 'pendente'
-                        
-                        novo_dia = FaturaDiaria(fatura_id=fatura.id, data_pregao=data, nome_corretora=alocacao.nome_corretora, status=status_dia, is_isento=is_isento)
-                        db.session.add(novo_dia)
-                        houve_alteracao = True
-                        
-        if houve_alteracao:
-            try: db.session.commit()
-            except IntegrityError: db.session.rollback()
+            if garantir_dias_faltantes_para_fatura(current_user, fatura):
+                houve_alteracao_global = True
+        if houve_alteracao_global:
+            try:
+                db.session.commit()
+            except IntegrityError:
+                db.session.rollback()
 
     if request.method == 'POST':
-        dia_id = request.form.get('dia_id')
-        senha_manual = request.form.get('senha_manual')
-        arquivo = request.files.get('relatorio_pdf')
-        dia = FaturaDiaria.query.get(dia_id)
-        if not dia or dia.fatura_semanal.user_id != current_user.id:
-            return jsonify({'success': False, 'error': 'ERRO_SEGURANCA', 'message': 'Acesso negado.'})
-        if arquivo and arquivo.filename:
-            if not validar_pdf_mime(arquivo):
-                return jsonify({'success': False, 'error': 'PDF_INVALIDO', 'message': 'Arquivo não é um PDF válido (assinatura %PDF não encontrada).'})
-            
-            nome_seguro = secure_filename(arquivo.filename)
-            upload_folder = os.path.join(current_app.root_path, 'static', 'uploads')
-            os.makedirs(upload_folder, exist_ok=True)
-            file_path = os.path.join(upload_folder, nome_seguro)
-            arquivo.save(file_path)
-            try:
-                dados = processar_pdf(file_path, dia.nome_corretora, current_user.cpf, senha_manual)
-                if not dados:
-                    if os.path.exists(file_path): os.remove(file_path)
-                    return jsonify({'success': False, 'error': 'RELATORIO_INVALIDO', 'message': 'Não foi possível ler os dados do PDF.'})
-                upload_res = cloudinary.uploader.upload(file_path, folder="dwcapital/relatorios")
-                dia.arquivo_pdf = upload_res.get('secure_url')
-                dia.bruto = dados.get('bruto')
-                dia.taxas_b3 = dados.get('taxas_b3')
-                dia.irrf_1 = dados.get('irrf_1')
-                dia.liquido_pregao = dados.get('liquido_pregao')
-                dia.irrf_19 = dados.get('irrf_19')
-                dia.liquido = dados.get('liquido_dia')
-                if getattr(current_user, 'is_isento', False): dia.repasse = 0.0
-                else: dia.repasse = dados.get('repasse_dw')
-                dia.status = 'relatorio_enviado'
-                db.session.commit()
-                atualizar_totais_semana(dia.fatura_semanal)
-                if os.path.exists(file_path): os.remove(file_path)
-                return jsonify({'success': True})
-            except Exception as e:
-                if os.path.exists(file_path): os.remove(file_path)
-                if "SENHA_INCORRETA" in str(e): return jsonify({'success': False, 'error': 'REQUER_SENHA'})
-                if "PDF_INCOMPATIVEL" in str(e): return jsonify({'success': False, 'error': 'RELATORIO_INVALIDO', 'message': str(e).split("PDF_INCOMPATIVEL: ")[-1]})
-                return jsonify({'success': False, 'error': 'ERRO_TECNICO', 'message': str(e)})
+        from app.services.nota_service import processar_upload_nota
+        resultado = processar_upload_nota(
+        user=current_user,
+        dia_id=request.form.get('dia_id'),
+        arquivo=request.files.get('relatorio_pdf'),
+        senha_manual=request.form.get('senha_manual'))
+        return jsonify(resultado)
 
     inter_sandbox = os.environ.get('INTER_SANDBOX', 'true').lower() in ('true', '1', 't')
     return render_template('client/faturas.html', faturas=faturas_carregadas, inter_sandbox=inter_sandbox)
