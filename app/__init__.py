@@ -89,7 +89,7 @@ def create_app():
             ],
             'font-src': ["'self'", 'fonts.gstatic.com', 'data:'],
             'img-src': ["'self'", 'data:', 'res.cloudinary.com', 'https://api.qrserver.com'],
-            'connect-src': ["'self'"],
+            'connect-src': ["'self'", 'https://viacep.com.br'],
             'frame-ancestors': "'none'"
         },
         # content_security_policy_nonce_in=['script-src'],  # ← REMOVIDO para permitir scripts inline
