@@ -7,6 +7,11 @@
             <h1 class="text-4xl font-black text-navy tracking-tight">Versões do Robô</h1>
             <p class="text-gray-500 mt-2 font-medium">Faça upload de novas versões, gerencie changelog e publique a versão ativa.</p>
         </div>
+        <div>
+            <a href="{{ url_for('admin.download_rights') }}" class="px-6 py-3 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl text-xs font-black uppercase tracking-widest transition shadow-sm border border-purple-200">
+                ⚙️ Gerenciar Direito de Download
+            </a>
+        </div>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}

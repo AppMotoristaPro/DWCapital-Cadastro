@@ -1,0 +1,70 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_content %}
+<div class="max-w-7xl mx-auto relative z-10 pb-20">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-black text-navy">Direito de Download – Acesso ao Robô</h1>
+        <a href="{{ url_for('admin.upload_versao_robo') }}" class="text-sm text-royal hover:underline">&larr; Voltar para Versões</a>
+    </div>
+
+    <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">CPF</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ação</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 bg-white">
+                    {% for cliente in clientes.items %}
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4 whitespace-nowrap font-medium text-navy">{{ cliente.nome }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">{{ cliente.cpf }}</td>
+                        <td class="px-6 py-4">
+                            {% if cliente.robot_acesso_bloqueado %}
+                                <span class="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">Bloqueado</span>
+                            {% else %}
+                                <span class="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold">Liberado</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <form method="POST" class="inline-block">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="user_id" value="{{ cliente.id }}">
+                                {% if cliente.robot_acesso_bloqueado %}
+                                    <button name="acao" value="desbloquear" class="px-4 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg text-xs font-semibold transition">
+                                        Desbloquear
+                                    </button>
+                                {% else %}
+                                    <button name="acao" value="bloquear" class="px-4 py-2 bg-red-50 text-red-700 hover:bg-red-100 rounded-lg text-xs font-semibold transition">
+                                        Bloquear
+                                    </button>
+                                {% endif %}
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Paginação -->
+        {% if clientes.pages > 1 %}
+        <div class="px-6 py-4 border-t border-gray-100 flex justify-between items-center bg-gray-50/50">
+            <span class="text-xs text-gray-500">Página {{ clientes.page }} de {{ clientes.pages }}</span>
+            <div>
+                {% if clientes.has_prev %}
+                    <a href="{{ url_for('admin.download_rights', page=clientes.prev_num) }}" class="px-3 py-1 bg-white border rounded text-xs">Anterior</a>
+                {% endif %}
+                {% if clientes.has_next %}
+                    <a href="{{ url_for('admin.download_rights', page=clientes.next_num) }}" class="px-3 py-1 bg-white border rounded text-xs">Próxima</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -33,6 +33,9 @@ class User(db.Model, UserMixin):
     # NOVO CAMPO: bloqueio de geração de licenças (admin)
     licenca_bloqueada = db.Column(db.Boolean, default=False)
     
+    # NOVO CAMPO: bloqueio de download e geração de novas licenças (admin)
+    robot_acesso_bloqueado = db.Column(db.Boolean, default=False)
+    
     perfil_risco = db.Column(db.String(20))
     data_cadastro = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     matricula = db.Column(db.String(20), unique=True, nullable=True)

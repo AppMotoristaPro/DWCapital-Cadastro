@@ -52,9 +52,15 @@ def historico_downloads_cliente(user):
     return historico
 
 def liberado_para_download(user, versao_obj):
-    """Verifica se o cliente pode baixar a versão atual (regra: apenas se ainda não baixou)."""
+    """Verifica se o cliente pode baixar a versão atual (regra: bloqueio e se ainda não baixou)."""
     if not versao_obj:
         return False, "Nenhuma versão do robô disponível no momento."
+    
+    # Bloqueio de acesso
+    if getattr(user, 'robot_acesso_bloqueado', False):
+        return False, "Seu acesso ao robô está bloqueado. Entre em contato com o suporte."
+    
     if cliente_ja_baixou(user, versao_obj.id):
         return False, "Você já baixou esta versão do robô. Aguarde a próxima atualização."
+    
     return True, "Download liberado."

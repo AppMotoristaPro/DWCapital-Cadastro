@@ -933,6 +933,32 @@ def forcar_licenca_vitalicia(id):
     flash(f'Licença vitalícia gerada/regenerada com sucesso! Chave: {chave}', 'success')
     return redirect(url_for('admin.editar_cliente', id=id))
 
+# ==================== ROTA: DIREITO DE DOWNLOAD (BLOQUEIO DE ACESSO AO ROBÔ) ====================
+
+@admin_bp.route('/download_rights', methods=['GET', 'POST'])
+@admin_required
+def download_rights():
+    if request.method == 'POST':
+        user_id = request.form.get('user_id')
+        acao = request.form.get('acao')  # 'bloquear' ou 'desbloquear'
+        user = User.query.get_or_404(user_id)
+        if acao == 'bloquear':
+            user.robot_acesso_bloqueado = True
+            registrar_log(f"Bloqueou acesso ao robô (download e novas licenças) para {user.nome}", "Robô")
+            flash(f'Cliente {user.nome} bloqueado com sucesso.', 'success')
+        elif acao == 'desbloquear':
+            user.robot_acesso_bloqueado = False
+            registrar_log(f"Desbloqueou acesso ao robô (download e novas licenças) para {user.nome}", "Robô")
+            flash(f'Cliente {user.nome} desbloqueado com sucesso.', 'success')
+        db.session.commit()
+        return redirect(url_for('admin.download_rights'))
+
+    # GET: listar todos os clientes com paginação
+    page = request.args.get('page', 1, type=int)
+    per_page = 30
+    clientes = User.query.filter_by(role='cliente').order_by(User.nome.asc()).paginate(page=page, per_page=per_page, error_out=False)
+    return render_template('admin/download_rights.html', clientes=clientes)
+
 # ==================== ROTA PARA JOB DE EXPIRAÇÃO ====================
 
 @admin_bp.route('/cron/expirar_licencas', methods=['POST'])

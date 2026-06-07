@@ -38,6 +38,10 @@ def is_licenca_bloqueada(user):
     """Retorna True se o cliente está com a geração de licenças bloqueada pelo admin."""
     return getattr(user, 'licenca_bloqueada', False)
 
+def is_acesso_robot_bloqueado(user):
+    """Retorna True se o cliente está com o acesso ao robô bloqueado (download e novas licenças)."""
+    return getattr(user, 'robot_acesso_bloqueado', False)
+
 
 # ============================================================
 # AUXILIARES
@@ -203,6 +207,10 @@ def gerar_licenca_comissao(user, conta_mt5, semana_id=None):
     Funciona para qualquer modelo de negócio (comissão ou compra).
     Retorna (chave, mensagem, licenca_obj, ja_existente)
     """
+    # Bloqueio de acesso (download e novas licenças)
+    if is_acesso_robot_bloqueado(user):
+        return None, "Seu acesso ao robô está bloqueado. Entre em contato com o suporte.", None, False
+
     # O ciclo alvo é sempre o CICLO ANTERIOR (completo)
     ciclo_inicio, ciclo_fim = calcular_ciclo_anterior()
 
