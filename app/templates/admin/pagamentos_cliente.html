@@ -139,7 +139,29 @@
 
                                         {% elif dia.status == 'isento' %}
                                             <td colspan="{% if cliente.modelo_negocio == 'compra' %}4{% else %}5{% endif %}" class="px-5 py-5">
-                                                <span class="inline-flex px-3 py-1 bg-purple-50 text-purple-600 border border-purple-100 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm gap-1 items-center"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Isento</span>
+                                                <!-- NOVO: Badge específico para "não operou" e alerta de operação detectada -->
+                                                <div class="flex items-center gap-2 flex-wrap">
+                                                    <span class="inline-flex px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm gap-1 items-center
+                                                        {% if dia.motivo_isencao == 'nao_operou' %}
+                                                            bg-purple-100 text-purple-700 border border-purple-200
+                                                        {% else %}
+                                                            bg-purple-50 text-purple-600 border border-purple-100
+                                                        {% endif %}">
+                                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M5 13l4 4L19 7"></path></svg> 
+                                                        Isento
+                                                        {% if dia.motivo_isencao == 'nao_operou' %}
+                                                            (não operou)
+                                                        {% endif %}
+                                                    </span>
+                                                    {% if dia.operacao_detectada %}
+                                                        <span class="inline-flex px-2 py-1 bg-red-100 text-red-700 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm gap-1 items-center">
+                                                            ⚠️ Operação detectada
+                                                        </span>
+                                                    {% endif %}
+                                                    {% if dia.relatorio_html_url %}
+                                                        <a href="{{ dia.relatorio_html_url }}" target="_blank" class="text-blue-600 underline text-[10px] ml-1">Baixar HTML</a>
+                                                    {% endif %}
+                                                </div>
                                             </td>
                                             <td class="px-6 py-5 text-right">
                                                 <form action="{{ url_for('admin.remover_isencao_dia', dia_id=dia.id) }}" method="POST" class="inline">
@@ -262,4 +284,3 @@ function mudarAbaAdmin(faturaId, corretoraNome) {
 }
 </script>
 {% endblock %}
-
