@@ -629,21 +629,30 @@ def nao_operei_html(dia_id):
         return jsonify({'success': False, 'error': 'Arquivo HTML inválido.'}), 400
 
     conteudo = arquivo.read()
-    from app.services.html_relatorio_service import validar_estrutura_html_mt5, extrair_data_do_html, verificar_operacoes_no_html
+    from app.services.html_relatorio_service import validar_estrutura_html_mt5, extrair_datas_operacoes
 
     # 1. Validar estrutura
     valido, msg = validar_estrutura_html_mt5(conteudo)
     if not valido:
         return jsonify({'success': False, 'error': 'ESTRUTURA_INVALIDA', 'message': msg}), 400
 
-    # 2. Extrair data do relatório (apenas para auditoria, não para validação)
-    data_relatorio = extrair_data_do_html(conteudo)
-    # Não comparamos mais com dia.data_pregao, pois o relatório sempre traz a data atual
+    # 2. Extrair datas das operações (apenas Posições e Transações)
+    datas_operacoes = extrair_datas_operacoes(conteudo)
+    data_alvo_str = dia.data_pregao.isoformat()
 
-    # 3. Verificar se houve operações na data do pregão
-    teve_operacao, detalhes = verificar_operacoes_no_html(conteudo, dia.data_pregao)
+    # 3. Verificar se há operações em datas diferentes da data alvo
+    datas_erradas = [d for d in datas_operacoes if d != data_alvo_str]
+    if datas_erradas:
+        return jsonify({
+            'success': False,
+            'error': 'DATAS_DIFERENTES',
+            'message': f'O relatório contém operações em outras datas: {", ".join(datas_erradas)}. Gere um relatório apenas para o dia {data_alvo_str}.'
+        }), 400
 
-    # 4. Upload do HTML para o Cloudinary
+    # 4. Verificar se há operações exatamente na data alvo
+    teve_operacao = data_alvo_str in datas_operacoes
+
+    # 5. Upload do HTML para o Cloudinary
     from io import BytesIO
     arquivo_stream = BytesIO(conteudo)
     arquivo_stream.name = arquivo.filename
@@ -658,7 +667,7 @@ def nao_operei_html(dia_id):
     except Exception as e:
         return jsonify({'success': False, 'error': 'UPLOAD_FAIL', 'message': str(e)}), 500
 
-    # 5. Atualizar o dia
+    # 6. Atualizar o dia
     dia.relatorio_html_url = relatorio_url
     dia.motivo_isencao = 'nao_operou'
     dia.operacao_detectada = teve_operacao
@@ -669,7 +678,7 @@ def nao_operei_html(dia_id):
     atualizar_totais_semana(dia.fatura_semanal)
 
     if teve_operacao:
-        return jsonify({'success': True, 'warning': 'Dia isentado, mas o sistema identificou operações. O relatório será auditado pelo administrador.'})
+        return jsonify({'success': True, 'warning': 'Dia isentado, mas o sistema identificou operações neste dia. O relatório será auditado pelo administrador.'})
     else:
         return jsonify({'success': True, 'message': 'Dia isentado com sucesso!'})
 
