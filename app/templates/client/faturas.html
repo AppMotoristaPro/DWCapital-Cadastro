@@ -94,7 +94,7 @@
                                         <th class="px-6 py-4 bg-green-50/30 text-green-600">Repasse DW <span class="block text-[8px] font-bold text-green-600/70 lowercase tracking-normal mt-0.5">(Líq. Real x 30%)</span></th>
                                         {% endif %}
                                         <th class="px-8 py-4 text-right">Ação / Documento</th>
-                                    </td>
+                                    </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-50">
                                     {% set subtotal_parcial = namespace(total=0) %}
@@ -114,6 +114,15 @@
                                                 <td class="px-8 py-5 text-right">
                                                     <div class="flex items-center justify-end gap-2">
                                                         <input type="file" id="file-{{ dia.id }}" accept=".pdf" class="w-48 text-[10px] text-gray-500 file:mr-2 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-white file:border file:border-gray-200 file:text-navy file:font-bold cursor-pointer outline-none">
+                                                        <!-- Botão de três pontos e dropdown (NOVO) -->
+                                                        <div class="relative inline-block">
+                                                            <button type="button" onclick="toggleDropdown(this)" class="text-gray-500 hover:text-gray-700 px-2 py-1 rounded">⋮</button>
+                                                            <div class="dropdown-menu hidden absolute right-0 mt-1 w-40 bg-white border rounded shadow-lg z-10">
+                                                                <button type="button" onclick="abrirModalNaoOperei({{ dia.id }}, '{{ dia.data_pregao.strftime('%d/%m/%Y') }}')" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100">
+                                                                    📄 Não operei nesse dia
+                                                                </button>
+                                                            </div>
+                                                        </div>
                                                         <button onclick="enviarRelatorio('{{ dia.id }}')" id="btn-{{ dia.id }}" class="bg-royal text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-royal-dark transition shrink-0 flex items-center justify-center min-w-[90px]">
                                                             <span id="btn-text-{{ dia.id }}">Anexar</span>
                                                         </button>
@@ -170,6 +179,20 @@
         </div>
     </div>
 
+    <!-- MODAL "NÃO OPEREI NESSE DIA" (NOVO) -->
+    <div id="modal-nao-operei" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-[300]">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 class="text-lg font-bold mb-2">📄 Não operei nesse dia</h3>
+            <p class="text-sm text-gray-600 mb-4">Envie o arquivo HTML gerado pelo MetaTrader referente ao dia <span id="modal-data-nao-operei" class="font-bold"></span>.</p>
+            <input type="file" id="html-file-input" accept=".html,.htm" class="w-full mb-4 border p-2 rounded">
+            <div class="flex justify-end gap-2">
+                <button onclick="fecharModalNaoOperei()" class="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
+                <button onclick="enviarRelatorioNaoOperei()" class="px-4 py-2 bg-blue-600 text-white rounded">Enviar e isentar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DEMAIS MODAIS (PIX, LICENÇA, ETC.) - MANTIDOS ORIGINAIS -->
     {% if current_user.modelo_negocio != 'compra' %}
     <div id="modal-auditoria-pix-global" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
         <div class="bg-white border border-gray-100 w-full max-w-lg rounded-[2.5rem] shadow-2xl p-8 md:p-10 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
@@ -310,6 +333,7 @@
 <script>
 let globalFaturaAtivaId = null;
 var pendingGenerateCallback = null;
+let currentDiaId = null;
 
 document.addEventListener("DOMContentLoaded", () => {
     const cicloSalvo = sessionStorage.getItem('cicloAtivo');
@@ -357,6 +381,61 @@ function mudarAba(nome) {
     if(activeBtn) {
         activeBtn.classList.remove('bg-white', 'text-gray-500', 'border-gray-200');
         activeBtn.classList.add('bg-navy', 'text-white', 'shadow-md');
+    }
+}
+
+// ==================== FUNÇÕES PARA "NÃO OPEREI" ====================
+function toggleDropdown(btn) {
+    const dropdown = btn.nextElementSibling;
+    if (dropdown) {
+        dropdown.classList.toggle('hidden');
+    }
+}
+
+// Fechar dropdown ao clicar fora
+document.addEventListener('click', function(event) {
+    if (!event.target.closest('.relative')) {
+        document.querySelectorAll('.dropdown-menu').forEach(menu => {
+            menu.classList.add('hidden');
+        });
+    }
+});
+
+function abrirModalNaoOperei(diaId, dataFormatada) {
+    currentDiaId = diaId;
+    document.getElementById('modal-data-nao-operei').innerText = dataFormatada;
+    document.getElementById('modal-nao-operei').classList.remove('hidden');
+}
+
+function fecharModalNaoOperei() {
+    document.getElementById('modal-nao-operei').classList.add('hidden');
+    document.getElementById('html-file-input').value = '';
+}
+
+async function enviarRelatorioNaoOperei() {
+    const fileInput = document.getElementById('html-file-input');
+    const file = fileInput.files[0];
+    if (!file) {
+        alert('Selecione o arquivo HTML gerado pelo MetaTrader.');
+        return;
+    }
+    const formData = new FormData();
+    formData.append('relatorio_html', file);
+    try {
+        const response = await fetch(`/portal/faturas/nao_operei_html/${currentDiaId}`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': '{{ csrf_token() }}' },
+            body: formData
+        });
+        const data = await response.json();
+        if (data.success) {
+            alert(data.warning || data.message);
+            location.reload();
+        } else {
+            alert(data.message || 'Erro ao processar o relatório. Verifique a data e a estrutura do arquivo.');
+        }
+    } catch (err) {
+        alert('Erro de comunicação com o servidor.');
     }
 }
 

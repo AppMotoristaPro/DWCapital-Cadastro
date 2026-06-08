@@ -7,6 +7,8 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 from flask_login import login_required, current_user
 import requests
 import io
+import cloudinary
+import cloudinary.uploader
 from app import db, limiter
 from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, DocumentoTemplate, User, PremioSolicitacao
 from sqlalchemy.exc import IntegrityError
@@ -231,10 +233,11 @@ def faturas():
     if request.method == 'POST':
         from app.services.nota_service import processar_upload_nota
         resultado = processar_upload_nota(
-        user=current_user,
-        dia_id=request.form.get('dia_id'),
-        arquivo=request.files.get('relatorio_pdf'),
-        senha_manual=request.form.get('senha_manual'))
+            user=current_user,
+            dia_id=request.form.get('dia_id'),
+            arquivo=request.files.get('relatorio_pdf'),
+            senha_manual=request.form.get('senha_manual')
+        )
         return jsonify(resultado)
 
     inter_sandbox = os.environ.get('INTER_SANDBOX', 'true').lower() in ('true', '1', 't')
@@ -489,7 +492,6 @@ def indicacoes():
                            link_indicacao=link_indicacao,
                            premio=premio)
 
-
 @client_bp.route('/solicitar_premio', methods=['POST'])
 @login_required
 def solicitar_premio():
@@ -610,6 +612,71 @@ def api_explicacao_dashboard():
         'is_isento': current_user.is_isento,
         'modelo_negocio': current_user.modelo_negocio
     })
+
+@client_bp.route('/faturas/nao_operei_html/<int:dia_id>', methods=['POST'])
+@login_required
+@limiter.limit("5 per minute")
+def nao_operei_html(dia_id):
+    dia = FaturaDiaria.query.get_or_404(dia_id)
+    if dia.fatura_semanal.user_id != current_user.id:
+        return jsonify({'success': False, 'error': 'Acesso negado.'}), 403
+
+    if dia.status != 'pendente':
+        return jsonify({'success': False, 'error': 'Dia já processado.'}), 400
+
+    arquivo = request.files.get('relatorio_html')
+    if not arquivo or not arquivo.filename.endswith(('.html', '.htm')):
+        return jsonify({'success': False, 'error': 'Arquivo HTML inválido.'}), 400
+
+    conteudo = arquivo.read()
+    from app.services.html_relatorio_service import validar_estrutura_html_mt5, extrair_data_do_html, verificar_operacoes_no_html
+
+    # 1. Validar estrutura
+    valido, msg = validar_estrutura_html_mt5(conteudo)
+    if not valido:
+        return jsonify({'success': False, 'error': 'ESTRUTURA_INVALIDA', 'message': msg}), 400
+
+    # 2. Extrair data do relatório
+    data_relatorio = extrair_data_do_html(conteudo)
+    if not data_relatorio:
+        return jsonify({'success': False, 'error': 'DATA_NAO_ENCONTRADA', 'message': 'Não foi possível extrair a data do relatório.'}), 400
+
+    # 3. Comparar data com o dia do pregão
+    if data_relatorio != dia.data_pregao:
+        return jsonify({'success': False, 'error': 'DATA_DIVERGENTE', 'message': f'A data do relatório ({data_relatorio}) não corresponde ao dia ({dia.data_pregao}).'}), 400
+
+    # 4. Verificar se houve operações
+    teve_operacao, detalhes = verificar_operacoes_no_html(conteudo, data_relatorio)
+
+    # 5. Upload do HTML para o Cloudinary (resource_type='raw')
+    from io import BytesIO
+    arquivo_stream = BytesIO(conteudo)
+    arquivo_stream.name = arquivo.filename
+    try:
+        upload_result = cloudinary.uploader.upload(
+            arquivo_stream,
+            folder="dwcapital/relatorios_nao_operei",
+            resource_type="raw",
+            public_id=f"nao_operei_{current_user.id}_{dia.id}_{dia.data_pregao.isoformat()}"
+        )
+        relatorio_url = upload_result.get('secure_url')
+    except Exception as e:
+        return jsonify({'success': False, 'error': 'UPLOAD_FAIL', 'message': str(e)}), 500
+
+    # 6. Atualizar o dia
+    dia.relatorio_html_url = relatorio_url
+    dia.motivo_isencao = 'nao_operou'
+    dia.operacao_detectada = teve_operacao
+    dia.is_isento = True
+    dia.status = 'isento'
+    dia.zerar_valores(isentar=True)
+    db.session.commit()
+    atualizar_totais_semana(dia.fatura_semanal)
+
+    if teve_operacao:
+        return jsonify({'success': True, 'warning': 'Dia isentado, mas o sistema identificou operações. O relatório será auditado pelo administrador.'})
+    else:
+        return jsonify({'success': True, 'message': 'Dia isentado com sucesso!'})
 
 @client_bp.route('/ajuda')
 @login_required

@@ -153,6 +153,11 @@ class FaturaDiaria(db.Model):
     repasse = db.Column(db.Float, default=0.0)
     arquivo_pdf = db.Column(db.String(255), nullable=True)
     status = db.Column(db.String(20), default='pendente')
+    
+    # NOVOS CAMPOS PARA RELATÓRIO HTML DE "NÃO OPEREI"
+    relatorio_html_url = db.Column(db.String(255), nullable=True)   # URL do HTML no Cloudinary
+    motivo_isencao = db.Column(db.String(50), default='')          # 'nao_operou', 'admin', 'feriado'
+    operacao_detectada = db.Column(db.Boolean, default=False)      # True se o sistema identificou operação no HTML
 
     def zerar_valores(self, isentar=False):
         self.arquivo_pdf = None
