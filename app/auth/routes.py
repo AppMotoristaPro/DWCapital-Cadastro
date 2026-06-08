@@ -4,7 +4,7 @@ from datetime import datetime
 from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify, session
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from app.models import User, AlocacaoCorretora
+from app.models import User, AlocacaoCorretora, DocumentoTemplate, DocumentoCliente
 from app import db, limiter
 from app.utils.validators import validar_cpf
 from app.services.parcela_service import gerar_parcelas_compra_unificado  # PROGRAMA DE INDICAÇÃO
@@ -224,6 +224,22 @@ def primeiro_acesso():
     if user.modelo_negocio == 'compra':
         parcelas = gerar_parcelas_compra_unificado(user.id)
         db.session.add_all(parcelas)
+    
+    # ==================== NOVO: Criação de documentos de onboarding ====================
+    templates_onboarding = DocumentoTemplate.query.filter_by(is_onboarding=True).all()
+    if templates_onboarding:
+        # Verifica se já não existem documentos para este cliente (evita duplicidade)
+        existing = DocumentoCliente.query.filter_by(user_id=user.id).first()
+        if not existing:
+            docs_onboarding = [
+                DocumentoCliente(
+                    user_id=user.id,
+                    template_id=t.id,
+                    status='na_fila'
+                ) for t in templates_onboarding
+            ]
+            db.session.add_all(docs_onboarding)
+    # ==================================================================================
     
     # Limpa a sessão (se veio de indicação)
     session.pop('cpf_cadastro', None)
