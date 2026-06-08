@@ -125,7 +125,7 @@ function fecharModalPremio() {
 }
 async function solicitarPremio(tipo) {
     try {
-        const response = await fetch("{{ url_for('client.solicitar_premio') }}", {
+        const response = await fetch("{{ url_for('indicacao.solicitar_premio') }}", {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
