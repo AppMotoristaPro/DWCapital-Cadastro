@@ -303,7 +303,7 @@ def inativar_cliente(id):
     cliente.status_acesso = 'inativo'
     registrar_log(f"Inativou o acesso do cliente {cliente.nome}.", "Clientes")
     db.session.commit()
-    flash(f'Cliente {cliente.nome} inativado com sucesso.', 'success')
+    flash(f'Cliente {cliente.nome} Inativado com sucesso.', 'success')
     return redirect(url_for('admin.clientes_list'))
 
 @admin_bp.route('/ativar_cliente/<int:id>', methods=['POST'])
