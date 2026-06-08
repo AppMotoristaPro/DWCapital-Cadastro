@@ -320,7 +320,10 @@ def ativar_cliente(id):
 @admin_required
 def excluir_cliente(id):
     cliente = User.query.get_or_404(id)
-    nome_cliente = cliente.nome 
+    nome_cliente = cliente.nome
+    
+    PremioSolicitacao.query.filter_by(user_id=cliente.id).delete()
+    
     db.session.delete(cliente)
     registrar_log(f"Excluiu permanentemente o cliente {nome_cliente} e todos os seus históricos.", "Segurança")
     db.session.commit()
