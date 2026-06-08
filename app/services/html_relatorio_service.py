@@ -37,14 +37,14 @@ def validar_estrutura_html_mt5(conteudo):
 def extrair_data_do_html(conteudo):
     """
     Extrai a data do relatório a partir da linha "Data:" no HTML.
-    Retorna objeto date ou None.
+    Retorna objeto date ou None. (usado apenas para auditoria, não para validação)
     """
     soup = BeautifulSoup(conteudo, 'html.parser')
     for linha in soup.find_all('tr'):
         ths = linha.find_all('th')
         if len(ths) >= 2 and 'Data:' in ths[0].get_text():
             data_str = ths[1].get_text(strip=True)
-            # Formato esperado: "2026.06.07 17:41"
+            # Formato esperado: "2026.06.08 12:21"
             match = re.search(r'(\d{4})\.(\d{2})\.(\d{2})', data_str)
             if match:
                 ano, mes, dia = map(int, match.groups())
@@ -55,26 +55,25 @@ def extrair_data_do_html(conteudo):
 def verificar_operacoes_no_html(conteudo, data_alvo):
     """
     Verifica se há operações (trades) na data_alvo dentro do HTML.
+    Considera apenas operações JÁ FECHADAS (tabela "Posições") e transações (exceto balance).
+    NÃO considera "Posições Abertas".
     Retorna (teve_operacao, lista_de_operacoes_encontradas)
     """
     soup = BeautifulSoup(conteudo, 'html.parser')
     data_str = data_alvo.strftime('%Y.%m.%d')
     operacoes = []
 
-    # ---- Tabela de Posições ----
-    # A tabela de posições geralmente tem atributos cellspacing="1" cellpadding="3"
+    # ---- Tabela de Posições (operações fechadas) ----
     for table in soup.find_all('table', {'cellspacing': '1', 'cellpadding': '3'}):
         for row in table.find_all('tr'):
             cells = row.find_all('td')
-            if len(cells) >= 13:  # Colunas: Horário, Position, Ativo, Tipo, Volume, Preço, S/L, T/P, Horário, Preço, Comissão, Swap, Lucro
+            if len(cells) >= 13:
                 horario = cells[0].get_text(strip=True)
                 if horario.startswith(data_str):
-                    lucro = cells[12].get_text(strip=True).replace(' ', '')
-                    if lucro and lucro not in ('0', '0.00'):
-                        operacoes.append(('Posições', horario, lucro))
+                    # Qualquer linha com data correspondente indica operação
+                    operacoes.append(('Posições', horario, cells[12].get_text(strip=True)))
 
-    # ---- Tabela de Transações ----
-    # Localizar tabela que contém cabeçalho "Horário" e "Oferta"
+    # ---- Tabela de Transações (ignorar 'balance') ----
     for table in soup.find_all('table'):
         header_row = table.find('tr', bgcolor='#E5F0FC')
         if header_row:
@@ -86,9 +85,10 @@ def verificar_operacoes_no_html(conteudo, data_alvo):
                         horario = cells[0].get_text(strip=True)
                         if horario.startswith(data_str):
                             tipo = cells[3].get_text(strip=True).lower()
-                            if tipo != 'balance':  # ignorar transações de saldo
-                                lucro = cells[11].get_text(strip=True).replace(' ', '')
-                                if lucro and lucro not in ('0', '0.00'):
-                                    operacoes.append(('Transações', horario, lucro))
-    
+                            if tipo != 'balance':
+                                operacoes.append(('Transações', horario, cells[11].get_text(strip=True)))
+
+    # Não verificamos "Posições Abertas" pois não indicam operação no dia específico
+    # (a data de abertura pode ser de dias anteriores)
+
     return len(operacoes) > 0, operacoes

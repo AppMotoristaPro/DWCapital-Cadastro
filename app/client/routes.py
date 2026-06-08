@@ -636,19 +636,14 @@ def nao_operei_html(dia_id):
     if not valido:
         return jsonify({'success': False, 'error': 'ESTRUTURA_INVALIDA', 'message': msg}), 400
 
-    # 2. Extrair data do relatório
+    # 2. Extrair data do relatório (apenas para auditoria, não para validação)
     data_relatorio = extrair_data_do_html(conteudo)
-    if not data_relatorio:
-        return jsonify({'success': False, 'error': 'DATA_NAO_ENCONTRADA', 'message': 'Não foi possível extrair a data do relatório.'}), 400
+    # Não comparamos mais com dia.data_pregao, pois o relatório sempre traz a data atual
 
-    # 3. Comparar data com o dia do pregão
-    if data_relatorio != dia.data_pregao:
-        return jsonify({'success': False, 'error': 'DATA_DIVERGENTE', 'message': f'A data do relatório ({data_relatorio}) não corresponde ao dia ({dia.data_pregao}).'}), 400
+    # 3. Verificar se houve operações na data do pregão
+    teve_operacao, detalhes = verificar_operacoes_no_html(conteudo, dia.data_pregao)
 
-    # 4. Verificar se houve operações
-    teve_operacao, detalhes = verificar_operacoes_no_html(conteudo, data_relatorio)
-
-    # 5. Upload do HTML para o Cloudinary (resource_type='raw')
+    # 4. Upload do HTML para o Cloudinary
     from io import BytesIO
     arquivo_stream = BytesIO(conteudo)
     arquivo_stream.name = arquivo.filename
@@ -663,7 +658,7 @@ def nao_operei_html(dia_id):
     except Exception as e:
         return jsonify({'success': False, 'error': 'UPLOAD_FAIL', 'message': str(e)}), 500
 
-    # 6. Atualizar o dia
+    # 5. Atualizar o dia
     dia.relatorio_html_url = relatorio_url
     dia.motivo_isencao = 'nao_operou'
     dia.operacao_detectada = teve_operacao
