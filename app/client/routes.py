@@ -3,22 +3,23 @@ import urllib.parse
 from datetime import datetime, timedelta
 import pytz
 import logging
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify, session, abort, send_file
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify, abort
 from flask_login import login_required, current_user
-import requests
-import io
 import cloudinary
 import cloudinary.uploader
 from app import db, limiter
-from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, DocumentoTemplate, User, PremioSolicitacao
-from sqlalchemy.exc import IntegrityError
+from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, User, PremioSolicitacao
 from sqlalchemy.orm import joinedload
 from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo
 from app.services.documento_service import verificar_status_documento_cliente, enviar_documento_local_com_link
 from app.services.dashboard_service import obter_dados_dashboard_cliente
 from app.services.pix_service import PixService
 from app.utils.autentique import obter_url_visualizacao_autentique
-from app.services.parcela_service import contar_indicacoes_com_entrada_paga, calcular_premio_acumulado
+from app.services.parcela_service import calcular_premio_acumulado
+
+logger = logging.getLogger(__name__)
+tz_br = pytz.timezone('America/Sao_Paulo')
+client_bp = Blueprint('client', __name__, url_prefix='/portal')
 
 logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
