@@ -14,22 +14,10 @@ from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, Do
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo
-from app.services.documento_service import disparar_unico, verificar_status_documento_cliente, enviar_documento_local_com_link
+from app.services.documento_service import verificar_status_documento_cliente, enviar_documento_local_com_link
 from app.services.dashboard_service import obter_dados_dashboard_cliente
 from app.services.pix_service import PixService
 from app.utils.autentique import obter_url_visualizacao_autentique
-from app.services.robo_service import versao_atual, liberado_para_download, registrar_download, historico_downloads_cliente
-from app.services.licenca_service import (
-    verificar_condicoes_comissao,
-    gerar_licenca_comissao,
-    gerar_licenca_vitalicia,
-    obter_licenca_ativa,
-    salvar_conta_mt5_e_gerar_vitalicia_se_necessario,
-    calcular_ciclo_anterior,
-    obter_semana_id,
-    is_modo_teste,
-    is_licenca_bloqueada
-)
 from app.services.parcela_service import contar_indicacoes_com_entrada_paga, calcular_premio_acumulado
 
 logger = logging.getLogger(__name__)
@@ -306,152 +294,6 @@ def api_status_documento(doc_id):
     autorizado, assinado = verificar_status_documento_cliente(doc_id, current_user.id)
     if not autorizado: return jsonify({"assinado": False}), 403
     return jsonify({"assinado": assinado})
-
-# ==================== ROTAS DO ROBÔ E LICENÇAS (UNIFICADAS) ====================
-
-@client_bp.route('/robo')
-@login_required
-def robo_download():
-    versao = versao_atual()
-    if not versao:
-        flash("Nenhuma versão do robô disponível no momento.", "warning")
-        return render_template('client/robo_download.html', versao=None, botao_liberado=False, historico=[])
-    
-    liberado, msg = liberado_para_download(current_user, versao)
-    historico = historico_downloads_cliente(current_user)
-    
-    return render_template(
-        'client/robo_download.html',
-        versao=versao,
-        botao_liberado=liberado,
-        msg_bloqueio=msg if not liberado else None,
-        historico=historico
-    )
-
-@client_bp.route('/robo/download', methods=['POST'])
-@login_required
-@limiter.limit("3 per minute")
-def baixar_robo():
-    versao = versao_atual()
-    if not versao:
-        return jsonify({"error": "Nenhuma versão disponível"}), 404
-    
-    liberado, msg = liberado_para_download(current_user, versao)
-    if not liberado:
-        return jsonify({"error": msg}), 403
-    
-    registrar_download(current_user, versao.id)
-    
-    try:
-        response = requests.get(versao.arquivo_url, stream=True, timeout=30)
-        response.raise_for_status()
-    except Exception as e:
-        logger.error(f"Erro ao baixar arquivo do Cloudinary: {e}")
-        return jsonify({"error": "Falha ao obter o arquivo do robô"}), 500
-    
-    extensao = versao.extensao if versao.extensao else '.exe'
-    nome_arquivo = f"dwcapital_robo_v{versao.versao}{extensao}"
-    
-    return send_file(
-        io.BytesIO(response.content),
-        as_attachment=True,
-        download_name=nome_arquivo,
-        mimetype='application/octet-stream'
-    )
-
-@client_bp.route('/licenca/status', methods=['GET'])
-@login_required
-def licenca_status():
-    licenca = obter_licenca_ativa(current_user)
-    if licenca:
-        return jsonify({
-            "success": True,
-            "tem_licenca": True,
-            "tipo": licenca.tipo,
-            "chave": licenca.chave_licenca,
-            "validade": licenca.data_expiracao.strftime('%d/%m/%Y %H:%M') if licenca.data_expiracao else "Vitalícia",
-            "status": licenca.status
-        })
-    else:
-        return jsonify({
-            "success": True,
-            "tem_licenca": False
-        })
-
-@client_bp.route('/licenca/gerar', methods=['POST'])
-@login_required
-@limiter.limit("10 per minute", key_func=lambda: current_user.id)
-def licenca_gerar():
-    if is_licenca_bloqueada(current_user):
-        return jsonify({
-            "success": False,
-            "error": "BLOQUEADO",
-            "message": "A geração de licenças está bloqueada para este cliente. Entre em contato com o suporte."
-        }), 403
-    
-    hoje = datetime.now(tz_br).date()
-    if not is_modo_teste():
-        if hoje.weekday() >= 5:
-            return jsonify({
-                "success": False,
-                "error": "DIA_INVALIDO",
-                "message": "A geração de licenças semanais só é permitida em dias úteis (segunda a sexta)."
-            }), 400
-    
-    if not current_user.conta_mt5:
-        return jsonify({
-            "success": False,
-            "error": "PRECISA_CONTA",
-            "message": "Você precisa cadastrar sua conta MT5 antes de gerar a licença."
-        }), 200
-    
-    chave, msg, licenca_obj, ja_existente = gerar_licenca_comissao(current_user, current_user.conta_mt5)
-    if not chave:
-        return jsonify({
-            "success": False,
-            "error": "CONDICOES_NAO_ATENDIDAS",
-            "message": msg
-        }), 400
-    
-    return jsonify({
-        "success": True,
-        "chave": chave,
-        "message": msg,
-        "validade": licenca_obj.data_expiracao.strftime('%d/%m/%Y %H:%M') if licenca_obj.data_expiracao else None,
-        "ja_existente": ja_existente
-    })
-
-@client_bp.route('/licenca/visualizar', methods=['POST'])
-@login_required
-def licenca_visualizar():
-    return licenca_gerar()
-
-@client_bp.route('/api/salvar_conta_mt5', methods=['POST'])
-@login_required
-@limiter.limit("5 per minute")
-def api_salvar_conta_mt5():
-    data = request.get_json()
-    nova_conta = data.get('conta_mt5', '').strip()
-    if not nova_conta:
-        return jsonify({"success": False, "message": "Número da conta MT5 é obrigatório."}), 400
-    
-    if not nova_conta.isdigit():
-        return jsonify({"success": False, "message": "A conta MT5 deve conter apenas números."}), 400
-    
-    gerou, chave, msg = salvar_conta_mt5_e_gerar_vitalicia_se_necessario(current_user, nova_conta)
-    
-    return jsonify({
-        "success": True,
-        "conta_salva": nova_conta,
-        "licenca_gerada": gerou,
-        "chave_licenca": chave,
-        "message": msg
-    })
-
-@client_bp.route('/faturas/gerar_licenca', methods=['POST'])
-@login_required
-def gerar_licenca_antiga():
-    return licenca_gerar()
 
 # ==================== PROGRAMA DE INDICAÇÃO ====================
 

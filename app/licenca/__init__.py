@@ -1,0 +1,1 @@
+# app/licenca/__init__.py

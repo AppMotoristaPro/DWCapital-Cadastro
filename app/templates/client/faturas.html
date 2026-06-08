@@ -442,7 +442,7 @@ async function enviarRelatorioNaoOperei() {
 // ==================== LICENÇAS (UNIFICADA) ====================
 function gerarLicencaComissao() {
     pendingGenerateCallback = () => {
-        fetch("{{ url_for('client.licenca_gerar') }}", {
+        fetch("{{ url_for('licenca.licenca_gerar') }}", {
             method: 'POST',
             headers: { 'X-CSRFToken': '{{ csrf_token() }}' }
         })
@@ -481,7 +481,7 @@ function salvarContaMT5() {
         alert('Digite o número da sua conta MT5.');
         return;
     }
-    fetch("{{ url_for('client.api_salvar_conta_mt5') }}", {
+    fetch("{{ url_for('licenca.api_salvar_conta_mt5') }}", {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
         body: JSON.stringify({ conta_mt5: conta })
