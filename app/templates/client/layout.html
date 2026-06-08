@@ -34,7 +34,7 @@
                         Baixar Robô
                     </a>
                     <!-- PROGRAMA DE INDICAÇÃO - Link no menu desktop -->
-                    <a href="{{ url_for('client.indicacoes') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint == 'client.indicacoes' %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-slate-300 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
+                    <a href="{{ url_for('indicacao.indicacoes') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint == 'client.indicacoes' %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-slate-300 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
                         Minhas Indicações
                     </a>
                     <a href="{{ url_for('client.ajuda') }}" class="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300 {% if request.endpoint == 'client.ajuda' %}bg-royal/20 text-royal border border-royal/30 shadow-inner{% else %}text-blue-200 hover:bg-white/5 hover:text-white border border-transparent{% endif %}">
@@ -65,7 +65,7 @@
                 <a href="{{ url_for('client.documentos') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'client.documentos' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Meus Documentos</a>
                 <a href="{{ url_for('licenca.robo_download') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'client.robo_download' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Baixar Robô</a>
                 <!-- PROGRAMA DE INDICAÇÃO - Link no menu mobile -->
-                <a href="{{ url_for('client.indicacoes') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'client.indicacoes' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Minhas Indicações</a>
+                <a href="{{ url_for('indicacao.indicacoes') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'client.indicacoes' %}bg-royal/20 text-royal border border-royal/30{% else %}text-slate-300 hover:bg-white/5 hover:text-white{% endif %}">Minhas Indicações</a>
                 <a href="{{ url_for('client.ajuda') }}" class="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition {% if request.endpoint == 'client.ajuda' %}bg-royal/20 text-royal border border-royal/30{% else %}text-blue-200 hover:bg-white/5 hover:text-white{% endif %}">Preciso de Ajuda</a>
                 <div class="h-px w-full bg-white/5 my-2"></div>
                 <a href="{{ url_for('auth.logout') }}" class="px-4 py-3 text-center bg-red-400/10 text-red-400 hover:bg-red-500 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition">Encerrar Sessão</a>

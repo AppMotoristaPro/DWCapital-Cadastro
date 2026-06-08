@@ -115,12 +115,14 @@ def create_app():
     from app.admin.routes import admin_bp
     from app.api.pix_webhook import api_bp # Importa as rotas de API do Webhook
     from app.licenca.routes import licenca_bp
+    from app.indicacao.routes import indicacao_bp
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(client_bp, name='client')
     app.register_blueprint(admin_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(licenca_bp)
+    app.register_blueprint(indicacao_bp)
 
     # 🛡️ TRAVA DE SEGURANÇA: Isenta a API do Webhook do bloqueio CSRF do Flask-WTF
     csrf.exempt(api_bp)
