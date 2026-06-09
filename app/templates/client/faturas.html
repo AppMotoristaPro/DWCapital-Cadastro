@@ -179,16 +179,27 @@
         </div>
     </div>
 
-    <!-- MODAL "NÃO OPEREI NESSE DIA" (NOVO) -->
     <div id="modal-nao-operei" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-[300]">
-        <div class="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 class="text-lg font-bold mb-2">📄 Não operei nesse dia</h3>
-            <p class="text-sm text-gray-600 mb-4">Envie o arquivo HTML gerado pelo MetaTrader referente ao dia <span id="modal-data-nao-operei" class="font-bold"></span>.</p>
-            <input type="file" id="html-file-input" accept=".html,.htm" class="w-full mb-4 border p-2 rounded">
-            <div class="flex justify-end gap-2">
-                <button onclick="fecharModalNaoOperei()" class="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
-                <button onclick="enviarRelatorioNaoOperei()" class="px-4 py-2 bg-blue-600 text-white rounded">Enviar e isentar</button>
-            </div>
+    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+        <h3 class="text-lg font-bold mb-2">📄 Não operei nesse dia</h3>
+        <p class="text-sm text-gray-600 mb-4">Envie o arquivo HTML gerado pelo MetaTrader referente ao dia <span id="modal-data-nao-operei" class="font-bold"></span>.</p>
+        
+        <!-- BOTÃO DO VÍDEO TUTORIAL (NOVO) -->
+        <div class="mb-4">
+            <a href="https://youtu.be/_Jq8wwo-GfU" target="_blank" 
+               class="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition duration-200 shadow-sm">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M10 15l5-3-5-3v6z"/>
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+                </svg>
+                ▶️ Como Gerar seu Relatório (vídeo tutorial)
+            </a>
+        </div>
+
+        <input type="file" id="html-file-input" accept=".html,.htm" class="w-full mb-4 border p-2 rounded">
+        <div class="flex justify-end gap-2">
+            <button onclick="fecharModalNaoOperei()" class="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
+            <button onclick="enviarRelatorioNaoOperei()" class="px-4 py-2 bg-blue-600 text-white rounded">Enviar e isentar</button>
         </div>
     </div>
 
