@@ -38,24 +38,35 @@
     </div>
 
     <div id="area-conteudo" class="hidden transition-all duration-500">
-        
-        <div class="flex justify-between items-center mb-8 bg-white/40 p-3 rounded-2xl border border-gray-200/50 backdrop-blur-sm">
-            <div class="flex items-center gap-3">
-                <button onclick="voltarGrid()" class="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest hover:text-navy transition-colors bg-white px-4 py-2.5 rounded-xl border border-gray-200 shadow-sm">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                    Voltar aos Ciclos
-                </button>
-                <button onclick="gerarLicencaComissao()" class="px-6 py-2.5 bg-purple-50 hover:bg-purple-100 text-purple-700 text-[10px] font-black uppercase tracking-widest rounded-xl transition border border-purple-200 shadow-sm">
-                    Gerar Licença Semanal
-                </button>
-            </div>
-            
-            {% if current_user.modelo_negocio != 'compra' %}
-            <button onclick="abrirModalAuditoriaPagamento()" class="px-6 py-3 bg-gradient-to-r from-royal to-royal-dark text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all">
-                Realizar pagamento
+    
+    <div class="flex justify-between items-center mb-8 bg-white/40 p-3 rounded-2xl border border-gray-200/50 backdrop-blur-sm">
+        <div class="flex items-center gap-3">
+            <button onclick="voltarGrid()" class="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest hover:text-navy transition-colors bg-white px-4 py-2.5 rounded-xl border border-gray-200 shadow-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                Voltar aos Ciclos
             </button>
-            {% endif %}
+            
+            <button onclick="gerarLicencaComissao()" class="px-6 py-2.5 bg-purple-50 hover:bg-purple-100 text-purple-700 text-[10px] font-black uppercase tracking-widest rounded-xl transition border border-purple-200 shadow-sm">
+                Gerar Licença Semanal
+            </button>
+
+            <!-- Botão do vídeo tutorial -->
+            <a href="https://youtu.be/_Jq8wwo-GfU" target="_blank" 
+               class="flex items-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition shadow-sm">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M10 15l5-3-5-3v6z"/>
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+                </svg>
+                Declarar Dia sem Operação
+            </a>
         </div>
+        
+        {% if current_user.modelo_negocio != 'compra' %}
+        <button onclick="abrirModalAuditoriaPagamento()" class="px-6 py-3 bg-gradient-to-r from-royal to-royal-dark text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all">
+            Realizar pagamento
+        </button>
+        {% endif %}
+    </div>
 
         <div class="flex flex-wrap gap-2 mb-8 border-b border-gray-200 pb-4">
             {% for alocacao in current_user.alocacoes %}
@@ -183,25 +194,13 @@
     <div class="bg-white rounded-lg p-6 w-full max-w-md">
         <h3 class="text-lg font-bold mb-2">📄 Não operei nesse dia</h3>
         <p class="text-sm text-gray-600 mb-4">Envie o arquivo HTML gerado pelo MetaTrader referente ao dia <span id="modal-data-nao-operei" class="font-bold"></span>.</p>
-        
-        <!-- BOTÃO DO VÍDEO TUTORIAL (NOVO) -->
-        <div class="mb-4">
-            <a href="https://youtu.be/_Jq8wwo-GfU" target="_blank" 
-               class="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition duration-200 shadow-sm">
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M10 15l5-3-5-3v6z"/>
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
-                </svg>
-                ▶️ Como Gerar seu Relatório (vídeo tutorial)
-            </a>
-        </div>
-
         <input type="file" id="html-file-input" accept=".html,.htm" class="w-full mb-4 border p-2 rounded">
         <div class="flex justify-end gap-2">
             <button onclick="fecharModalNaoOperei()" class="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
             <button onclick="enviarRelatorioNaoOperei()" class="px-4 py-2 bg-blue-600 text-white rounded">Enviar e isentar</button>
         </div>
     </div>
+</div>
 
     <!-- DEMAIS MODAIS (PIX, LICENÇA, ETC.) - MANTIDOS ORIGINAIS -->
     {% if current_user.modelo_negocio != 'compra' %}
