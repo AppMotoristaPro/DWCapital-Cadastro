@@ -120,39 +120,71 @@
                             </div>
 
                             <template id="ficha-template-{{ cliente.id }}">
-                                <h2 class="text-2xl font-black text-navy mb-6 border-b border-gray-100 pb-4">Ficha Institucional: {{ cliente.nome.split()[0] }}</h2>
-                                <div class="space-y-4 text-sm font-medium text-gray-600 text-left">
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><span class="block text-[10px] uppercase font-black text-gray-400 mb-1">Nome Completo</span><span class="text-navy font-bold">{{ cliente.nome }}</span></div>
-                                        <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><span class="block text-[10px] uppercase font-black text-gray-400 mb-1">CPF</span><span class="text-navy font-bold">{{ cliente.cpf }}</span></div>
+                                <div class="p-2">
+                                    <div class="flex justify-between items-center border-b border-gray-200 pb-3 mb-4">
+                                        <h2 class="text-xl font-black text-navy flex items-center gap-2">
+                                            <svg class="w-5 h-5 text-royal" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                                            {{ cliente.nome.split()[0] }} – Ficha Institucional
+                                        </h2>
                                     </div>
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><span class="block text-[10px] uppercase font-black text-gray-400 mb-1">E-mail</span><span class="text-navy font-bold break-words">{{ cliente.email or 'Não preenchido' }}</span></div>
-                                        <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><span class="block text-[10px] uppercase font-black text-gray-400 mb-1">Celular / WhatsApp</span><span class="text-navy font-bold">{{ cliente.celular or 'Não preenchido' }}</span></div>
+                                    
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                        <!-- Coluna 1 -->
+                                        <div class="space-y-3">
+                                            <div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                                <span class="text-[10px] font-black text-gray-400 uppercase">Nome Completo</span>
+                                                <p class="font-bold text-navy">{{ cliente.nome }}</p>
+                                            </div>
+                                            <div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                                <span class="text-[10px] font-black text-gray-400 uppercase">E-mail</span>
+                                                <p class="font-bold text-navy break-words">{{ cliente.email or 'Não preenchido' }}</p>
+                                            </div>
+                                            <div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                                <span class="text-[10px] font-black text-gray-400 uppercase">Celular / WhatsApp</span>
+                                                <p class="font-bold text-navy">{{ cliente.celular or 'Não preenchido' }}</p>
+                                            </div>
+                                            <div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                                <span class="text-[10px] font-black text-gray-400 uppercase">Conta MT5</span>
+                                                <p class="font-bold text-navy">{{ cliente.conta_mt5 or 'Não informada' }}</p>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Coluna 2 -->
+                                        <div class="space-y-3">
+                                            <div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                                <span class="text-[10px] font-black text-gray-400 uppercase">CPF</span>
+                                                <p class="font-bold text-navy">{{ cliente.cpf }}</p>
+                                            </div>
+                                            <div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                                <span class="text-[10px] font-black text-gray-400 uppercase">Termo Assinado?</span>
+                                                <p class="font-bold text-navy">{{ 'Sim' if cliente.termo_assinado else 'Não' }}</p>
+                                            </div>
+                                            <div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                                <span class="text-[10px] font-black text-gray-400 uppercase">Data de Cadastro</span>
+                                                <p class="font-bold text-navy">{{ cliente.data_cadastro.strftime('%d/%m/%Y') if cliente.data_cadastro else 'N/A' }}</p>
+                                            </div>
+                                            <div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                                <span class="text-[10px] font-black text-gray-400 uppercase">Endereço</span>
+                                                <p class="font-bold text-navy">{{ cliente.endereco or 'Não preenchido' }}</p>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><span class="block text-[10px] uppercase font-black text-gray-400 mb-1">Endereço Completo</span><span class="text-navy font-bold">{{ cliente.endereco or 'Não preenchido' }}</span></div>
                                     
-                                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><span class="block text-[10px] uppercase font-black text-gray-400 mb-1">Conta MT5</span><span class="text-navy font-bold">{{ cliente.conta_mt5 or 'Não informada' }}</span></div>
-                                    
-                                    <div class="bg-blue-50/50 p-5 rounded-xl border border-blue-100">
-                                        <span class="block text-[10px] uppercase font-black text-blue-500 mb-3">Corretoras Alocadas</span>
+                                    <!-- Corretoras Alocadas (seção separada, ocupa toda largura) -->
+                                    <div class="mt-5 bg-blue-50/60 p-4 rounded-xl border border-blue-100">
+                                        <span class="block text-[10px] font-black text-blue-500 uppercase mb-2">Corretoras Alocadas</span>
                                         {% if cliente.alocacoes %}
-                                            <div class="space-y-2">
-                                            {% for aloc in cliente.alocacoes %}
-                                                <div class="flex justify-between items-center bg-white px-4 py-3 rounded-xl border border-blue-50 shadow-sm">
-                                                    <span class="text-royal font-black text-xs tracking-widest uppercase">{{ aloc.nome_corretora }}</span>
-                                                    <span class="text-green-600 font-black text-sm">R$ {{ aloc.capital_alocado|format_brl }}</span>
+                                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                {% for aloc in cliente.alocacoes %}
+                                                <div class="flex justify-between items-center bg-white px-3 py-2 rounded-lg border border-blue-50 shadow-sm text-sm">
+                                                    <span class="text-royal font-black">{{ aloc.nome_corretora }}</span>
+                                                    <span class="text-green-600 font-black">R$ {{ aloc.capital_alocado|format_brl }}</span>
                                                 </div>
-                                            {% endfor %}
+                                                {% endfor %}
                                             </div>
                                         {% else %}
                                             <span class="text-royal font-bold text-xs">Nenhuma corretora cadastrada</span>
                                         {% endif %}
-                                    </div>
-                                    
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><span class="block text-[10px] uppercase font-black text-gray-400 mb-1">Termo Assinado?</span><span class="text-navy font-bold">{{ 'Sim' if cliente.termo_assinado else 'Não' }}</span></div>
-                                        <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><span class="block text-[10px] uppercase font-black text-gray-400 mb-1">Data de Cadastro</span><span class="text-navy font-bold">{{ cliente.data_cadastro.strftime('%d/%m/%Y') if cliente.data_cadastro else 'N/A' }}</span></div>
                                     </div>
                                 </div>
                             </template>
@@ -190,10 +222,13 @@
 </div>
 
 <!-- Modais -->
-<div id="modal-ficha-global" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
-    <div class="bg-white/90 backdrop-blur-2xl border border-white/40 w-full max-w-xl rounded-[2.5rem] shadow-2xl p-6 md:p-10 relative overflow-y-auto max-h-[90vh]">
-        <button type="button" onclick="document.getElementById('modal-ficha-global').classList.add('hidden')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-900 font-black text-xl transition">X</button>
-        <div id="modal-ficha-conteudo"></div>
+<div id="modal-ficha-global" class="hidden fixed inset-0 z-[1000] flex items-center justify-center bg-navy/80 backdrop-blur-sm p-4">
+    <div class="bg-white/95 backdrop-blur-xl border border-white/60 w-full max-w-4xl rounded-2xl shadow-2xl relative overflow-y-auto max-h-[85vh]">
+        <button type="button" onclick="document.getElementById('modal-ficha-global').classList.add('hidden')" 
+                class="absolute top-3 right-3 z-10 w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center text-gray-700 font-bold text-lg transition shadow-md">
+            ✕
+        </button>
+        <div id="modal-ficha-conteudo" class="p-6"></div>
     </div>
 </div>
 
