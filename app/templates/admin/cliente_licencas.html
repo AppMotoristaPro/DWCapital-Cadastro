@@ -10,9 +10,21 @@
     </div>
 
     <div class="bg-white/80 backdrop-blur-xl rounded-3xl shadow-md overflow-hidden border border-white">
-        <div class="bg-gradient-to-r from-navy to-royal-dark px-8 py-5 text-white">
-            <h2 class="text-xl font-black tracking-tight">{{ cliente.nome }}</h2>
-            <p class="text-sm text-blue-200">CPF: {{ cliente.cpf }} | ID: {{ cliente.id }} | Conta MT5: {{ cliente.conta_mt5 or 'Não informada' }}</p>
+        <!-- Cabeçalho com botão de gerar licença vitalícia -->
+        <div class="bg-gradient-to-r from-navy to-royal-dark px-8 py-5 text-white flex justify-between items-center">
+            <div>
+                <h2 class="text-xl font-black tracking-tight">{{ cliente.nome }}</h2>
+                <p class="text-sm text-blue-200">CPF: {{ cliente.cpf }} | ID: {{ cliente.id }} | Conta MT5: {{ cliente.conta_mt5 or 'Não informada' }}</p>
+            </div>
+            <div>
+                <form method="POST" action="{{ url_for('admin.forcar_licenca_vitalicia', id=cliente.id) }}" 
+                      onsubmit="return confirm('Gerar nova licença vitalícia (perpétua) para este cliente? A licença atual será cancelada se existir.')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-black uppercase tracking-widest transition shadow-md">
+                        🔓 Gerar Licença Vitalícia
+                    </button>
+                </form>
+            </div>
         </div>
 
         <div class="overflow-x-auto">

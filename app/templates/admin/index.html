@@ -190,9 +190,9 @@
 </div>
 
 <!-- Modais -->
-<div id="modal-ficha-global" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
+<div id="modal-ficha-global" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
     <div class="bg-white/90 backdrop-blur-2xl border border-white/40 w-full max-w-xl rounded-[2.5rem] shadow-2xl p-6 md:p-10 relative overflow-y-auto max-h-[90vh]">
-        <button type="button" onclick="document.getElementById('modal-ficha-global').classList.add('hidden')" class="absolute top-6 right-6 md:top-8 md:right-8 text-gray-400 hover:text-gray-900 font-black text-xl transition">X</button>
+        <button type="button" onclick="document.getElementById('modal-ficha-global').classList.add('hidden')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-900 font-black text-xl transition">X</button>
         <div id="modal-ficha-conteudo"></div>
     </div>
 </div>
@@ -201,7 +201,6 @@
     <div class="bg-white/90 backdrop-blur-2xl border border-white/40 w-full max-w-md rounded-[2.5rem] shadow-2xl p-10 relative">
         <button type="button" onclick="document.getElementById('modal-novo-acesso').classList.add('hidden')" class="absolute top-6 right-6 text-gray-400 hover:text-navy font-black text-xl transition">X</button>
         <h2 class="text-2xl font-black text-navy mb-6">Novo Acesso</h2>
-        <!-- FORMULÁRIO COM ID ADICIONADO -->
         <form id="form-liberar-cliente" method="POST" action="{{ url_for('admin.liberar_cliente') }}" class="space-y-5">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             
@@ -214,7 +213,6 @@
                 <input type="text" name="cpf" required class="w-full px-5 py-4 bg-white border border-gray-200 rounded-xl outline-none focus:border-royal transition shadow-inner" placeholder="Apenas números">
             </div>
             
-            <!-- PROGRAMA DE INDICAÇÃO - Campo para selecionar indicador (admin pode vincular manualmente) -->
             <div>
                 <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 block ml-1">Indicador (opcional)</label>
                 <select name="indicador_id" class="w-full px-5 py-4 bg-white border border-gray-200 rounded-xl outline-none focus:border-royal transition shadow-inner cursor-pointer font-bold text-navy text-sm">
@@ -333,7 +331,6 @@ function gerarRelatorio() {
     }
 }
 
-// Submissão AJAX para o formulário de liberação de cliente
 const formLiberar = document.getElementById('form-liberar-cliente');
 if (formLiberar) {
     formLiberar.addEventListener('submit', async function(e) {
