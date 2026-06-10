@@ -244,6 +244,7 @@ class VersaoRobo(db.Model):
     data_upload = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     publicada = db.Column(db.Boolean, default=False)
     extensao = db.Column(db.String(10), nullable=True)
+    public_id = db.Column(db.String(255), nullable=True)   # NOVO CAMPO: ID do arquivo no Cloudinary
 
     def __repr__(self):
         return f"<VersaoRobo {self.versao}>"

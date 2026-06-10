@@ -81,14 +81,25 @@
                         </td>
                         <td class="px-6 py-5 text-xs text-gray-600 max-w-xs truncate">{{ v.novidades or '—' }}</td>
                         <td class="px-8 py-5 text-right">
-                            {% if not v.publicada %}
-                            <form method="POST" action="{{ url_for('admin.publicar_versao_robo', id=v.id) }}" class="inline" onsubmit="return confirm('Publicar a versão {{ v.versao }} como versão ativa? Todos os clientes passarão a ver essa versão para download.')">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" class="px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-600 text-[10px] font-black uppercase rounded-lg transition border border-purple-200 shadow-sm">Publicar</button>
-                            </form>
-                            {% else %}
-                                <span class="text-[10px] text-gray-400">Ativa</span>
-                            {% endif %}
+                            <div class="flex justify-end gap-2">
+                                <!-- Botão Editar (sempre visível) -->
+                                <a href="{{ url_for('admin.editar_versao_robo', id=v.id) }}" class="px-3 py-1.5 bg-blue-50 text-blue-600 text-[10px] font-black uppercase rounded-lg hover:bg-blue-100 transition border border-blue-200 shadow-sm">Editar</a>
+                                
+                                {% if not v.publicada %}
+                                    <!-- Botão Publicar (apenas para inativas) -->
+                                    <form method="POST" action="{{ url_for('admin.publicar_versao_robo', id=v.id) }}" class="inline" onsubmit="return confirm('Publicar a versão {{ v.versao }} como versão ativa? Todos os clientes passarão a ver essa versão para download.')">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-600 text-[10px] font-black uppercase rounded-lg transition border border-purple-200 shadow-sm">Publicar</button>
+                                    </form>
+                                    <!-- Botão Excluir (apenas para inativas) -->
+                                    <form method="POST" action="{{ url_for('admin.excluir_versao_robo', id=v.id) }}" class="inline" onsubmit="return confirm('Excluir permanentemente esta versão?')">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="px-3 py-1.5 bg-red-50 text-red-600 text-[10px] font-black uppercase rounded-lg hover:bg-red-100 transition border border-red-200 shadow-sm">Excluir</button>
+                                    </form>
+                                {% else %}
+                                    <span class="text-[10px] text-gray-400">Ativa</span>
+                                {% endif %}
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}

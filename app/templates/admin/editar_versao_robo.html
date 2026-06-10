@@ -1,0 +1,39 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_content %}
+<div class="max-w-2xl mx-auto relative z-10 pb-20">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-black text-navy">Editar Versão do Robô</h1>
+        <a href="{{ url_for('admin.upload_versao_robo') }}" class="text-sm text-royal hover:underline">&larr; Voltar</a>
+    </div>
+
+    <div class="bg-white/80 backdrop-blur-xl rounded-2xl shadow-md border border-white p-8">
+        <form method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            
+            <div class="mb-5">
+                <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Número da versão</label>
+                <input type="text" name="versao" value="{{ versao.versao }}" required class="w-full px-5 py-3.5 bg-white border border-gray-200 rounded-xl outline-none font-bold text-navy focus:border-royal transition shadow-sm">
+                <p class="text-[9px] text-gray-400 mt-1 ml-1">Ex: 2.1.0</p>
+            </div>
+
+            <div class="mb-5">
+                <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Arquivo do robô (opcional)</label>
+                <input type="file" name="arquivo" accept=".exe,.ex5,.zip" class="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl outline-none text-sm">
+                <p class="text-[9px] text-gray-400 mt-1 ml-1">Deixe em branco para manter o arquivo atual. Formatos aceitos: .exe, .ex5 ou .zip.</p>
+                <p class="text-[10px] text-blue-600 mt-2">Arquivo atual: <span class="font-mono">{{ versao.arquivo_url.split('/')[-1] }}</span></p>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Novidades (changelog)</label>
+                <textarea name="novidades" rows="6" class="w-full px-5 py-3.5 bg-white border border-gray-200 rounded-xl outline-none font-medium text-navy focus:border-royal transition shadow-sm">{{ versao.novidades or '' }}</textarea>
+            </div>
+
+            <div class="flex justify-end gap-3">
+                <a href="{{ url_for('admin.upload_versao_robo') }}" class="px-5 py-2.5 bg-gray-200 text-gray-700 rounded-xl font-black uppercase tracking-widest text-xs">Cancelar</a>
+                <button type="submit" class="px-6 py-2.5 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">Salvar Alterações</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

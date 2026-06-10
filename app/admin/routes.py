@@ -870,6 +870,7 @@ def upload_versao_robo():
         try:
             upload_result = cloudinary.uploader.upload(arquivo, folder="dwcapital/robos", resource_type="raw")
             arquivo_url = upload_result.get('secure_url')
+            public_id = upload_result.get('public_id')          # ← NOVO
         except Exception as e:
             flash(f"Erro ao enviar arquivo: {str(e)}", "error")
             return redirect(url_for('admin.upload_versao_robo'))
@@ -879,7 +880,8 @@ def upload_versao_robo():
             arquivo_url=arquivo_url,
             novidades=novidades,
             publicada=False,
-            extensao=extensao
+            extensao=extensao,
+            public_id=public_id                                 # ← NOVO
         )
         db.session.add(nova_versao)
         db.session.commit()
@@ -907,6 +909,88 @@ def publicar_versao_robo(id):
     
     registrar_log(f"Publicou a versão do robô: {versao.versao} (downloads anteriores removidos: {removidos})", "Robô")
     flash(f"Versão {versao.versao} agora é a versão ativa para download. Todos os clientes poderão baixá-la novamente.", "success")
+    return redirect(url_for('admin.upload_versao_robo'))
+
+@admin_bp.route('/robo/editar/<int:id>', methods=['GET', 'POST'])
+@admin_required
+def editar_versao_robo(id):
+    versao = VersaoRobo.query.get_or_404(id)
+    
+    if request.method == 'POST':
+        nova_versao = request.form.get('versao')
+        novas_novidades = request.form.get('novidades')
+        arquivo = request.files.get('arquivo')
+        
+        if not nova_versao:
+            flash('O número da versão é obrigatório.', 'error')
+            return redirect(url_for('admin.editar_versao_robo', id=id))
+        
+        # Verifica duplicidade (não pode haver outra versão com o mesmo número)
+        existe = VersaoRobo.query.filter(VersaoRobo.versao == nova_versao, VersaoRobo.id != id).first()
+        if existe:
+            flash(f'Já existe uma versão com o número "{nova_versao}".', 'error')
+            return redirect(url_for('admin.editar_versao_robo', id=id))
+        
+        versao.versao = nova_versao
+        versao.novidades = novas_novidades
+        
+        # Se um novo arquivo foi enviado
+        if arquivo and arquivo.filename:
+            # Valida extensão
+            if '.' in arquivo.filename:
+                extensao = '.' + arquivo.filename.rsplit('.', 1)[1].lower()
+            else:
+                extensao = ''
+            if extensao not in ['.exe', '.ex5', '.zip']:
+                flash('Tipo de arquivo inválido. Apenas .exe, .ex5 ou .zip são permitidos.', 'error')
+                return redirect(url_for('admin.editar_versao_robo', id=id))
+            
+            # Remove arquivo antigo do Cloudinary (se existir)
+            if versao.public_id:
+                try:
+                    cloudinary.uploader.destroy(versao.public_id, resource_type="raw")
+                except Exception as e:
+                    # Apenas log; não impede a edição
+                    print(f"[AVISO] Não foi possível remover arquivo antigo: {e}")
+            
+            # Upload do novo arquivo
+            try:
+                upload_result = cloudinary.uploader.upload(arquivo, folder="dwcapital/robos", resource_type="raw")
+                versao.arquivo_url = upload_result.get('secure_url')
+                versao.public_id = upload_result.get('public_id')
+                versao.extensao = extensao
+                if hasattr(versao, 'nome_original'):   # se o campo existir
+                    versao.nome_original = arquivo.filename
+            except Exception as e:
+                flash(f'Erro ao enviar novo arquivo: {str(e)}', 'error')
+                return redirect(url_for('admin.editar_versao_robo', id=id))
+        
+        db.session.commit()
+        registrar_log(f"Editou a versão {versao.versao} (ID {versao.id}) do robô.", "Robô")
+        flash('Versão atualizada com sucesso!', 'success')
+        return redirect(url_for('admin.upload_versao_robo'))
+    
+    # GET – exibe formulário
+    return render_template('admin/editar_versao_robo.html', versao=versao)
+
+@admin_bp.route('/robo/excluir/<int:id>', methods=['POST'])
+@admin_required
+def excluir_versao_robo(id):
+    versao = VersaoRobo.query.get_or_404(id)
+    if versao.publicada:
+        flash('Não é possível excluir a versão ativa.', 'error')
+        return redirect(url_for('admin.upload_versao_robo'))
+    
+    if versao.public_id:
+        try:
+            cloudinary.uploader.destroy(versao.public_id, resource_type="raw")
+        except Exception as e:
+            print(f"Erro ao remover arquivo: {e}")
+    
+    db.session.delete(versao)
+    db.session.commit()
+    registrar_log(f"Excluiu permanentemente a versão {versao.versao} do robô.", "Robô")
+    flash('Versão excluída com sucesso.', 'success')
     return redirect(url_for('admin.upload_versao_robo'))
 
 # ==================== ROTAS DE LICENÇA (ADMIN) ====================
