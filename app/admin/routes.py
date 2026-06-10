@@ -1001,22 +1001,34 @@ def excluir_versao_robo(id):
 def forcar_licenca_vitalicia(id):
     cliente = User.query.get_or_404(id)
     if cliente.modelo_negocio != 'compra':
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({"success": False, "message": "Este cliente não está no modelo compra."}), 400
         flash('Este cliente não está no modelo compra.', 'error')
         return redirect(url_for('admin.editar_cliente', id=id))
     
     if not cliente.conta_mt5:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({"success": False, "message": "Cliente não possui conta MT5 cadastrada."}), 400
         flash('Cliente não possui conta MT5 cadastrada. Preencha o campo antes de gerar a licença.', 'error')
         return redirect(url_for('admin.editar_cliente', id=id))
     
-    licenca_existente = obter_licenca_ativa(cliente, tipo='vitalicia')
-    if licenca_existente:
-        licenca_existente.status = 'cancelada'
-        db.session.add(licenca_existente)
-    
+    # Usar a nova função de licença vitalícia (já atualizada)
     chave, msg, nova_licenca = gerar_licenca_vitalicia(cliente, cliente.conta_mt5)
-    db.session.commit()
+    if not chave:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({"success": False, "message": msg}), 400
+        flash(msg, 'error')
+        return redirect(url_for('admin.editar_cliente', id=id))
     
     registrar_log(f"Forçou a geração de nova licença vitalícia para {cliente.nome}. Chave: {chave}", "Clientes")
+    
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({
+            "success": True,
+            "message": "Licença vitalícia gerada com sucesso!",
+            "chave": chave
+        }), 200
+    
     flash(f'Licença vitalícia gerada/regenerada com sucesso! Chave: {chave}', 'success')
     return redirect(url_for('admin.editar_cliente', id=id))
 

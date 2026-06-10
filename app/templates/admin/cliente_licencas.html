@@ -10,20 +10,16 @@
     </div>
 
     <div class="bg-white/80 backdrop-blur-xl rounded-3xl shadow-md overflow-hidden border border-white">
-        <!-- Cabeçalho com botão de gerar licença vitalícia -->
+        <!-- Cabeçalho com botão de gerar licença vitalícia (AJAX) -->
         <div class="bg-gradient-to-r from-navy to-royal-dark px-8 py-5 text-white flex justify-between items-center">
             <div>
                 <h2 class="text-xl font-black tracking-tight">{{ cliente.nome }}</h2>
                 <p class="text-sm text-blue-200">CPF: {{ cliente.cpf }} | ID: {{ cliente.id }} | Conta MT5: {{ cliente.conta_mt5 or 'Não informada' }}</p>
             </div>
             <div>
-                <form method="POST" action="{{ url_for('admin.forcar_licenca_vitalicia', id=cliente.id) }}" 
-                      onsubmit="return confirm('Gerar nova licença vitalícia (perpétua) para este cliente? A licença atual será cancelada se existir.')">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-black uppercase tracking-widest transition shadow-md">
-                        🔓 Gerar Licença Vitalícia
-                    </button>
-                </form>
+                <button type="button" onclick="gerarLicencaVitalicia()" class="px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-black uppercase tracking-widest transition shadow-md">
+                    🔓 Gerar Licença Vitalícia
+                </button>
             </div>
         </div>
 
@@ -80,4 +76,65 @@
         </div>
     </div>
 </div>
+
+<!-- Modal para exibir a chave vitalícia gerada -->
+<div id="modal-chave-vitalicia" class="hidden fixed inset-0 z-[1000] flex items-center justify-center bg-navy/80 backdrop-blur-sm p-4">
+    <div class="bg-white/95 backdrop-blur-xl border border-white/60 w-full max-w-md rounded-2xl shadow-2xl relative">
+        <button onclick="fecharModalChave()" class="absolute top-3 right-3 w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center text-gray-700 font-bold text-lg transition shadow-md">✕</button>
+        <div class="p-6">
+            <h3 class="text-xl font-black text-navy mb-2">Licença Vitalícia Gerada</h3>
+            <p class="text-sm text-gray-600 mb-4">Utilize a chave abaixo para ativar o robô (perpétua).</p>
+            <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
+                <code id="chave-gerada" class="text-sm font-mono font-bold text-royal break-all"></code>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button onclick="copiarChave()" class="px-4 py-2 bg-royal text-white rounded-lg text-xs font-black uppercase tracking-widest">Copiar Chave</button>
+                <button onclick="fecharModalChave()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-xs font-black uppercase tracking-widest">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function gerarLicencaVitalicia() {
+    const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '{{ csrf_token() }}';
+    const userId = {{ cliente.id }};
+    
+    fetch(`/admin/forcar_licenca_vitalicia/${userId}`, {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': csrfToken,
+            'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('chave-gerada').innerText = data.chave;
+            document.getElementById('modal-chave-vitalicia').classList.remove('hidden');
+            // Recarrega a página para mostrar a nova licença na tabela
+            location.reload();
+        } else {
+            alert(data.message || 'Erro ao gerar licença vitalícia.');
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('Erro de comunicação com o servidor.');
+    });
+}
+
+function fecharModalChave() {
+    document.getElementById('modal-chave-vitalicia').classList.add('hidden');
+}
+
+function copiarChave() {
+    const chave = document.getElementById('chave-gerada').innerText;
+    navigator.clipboard.writeText(chave).then(() => {
+        alert('Chave copiada para a área de transferência!');
+    });
+}
+</script>
 {% endblock %}

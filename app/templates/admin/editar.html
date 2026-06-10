@@ -163,7 +163,7 @@
 <script>
 document.getElementById('modelo-negocio-edit')?.addEventListener('change', function(e) {
     if (e.target.value === 'compra' && '{{ cliente.modelo_negocio or "comissao" }}' === 'comissao') {
-        alert('ATENÇÃO DO SISTEMA:\n\nAlterar o modelo para "Compra de Licença" irá congelar as faturas semanais de 30% deste parceiro.\n\nO sistema irá gerar IMEDIATAMENTE as 3 parcelas de licenciamento (1x R$ 5.000,00 e 2x R$ 2.500,00) que bloquearão o próximo acesso dele até o pagamento.\n\nSe o cliente já tiver conta MT5 e termo assinado, a licença vitalícia será gerada automaticamente.');
+        alert('ATENÇÃO DO SISTEMA:\n\nAlterar o modelo para "Compra de Licença" irá congelar as faturas semanais de 30% deste parceiro.\n\nO sistema irá gerar IMEDIATAMENTE as 10 parcelas de licenciamento (1x R$ 3.000,00 + 9x R$ 500,00 semanais) que bloquearão o próximo acesso dele até o pagamento.\n\nSe o cliente já tiver conta MT5 e termo assinado, a licença vitalícia será gerada automaticamente.');
     }
 });
 
