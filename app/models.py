@@ -254,7 +254,8 @@ class DownloadControle(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    versao_id = db.Column(db.Integer, db.ForeignKey('versao_robo.id'), nullable=False)
+    # CORREÇÃO: Adicionado ondelete='RESTRICT' para impedir exclusão de versão com downloads
+    versao_id = db.Column(db.Integer, db.ForeignKey('versao_robo.id', ondelete='RESTRICT'), nullable=False)
     data_download = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     
     versao = db.relationship('VersaoRobo', backref='downloads')

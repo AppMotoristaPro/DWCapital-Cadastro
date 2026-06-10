@@ -981,11 +981,15 @@ def excluir_versao_robo(id):
         flash('Não é possível excluir a versão ativa.', 'error')
         return redirect(url_for('admin.upload_versao_robo'))
     
+    # Remove os registros de download associados (evita erro de FK)
+    DownloadControle.query.filter_by(versao_id=versao.id).delete()
+    
+    # Remove o arquivo do Cloudinary, se existir
     if versao.public_id:
         try:
             cloudinary.uploader.destroy(versao.public_id, resource_type="raw")
         except Exception as e:
-            print(f"Erro ao remover arquivo: {e}")
+            print(f"[AVISO] Não foi possível remover arquivo antigo: {e}")
     
     db.session.delete(versao)
     db.session.commit()
