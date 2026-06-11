@@ -27,7 +27,7 @@
             <div class="mt-auto">
                 {% if item.disponivel %}
                     {% if item.liberado %}
-                    <form method="POST" action="{{ url_for('licenca.baixar_robo_produto', produto_id=item.produto.id) }}">
+                    <form method="POST" action="{{ url_for('licenca.baixar_robo_produto', produto_id=item.produto.id) }}" class="download-form">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">
                             Baixar {{ item.produto.nome }}
@@ -84,14 +84,18 @@
 </div>
 
 <script>
-    // Adiciona evento para mostrar loading nos botões de download
-    document.querySelectorAll('form[action*="baixar_robo_produto"]').forEach(form => {
+    // Adiciona evento para mostrar loading e recarregar a página após o download
+    document.querySelectorAll('.download-form').forEach(form => {
         form.addEventListener('submit', function(e) {
             const btn = this.querySelector('button');
             if (btn) {
                 btn.disabled = true;
                 btn.innerHTML = '<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Processando...';
             }
+            // Aguarda 1,5 segundos e recarrega a página para atualizar os cards
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
         });
     });
 </script>
