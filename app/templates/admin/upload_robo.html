@@ -78,9 +78,9 @@
                 <tbody class="divide-y divide-gray-50 bg-white">
                     {% for v in versoes %}
                     <tr class="hover:bg-gray-50/50 transition-colors">
-                        <td class="px-8 py-5 font-bold text-navy">{{ v.produto.nome }}<\/td>
-                        <td class="px-6 py-5 font-bold text-navy">{{ v.versao }}<\/td>
-                        <td class="px-6 py-5 text-[10px] font-bold text-gray-500">{{ (v.data_upload | to_tz_br).strftime('%d/%m/%Y %H:%M') }}<\/td>
+                        <td class="px-8 py-5 font-bold text-navy">{{ v.produto.nome }}</td>
+                        <td class="px-6 py-5 font-bold text-navy">{{ v.versao }}</td>
+                        <td class="px-6 py-5 text-[10px] font-bold text-gray-500">{{ (v.data_upload | to_tz_br).strftime('%d/%m/%Y %H:%M') }}</td>
                         <td class="px-6 py-5">
                             {% if v.publicada %}
                                 <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-green-100 text-green-700 text-[9px] font-black uppercase rounded-lg shadow-sm">
@@ -89,10 +89,10 @@
                             {% else %}
                                 <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-100 text-gray-500 text-[9px] font-black uppercase rounded-lg shadow-sm">Inativa</span>
                             {% endif %}
-                        <\/td>
-                        <td class="px-6 py-5 text-xs text-gray-600 max-w-xs truncate">{{ v.novidades or '—' }}<\/td>
+                        </td>
+                        <td class="px-6 py-5 text-xs text-gray-600 max-w-xs truncate">{{ v.novidades or '—' }}</td>
                         <td class="px-8 py-5 text-right">
-                            <div class="flex justify-end gap-2">
+                            <div class="flex justify-end gap-2 whitespace-nowrap">
                                 <a href="{{ url_for('admin.editar_versao_robo', id=v.id) }}" class="px-3 py-1.5 bg-blue-50 text-blue-600 text-[10px] font-black uppercase rounded-lg hover:bg-blue-100 transition border border-blue-200 shadow-sm">Editar</a>
                                 
                                 {% if not v.publicada %}
@@ -108,17 +108,17 @@
                                     <span class="text-[10px] text-gray-400">Ativa</span>
                                 {% endif %}
                             </div>
-                        <\/td>
-                    <\/tr>
+                        </td>
+                    </tr>
                     {% endfor %}
                 </tbody>
-            <\/table>
-        <\/div>
+            </table>
+        </div>
         {% else %}
         <div class="p-12 text-center text-gray-400 font-medium">
             Nenhuma versão de robô enviada ainda. Use o formulário acima para começar.
-        <\/div>
+        </div>
         {% endif %}
-    <\/div>
-<\/div>
+    </div>
+</div>
 {% endblock %}
