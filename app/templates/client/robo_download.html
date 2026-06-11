@@ -4,7 +4,7 @@
     <div class="flex justify-between items-end mb-8">
         <div>
             <h1 class="text-4xl font-black text-navy tracking-tight">Download do Robô</h1>
-            <p class="text-gray-500 mt-2 font-medium">Baixe a versão mais recente do nosso robô de trading.</p>
+            <p class="text-gray-500 mt-2 font-medium">Escolha um dos robôs disponíveis para download.</p>
         </div>
     </div>
 
@@ -14,43 +14,40 @@
       {% endfor %}{% endif %}
     {% endwith %}
 
-    <!-- Versão atual -->
-    <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white p-8 mb-10">
-        <!-- Linha superior: versão e botão lado a lado -->
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-            <div>
-                <p class="text-[10px] font-black text-royal uppercase tracking-widest mb-1">Versão estável</p>
-                <h2 class="text-3xl font-black text-navy">{{ versao.versao if versao else 'Indisponível' }}</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+        {% for item in produtos %}
+        <div class="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-md border border-gray-200 flex flex-col">
+            <div class="mb-4">
+                <h2 class="text-2xl font-black text-navy">{{ item.produto.nome }}</h2>
+                <p class="text-sm text-gray-500 mt-1">{{ item.produto.descricao }}</p>
+                {% if item.versao %}
+                <p class="text-xs text-royal mt-2">Versão: {{ item.versao.versao }}</p>
+                {% endif %}
             </div>
-            <div class="shrink-0">
-                {% if versao %}
-                    {% if botao_liberado %}
-                    <form method="POST" action="{{ url_for('licenca.baixar_robo') }}" id="form-download-robo">
+            <div class="mt-auto">
+                {% if item.disponivel %}
+                    {% if item.liberado %}
+                    <form method="POST" action="{{ url_for('licenca.baixar_robo_produto', produto_id=item.produto.id) }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="px-8 py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-md transition flex items-center gap-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                            Baixar Robô ({{ versao.versao }})
+                        <button type="submit" class="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">
+                            Baixar {{ item.produto.nome }}
                         </button>
                     </form>
                     {% else %}
-                    <button disabled class="px-8 py-4 bg-gray-300 text-gray-500 rounded-xl font-black uppercase tracking-widest text-xs cursor-not-allowed flex items-center gap-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                        Download indisponível
-                    </button>
-                    <p class="text-xs text-red-500 mt-3">{{ msg_bloqueio or 'Você já baixou esta versão. Aguarde a próxima atualização.' }}</p>
+                    <div class="w-full py-3 bg-gray-200 text-gray-500 rounded-xl text-center text-xs font-black uppercase tracking-widest cursor-not-allowed">
+                        Bloqueado
+                    </div>
+                    <p class="text-xs text-red-500 mt-2 text-center">{{ item.mensagem }}</p>
                     {% endif %}
                 {% else %}
-                    <button disabled class="px-8 py-4 bg-gray-300 text-gray-500 rounded-xl font-black uppercase tracking-widest text-xs cursor-not-allowed">Nenhuma versão disponível</button>
+                <div class="w-full py-3 bg-gray-200 text-gray-500 rounded-xl text-center text-xs font-black uppercase tracking-widest">
+                    Indisponível
+                </div>
+                <p class="text-xs text-gray-400 mt-2 text-center">Nenhuma versão publicada.</p>
                 {% endif %}
             </div>
         </div>
-        <!-- Changelog separado abaixo -->
-        {% if versao and versao.novidades %}
-        <div class="mt-6 p-4 bg-blue-50 border border-blue-100 rounded-xl">
-            <p class="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Novidades</p>
-            <p class="text-sm text-gray-700 whitespace-pre-line">{{ versao.novidades }}</p>
-        </div>
-        {% endif %}
+        {% endfor %}
     </div>
 
     <!-- Histórico de versões baixadas -->
@@ -87,10 +84,15 @@
 </div>
 
 <script>
-    document.getElementById('form-download-robo')?.addEventListener('submit', function(e) {
-        const btn = this.querySelector('button');
-        btn.disabled = true;
-        btn.innerHTML = '<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Processando...';
+    // Adiciona evento para mostrar loading nos botões de download
+    document.querySelectorAll('form[action*="baixar_robo_produto"]').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            const btn = this.querySelector('button');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Processando...';
+            }
+        });
     });
 </script>
 {% endblock %}
