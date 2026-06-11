@@ -230,6 +230,27 @@ class PremioSolicitacao(db.Model):
     admin = db.relationship('User', foreign_keys=[admin_id])
 
 # =============================================================================
+# PRODUTOS (ROBÔS) PARA DOWNLOAD MÚLTIPLO
+# =============================================================================
+
+class ProdutoRobo(db.Model):
+    """Tabela com os robôs disponíveis para download (comissionados)."""
+    __tablename__ = 'produto_robo'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    slug = db.Column(db.String(50), unique=True, nullable=False)      # robo_b3, robo_forex, robo_opcoes
+    nome = db.Column(db.String(100), nullable=False)                  # Robô B3, Robô Forex, etc.
+    descricao = db.Column(db.Text, nullable=True)
+    ordem = db.Column(db.Integer, default=0)                          # ordenação na tela
+    ativo = db.Column(db.Boolean, default=True)
+    
+    # Relacionamento com versões
+    versoes = db.relationship('VersaoRobo', backref='produto', lazy=True)
+    
+    def __repr__(self):
+        return f"<ProdutoRobo {self.slug}>"
+
+# =============================================================================
 # CONTROLE DE VERSÃO DO ROBÔ E LICENÇAS
 # =============================================================================
 
@@ -244,10 +265,13 @@ class VersaoRobo(db.Model):
     data_upload = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     publicada = db.Column(db.Boolean, default=False)
     extensao = db.Column(db.String(10), nullable=True)
-    public_id = db.Column(db.String(255), nullable=True)   # NOVO CAMPO: ID do arquivo no Cloudinary
+    public_id = db.Column(db.String(255), nullable=True)   # ID do arquivo no Cloudinary
+    
+    # NOVO: relacionamento com produto (robô)
+    produto_id = db.Column(db.Integer, db.ForeignKey('produto_robo.id'), nullable=False)
 
     def __repr__(self):
-        return f"<VersaoRobo {self.versao}>"
+        return f"<VersaoRobo {self.versao} (produto_id={self.produto_id})>"
 
 class DownloadControle(db.Model):
     __tablename__ = 'download_controle'
@@ -258,6 +282,9 @@ class DownloadControle(db.Model):
     versao_id = db.Column(db.Integer, db.ForeignKey('versao_robo.id', ondelete='RESTRICT'), nullable=False)
     data_download = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     
+    # NOVO: ciclo da licença em que o download foi feito (para controle de bloqueio)
+    ciclo_inicio = db.Column(db.Date, nullable=True)
+    
     versao = db.relationship('VersaoRobo', backref='downloads')
 
     __table_args__ = (
@@ -265,7 +292,7 @@ class DownloadControle(db.Model):
     )
 
     def __repr__(self):
-        return f"<DownloadControle user={self.user_id} versao={self.versao_id}>"
+        return f"<DownloadControle user={self.user_id} versao={self.versao_id} ciclo={self.ciclo_inicio}>"
 
 class LicencaCliente(db.Model):
     """Registra as licenças geradas (semanais ou vitalícias)."""
