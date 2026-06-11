@@ -8,7 +8,7 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash,
 from flask_login import current_user
 from werkzeug.security import generate_password_hash
 from sqlalchemy.orm import joinedload
-from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria, DocumentoTemplate, DocumentoCliente, ParcelaCompra, VersaoRobo, DownloadControle, LicencaCliente, PremioSolicitacao
+from app.models import User, Fatura, FaturaDiaria, AlocacaoCorretora, LogAuditoria, DocumentoTemplate, DocumentoCliente, ParcelaCompra, VersaoRobo, DownloadControle, LicencaCliente, PremioSolicitacao, ProdutoRobo
 from app import db, csrf, limiter
 from datetime import datetime, timedelta
 from app.utils.decorators import admin_required
@@ -846,69 +846,80 @@ def excluir_todos_pendentes():
 
 @admin_bp.route('/robo/upload', methods=['GET', 'POST'])
 @admin_required
-@limiter.limit("3 per minute", methods=["POST"])
 def upload_versao_robo():
     if request.method == 'POST':
         versao = request.form.get('versao')
         novidades = request.form.get('novidades')
         arquivo = request.files.get('arquivo')
-        
+        produto_id = request.form.get('produto_id')
+
         if not versao or not arquivo:
             flash("Versão e arquivo são obrigatórios.", "error")
             return redirect(url_for('admin.upload_versao_robo'))
-        
+
+        if not produto_id:
+            flash("Selecione o robô.", "error")
+            return redirect(url_for('admin.upload_versao_robo'))
+
         filename = arquivo.filename
         if '.' in filename:
             extensao = '.' + filename.rsplit('.', 1)[1].lower()
         else:
             extensao = ''
-        
+
         if extensao not in ['.exe', '.ex5', '.zip']:
             flash("Tipo de arquivo inválido. Apenas .exe, .ex5 ou .zip são permitidos.", "error")
             return redirect(url_for('admin.upload_versao_robo'))
-        
+
         try:
             upload_result = cloudinary.uploader.upload(arquivo, folder="dwcapital/robos", resource_type="raw")
             arquivo_url = upload_result.get('secure_url')
-            public_id = upload_result.get('public_id')          # ← NOVO
+            public_id = upload_result.get('public_id')
         except Exception as e:
             flash(f"Erro ao enviar arquivo: {str(e)}", "error")
             return redirect(url_for('admin.upload_versao_robo'))
-        
+
         nova_versao = VersaoRobo(
             versao=versao,
             arquivo_url=arquivo_url,
             novidades=novidades,
             publicada=False,
             extensao=extensao,
-            public_id=public_id                                 # ← NOVO
+            public_id=public_id,
+            produto_id=int(produto_id)      # ← NOVO
         )
         db.session.add(nova_versao)
         db.session.commit()
-        
-        registrar_log(f"Upload de nova versão do robô: {versao} (arquivo {filename})", "Robô")
+
+        registrar_log(f"Upload de nova versão do robô: {versao} (arquivo {filename}, produto_id={produto_id})", "Robô")
         flash(f"Versão {versao} enviada com sucesso! Agora publique-a para ficar disponível.", "success")
         return redirect(url_for('admin.upload_versao_robo'))
-    
-    versoes = VersaoRobo.query.order_by(VersaoRobo.data_upload.desc()).all()
-    return render_template('admin/upload_robo.html', versoes=versoes)
+
+    # GET – exibe formulário
+    produtos = ProdutoRobo.query.order_by(ProdutoRobo.ordem).all()
+    versoes = VersaoRobo.query.options(db.joinedload(VersaoRobo.produto)).order_by(VersaoRobo.data_upload.desc()).all()
+    return render_template('admin/upload_robo.html', versoes=versoes, produtos=produtos)
 
 @admin_bp.route('/robo/publicar/<int:id>', methods=['POST'])
 @admin_required
 def publicar_versao_robo(id):
     versao = VersaoRobo.query.get_or_404(id)
-    
-    VersaoRobo.query.update({'publicada': False})
-    db.session.commit()
-    
+
+    # Despublica todas as outras versões do MESMO produto
+    VersaoRobo.query.filter(
+        VersaoRobo.produto_id == versao.produto_id,
+        VersaoRobo.id != versao.id
+    ).update({'publicada': False})
+
     versao.publicada = True
     db.session.commit()
-    
-    removidos = DownloadControle.query.filter_by(versao_id=versao.id).delete()
+
+    # Remove registros de download da versão atual (opcional, mantém regra antiga)
+    DownloadControle.query.filter_by(versao_id=versao.id).delete()
     db.session.commit()
-    
-    registrar_log(f"Publicou a versão do robô: {versao.versao} (downloads anteriores removidos: {removidos})", "Robô")
-    flash(f"Versão {versao.versao} agora é a versão ativa para download. Todos os clientes poderão baixá-la novamente.", "success")
+
+    registrar_log(f"Publicou a versão {versao.versao} do robô {versao.produto.nome} (downloads anteriores removidos)", "Robô")
+    flash(f"Versão {versao.versao} do {versao.produto.nome} agora é a versão ativa para este robô.", "success")
     return redirect(url_for('admin.upload_versao_robo'))
 
 @admin_bp.route('/robo/editar/<int:id>', methods=['GET', 'POST'])

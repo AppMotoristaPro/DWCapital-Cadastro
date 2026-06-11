@@ -5,7 +5,7 @@
     <div class="flex justify-between items-end mb-8">
         <div>
             <h1 class="text-4xl font-black text-navy tracking-tight">Versões do Robô</h1>
-            <p class="text-gray-500 mt-2 font-medium">Faça upload de novas versões, gerencie changelog e publique a versão ativa.</p>
+            <p class="text-gray-500 mt-2 font-medium">Faça upload de novas versões, gerencie changelog e publique a versão ativa para cada robô.</p>
         </div>
         <div>
             <a href="{{ url_for('admin.download_rights') }}" class="px-6 py-3 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl text-xs font-black uppercase tracking-widest transition shadow-sm border border-purple-200">
@@ -25,10 +25,19 @@
         <h2 class="text-xl font-black text-navy mb-6">Enviar nova versão</h2>
         <form method="POST" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            
+
             <div class="mb-5">
                 <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Número da versão</label>
                 <input type="text" name="versao" placeholder="Ex: 2.1.0" required class="w-full px-5 py-3.5 bg-white border border-gray-200 rounded-xl outline-none font-bold text-navy focus:border-royal transition shadow-sm">
+            </div>
+
+            <div class="mb-5">
+                <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Robô</label>
+                <select name="produto_id" required class="w-full px-5 py-3.5 bg-white border border-gray-200 rounded-xl outline-none font-bold text-navy">
+                    {% for produto in produtos %}
+                    <option value="{{ produto.id }}">{{ produto.nome }}</option>
+                    {% endfor %}
+                </select>
             </div>
 
             <div class="mb-5">
@@ -49,8 +58,8 @@
     <!-- Lista de versões existentes -->
     <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden">
         <div class="px-8 py-6 border-b border-gray-100 bg-white/50">
-            <h2 class="text-xl font-black text-navy">Versões publicadas</h2>
-            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Apenas a versão ativa fica disponível para download pelos clientes.</p>
+            <h2 class="text-xl font-black text-navy">Versões enviadas</h2>
+            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Cada robô pode ter apenas uma versão ativa por vez.</p>
         </div>
 
         {% if versoes %}
@@ -58,7 +67,8 @@
             <table class="w-full text-left border-collapse">
                 <thead class="bg-gray-50/80 border-b border-gray-100 text-gray-400 text-[10px] font-black uppercase tracking-wider">
                     <tr>
-                        <th class="px-8 py-4">Versão</th>
+                        <th class="px-8 py-4">Robô</th>
+                        <th class="px-6 py-4">Versão</th>
                         <th class="px-6 py-4">Data upload</th>
                         <th class="px-6 py-4">Status</th>
                         <th class="px-6 py-4">Novidades</th>
@@ -68,8 +78,9 @@
                 <tbody class="divide-y divide-gray-50 bg-white">
                     {% for v in versoes %}
                     <tr class="hover:bg-gray-50/50 transition-colors">
-                        <td class="px-8 py-5 font-bold text-navy">{{ v.versao }}</td>
-                        <td class="px-6 py-5 text-[10px] font-bold text-gray-500">{{ (v.data_upload | to_tz_br).strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td class="px-8 py-5 font-bold text-navy">{{ v.produto.nome }}<\/td>
+                        <td class="px-6 py-5 font-bold text-navy">{{ v.versao }}<\/td>
+                        <td class="px-6 py-5 text-[10px] font-bold text-gray-500">{{ (v.data_upload | to_tz_br).strftime('%d/%m/%Y %H:%M') }}<\/td>
                         <td class="px-6 py-5">
                             {% if v.publicada %}
                                 <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-green-100 text-green-700 text-[9px] font-black uppercase rounded-lg shadow-sm">
@@ -78,20 +89,17 @@
                             {% else %}
                                 <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-100 text-gray-500 text-[9px] font-black uppercase rounded-lg shadow-sm">Inativa</span>
                             {% endif %}
-                        </td>
-                        <td class="px-6 py-5 text-xs text-gray-600 max-w-xs truncate">{{ v.novidades or '—' }}</td>
+                        <\/td>
+                        <td class="px-6 py-5 text-xs text-gray-600 max-w-xs truncate">{{ v.novidades or '—' }}<\/td>
                         <td class="px-8 py-5 text-right">
                             <div class="flex justify-end gap-2">
-                                <!-- Botão Editar (sempre visível) -->
                                 <a href="{{ url_for('admin.editar_versao_robo', id=v.id) }}" class="px-3 py-1.5 bg-blue-50 text-blue-600 text-[10px] font-black uppercase rounded-lg hover:bg-blue-100 transition border border-blue-200 shadow-sm">Editar</a>
                                 
                                 {% if not v.publicada %}
-                                    <!-- Botão Publicar (apenas para inativas) -->
-                                    <form method="POST" action="{{ url_for('admin.publicar_versao_robo', id=v.id) }}" class="inline" onsubmit="return confirm('Publicar a versão {{ v.versao }} como versão ativa? Todos os clientes passarão a ver essa versão para download.')">
+                                    <form method="POST" action="{{ url_for('admin.publicar_versao_robo', id=v.id) }}" class="inline" onsubmit="return confirm('Publicar a versão {{ v.versao }} como versão ativa para este robô?')">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <button type="submit" class="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-600 text-[10px] font-black uppercase rounded-lg transition border border-purple-200 shadow-sm">Publicar</button>
                                     </form>
-                                    <!-- Botão Excluir (apenas para inativas) -->
                                     <form method="POST" action="{{ url_for('admin.excluir_versao_robo', id=v.id) }}" class="inline" onsubmit="return confirm('Excluir permanentemente esta versão?')">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <button type="submit" class="px-3 py-1.5 bg-red-50 text-red-600 text-[10px] font-black uppercase rounded-lg hover:bg-red-100 transition border border-red-200 shadow-sm">Excluir</button>
@@ -100,17 +108,17 @@
                                     <span class="text-[10px] text-gray-400">Ativa</span>
                                 {% endif %}
                             </div>
-                        </td>
-                    </tr>
+                        <\/td>
+                    <\/tr>
                     {% endfor %}
                 </tbody>
-            </table>
-        </div>
+            <\/table>
+        <\/div>
         {% else %}
         <div class="p-12 text-center text-gray-400 font-medium">
             Nenhuma versão de robô enviada ainda. Use o formulário acima para começar.
-        </div>
+        <\/div>
         {% endif %}
-    </div>
-</div>
+    <\/div>
+<\/div>
 {% endblock %}
