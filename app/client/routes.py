@@ -21,8 +21,10 @@ logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
 
+
 @client_bp.before_request
 def check_paywall():
+    """Verifica pendências: documentos, parcelas (compra) e agora setup para comissionados novos."""
     if request.endpoint == 'client.buscar_dados_whatsapp':
         return
 
@@ -30,17 +32,26 @@ def check_paywall():
         return
     if getattr(current_user, 'precisa_trocar_senha', False):
         return
-        
+
+    # 1. Bloqueio por documentos pendentes
     pendentes = DocumentoCliente.query.filter(
         DocumentoCliente.user_id == current_user.id,
         DocumentoCliente.status.in_(['na_fila', 'pendente', 'processando'])
     ).first()
-
     if pendentes:
         if request.endpoint not in ['client.assinar_termo', 'client.api_status_assinatura', 'auth.logout']:
             return redirect(url_for('client.assinar_termo'))
-        return 
-            
+        return
+
+    # 2. Bloqueio por setup não pago (apenas para clientes comissionados novos)
+    if (current_user.modelo_negocio == 'comissao' and 
+        not current_user.setup_pago and
+        current_user.status_acesso == 'ativo'):
+        # Permite apenas rotas de setup e logout
+        if request.endpoint not in ['client.pagamento_setup', 'client.gerar_pix_setup', 'client.status_setup', 'auth.logout']:
+            return redirect(url_for('client.pagamento_setup'))
+
+    # 3. Bloqueio por parcelas de compra (modelo compra)
     if request.endpoint not in ['client.bloqueio_pagamento', 'client.gerar_pix_licenca', 'client.status_licenca_api', 'auth.logout']:
         if getattr(current_user, 'modelo_negocio', 'comissao') == 'compra':
             hoje = datetime.now(tz_br).date()
@@ -49,41 +60,84 @@ def check_paywall():
                 ParcelaCompra.status == 'pendente',
                 ParcelaCompra.data_vencimento <= hoje
             ).order_by(ParcelaCompra.ordem.asc()).first()
-            
             if parcela_pendente:
                 return redirect(url_for('client.bloqueio_pagamento'))
+
+
+# ==================== SETUP (taxa única) ====================
+
+@client_bp.route('/setup')
+@login_required
+def pagamento_setup():
+    """Página de pagamento da taxa única de setup."""
+    # Se já estiver pago, redireciona para dashboard
+    if current_user.setup_pago:
+        return redirect(url_for('client.dashboard'))
+    inter_sandbox = os.environ.get('INTER_SANDBOX', 'true').lower() in ('true', '1', 't')
+    return render_template('client/setup_pagamento.html', inter_sandbox=inter_sandbox)
+
+
+@client_bp.route('/setup/gerar_pix', methods=['POST'])
+@login_required
+def gerar_pix_setup():
+    """Gera PIX para o setup (R$ 399,90)."""
+    if current_user.setup_pago:
+        return jsonify({"success": False, "message": "Setup já foi pago."}), 400
+
+    try:
+        # Verifica se já existe um txid pendente (opcional: reutilizar)
+        # Vamos criar um novo sempre
+        dados_pix = PixService.criar_cobranca_imediata(
+            valor=399.90,
+            nome_devedor=current_user.nome,
+            cpf_devedor=current_user.cpf
+        )
+        # Armazena o txid e payload no próprio usuário (campos novos que adicionamos)
+        current_user.setup_txid = dados_pix["txid"]
+        current_user.setup_payload = dados_pix["pix_copia_e_cola"]
+        db.session.commit()
+        return jsonify({"success": True, "txid": dados_pix["txid"], "pix_copia_e_cola": dados_pix["pix_copia_e_cola"]})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@client_bp.route('/setup/status')
+@login_required
+def status_setup():
+    """Retorna se o setup já foi pago."""
+    return jsonify({"pago": current_user.setup_pago})
+
+
+# ==================== DEMais ROTAS (não alteradas) ====================
 
 @client_bp.route('/api/buscar_dados_whatsapp', methods=['POST'])
 def buscar_dados_whatsapp():
     data = request.get_json()
     cpf_puro = ''.join(filter(str.isdigit, data.get('cpf', '')))
-    
     user = User.query.filter_by(cpf=cpf_puro).first()
     if user:
         msg = f"Olá, me chamo {user.nome}. Preciso alterar minha senha, segue minhas informações:\nID: {user.id}\nCPF: {user.cpf}"
         link = f"https://wa.me/5511991167709?text={urllib.parse.quote(msg)}"
         return jsonify({"success": True, "link": link})
-        
     return jsonify({"success": False, "message": "O CPF informado não foi encontrado em nossa base de dados."})
+
 
 @client_bp.route('/bloqueio_pagamento')
 @login_required
 def bloqueio_pagamento():
     if getattr(current_user, 'modelo_negocio', 'comissao') != 'compra':
         return redirect(url_for('client.dashboard'))
-    
     hoje = datetime.now(tz_br).date()
     parcela_pendente = ParcelaCompra.query.filter(
         ParcelaCompra.user_id == current_user.id,
         ParcelaCompra.status == 'pendente',
         ParcelaCompra.data_vencimento <= hoje
     ).order_by(ParcelaCompra.ordem.asc()).first()
-    
     if not parcela_pendente:
         return redirect(url_for('client.dashboard'))
-        
     inter_sandbox = os.environ.get('INTER_SANDBOX', 'true').lower() in ('true', '1', 't')
     return render_template('client/bloqueio_pix.html', parcela=parcela_pendente, inter_sandbox=inter_sandbox)
+
 
 @client_bp.route('/faturas/gerar_pix/<int:fatura_id>', methods=['POST'])
 @login_required
@@ -91,11 +145,9 @@ def gerar_pix_fatura(fatura_id):
     fatura = Fatura.query.get_or_404(fatura_id)
     if fatura.user_id != current_user.id:
         return jsonify({"success": False, "message": "Acesso negado."}), 403
-
     tem_notas_pendentes = any(d.status == 'pendente' for d in fatura.dias)
     if tem_notas_pendentes:
         return jsonify({"success": False, "error": "NOTAS_PENDENTES", "message": "Você possui faturas de corretagem pendentes."}), 200
-
     try:
         dados_pix = PixService.criar_cobranca_imediata(fatura.repasse, current_user.nome, current_user.cpf)
         fatura.txid_pix = dados_pix["txid"]
@@ -105,13 +157,13 @@ def gerar_pix_fatura(fatura_id):
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
+
 @client_bp.route('/licencas/gerar_pix/<int:parcela_id>', methods=['POST'])
 @login_required
 def gerar_pix_licenca(parcela_id):
     parcela = ParcelaCompra.query.get_or_404(parcela_id)
     if parcela.user_id != current_user.id:
         return jsonify({"success": False, "message": "Acesso negado."}), 403
-
     try:
         dados_pix = PixService.criar_cobranca_imediata(parcela.valor, current_user.nome, current_user.cpf)
         parcela.txid_pix = dados_pix["txid"]
@@ -121,17 +173,20 @@ def gerar_pix_licenca(parcela_id):
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
+
 @client_bp.route('/api/status_fatura/<int:fatura_id>')
 @login_required
 def status_fatura_api(fatura_id):
     fatura = Fatura.query.get_or_404(fatura_id)
     return jsonify({"pago": fatura.status == 'pago'})
 
+
 @client_bp.route('/api/status_licenca/<int:parcela_id>')
 @login_required
 def status_licenca_api(parcela_id):
     parcela = ParcelaCompra.query.get_or_404(parcela_id)
     return jsonify({"pago": parcela.status == 'pago'})
+
 
 @client_bp.route('/dashboard')
 @login_required
@@ -142,36 +197,32 @@ def dashboard():
     dados = obter_dados_dashboard_cliente(current_user.id, request.args.get('dia'), request.args.get('semana_dia'), request.args.get('ano'))
     return render_template('client/index.html', user=current_user, **dados)
 
+
 @client_bp.route('/assinar')
 @login_required
 def assinar_termo():
     docs_na_fila = DocumentoCliente.query.filter_by(user_id=current_user.id, status='na_fila').all()
-    
     for doc in docs_na_fila:
         try:
             doc.status = 'processando'
             db.session.commit()
-            
             caminho_pdf = os.path.join(current_app.root_path, 'static', 'documentos', doc.template.arquivo_local)
             nome_doc = f"{doc.template.nome} - {current_user.nome}"
-            
             doc_id, link = enviar_documento_local_com_link(current_user.nome, current_user.email, caminho_pdf, nome_doc)
-            
             doc.autentique_document_id = doc_id
             doc.link_assinatura = link
             doc.status = 'pendente'
             db.session.commit()
         except Exception as e:
-            doc.status = 'na_fila' 
+            doc.status = 'na_fila'
             db.session.commit()
             print(f"Erro ao disparar Just-in-Time: {e}")
-
     pendentes = DocumentoCliente.query.filter(
-        DocumentoCliente.user_id == current_user.id, 
+        DocumentoCliente.user_id == current_user.id,
         DocumentoCliente.status.in_(['pendente', 'processando'])
     ).options(joinedload(DocumentoCliente.template)).all()
-    
     return render_template('client/assinar_termo.html', documentos=pendentes)
+
 
 @client_bp.route('/api/status_assinatura')
 @login_required
@@ -184,10 +235,12 @@ def api_status_assinatura():
             all_signed = False
     return jsonify({"assinado": all_signed})
 
+
 @client_bp.route('/dados_pessoais')
 @login_required
 def dados_pessoais():
     return render_template('client/dados_pessoais.html', user=current_user)
+
 
 @client_bp.route('/faturas', methods=['GET', 'POST'])
 @login_required
@@ -195,14 +248,12 @@ def dados_pessoais():
 def faturas():
     auto_gerar_ciclo(current_user)
     faturas_carregadas = Fatura.query.options(joinedload(Fatura.dias)).filter_by(user_id=current_user.id).order_by(Fatura.data_inicio.desc()).all()
-
     for fatura in faturas_carregadas:
         if current_user.modelo_negocio == 'compra':
             subtotal = sum(dia.liquido for dia in fatura.dias if dia.status == 'relatorio_enviado')
         else:
             subtotal = sum(dia.repasse for dia in fatura.dias if dia.status == 'relatorio_enviado')
         fatura.subtotal_exibicao = subtotal
-
     if request.method == 'GET':
         from app.services.fatura_service import garantir_dias_faltantes_para_fatura
         houve_alteracao_global = False
@@ -214,7 +265,6 @@ def faturas():
                 db.session.commit()
             except IntegrityError:
                 db.session.rollback()
-
     if request.method == 'POST':
         from app.services.nota_service import processar_upload_nota
         resultado = processar_upload_nota(
@@ -224,9 +274,9 @@ def faturas():
             senha_manual=request.form.get('senha_manual')
         )
         return jsonify(resultado)
-
     inter_sandbox = os.environ.get('INTER_SANDBOX', 'true').lower() in ('true', '1', 't')
     return render_template('client/faturas.html', faturas=faturas_carregadas, inter_sandbox=inter_sandbox)
+
 
 @client_bp.route('/faturas/comprovante/<int:fatura_id>', methods=['POST'])
 @login_required
@@ -246,6 +296,7 @@ def enviar_comprovante(fatura_id):
             flash(f"Erro ao enviar para nuvem: {str(e)}", "danger")
     return redirect(url_for('client.faturas'))
 
+
 @client_bp.route('/faturas/remover/<int:dia_id>', methods=['POST'])
 @login_required
 def remover_fatura(dia_id):
@@ -258,11 +309,13 @@ def remover_fatura(dia_id):
     atualizar_totais_semana(dia.fatura_semanal)
     return redirect(url_for('client.faturas'))
 
+
 @client_bp.route('/documentos')
 @login_required
 def documentos():
     meus_docs = DocumentoCliente.query.filter_by(user_id=current_user.id, status='assinado').options(joinedload(DocumentoCliente.template)).order_by(DocumentoCliente.data_envio.desc()).all()
     return render_template('client/documentos.html', documentos=meus_docs)
+
 
 @client_bp.route('/documentos/visualizar/<int:doc_id>')
 @login_required
@@ -270,20 +323,18 @@ def visualizar_documento(doc_id):
     doc = DocumentoCliente.query.get_or_404(doc_id)
     if doc.user_id != current_user.id:
         abort(403)
-
     if doc.status != 'assinado':
         flash('Este documento ainda não foi assinado.', 'warning')
         return redirect(url_for('client.documentos'))
-
     if doc.autentique_document_id:
         url = obter_url_visualizacao_autentique(doc.autentique_document_id)
         if doc.link_assinatura != url:
             doc.link_assinatura = url
             db.session.commit()
         return redirect(url)
-
     flash('Não foi possível localizar o documento. Entre em contato com o suporte.', 'error')
     return redirect(url_for('client.documentos'))
+
 
 @client_bp.route('/api/status_documento/<int:doc_id>')
 @login_required
@@ -293,18 +344,14 @@ def api_status_documento(doc_id):
         return jsonify({"assinado": False}), 403
     return jsonify({"assinado": assinado})
 
-# ==================== ROTA DE EXPLICAÇÃO DO DASHBOARD ====================
 
 @client_bp.route('/api/explicacao_dashboard', methods=['GET'])
 @login_required
 def api_explicacao_dashboard():
-    """Retorna os dados diários (bruto, custos, líquido, IRRF) para explicar os resultados."""
     filtro_dia = request.args.get('dia')
     filtro_semana_dia = request.args.get('semana_dia')
     filtro_ano = request.args.get('ano')
-    
     faturas_base = Fatura.query.filter_by(user_id=current_user.id).options(joinedload(Fatura.dias))
-    
     if filtro_dia:
         dt_dia = datetime.strptime(filtro_dia, '%Y-%m-%d').date()
         faturas = faturas_base.filter(Fatura.data_inicio <= dt_dia, Fatura.data_fim >= dt_dia).all()
@@ -323,7 +370,6 @@ def api_explicacao_dashboard():
         faturas = faturas_base.filter(Fatura.data_inicio >= dt_inicio_ano, Fatura.data_inicio <= dt_fim_ano).all()
         periodo = f"Ano {ano}"
     else:
-        # CORREÇÃO: comportamento igual ao dashboard – pegar apenas a última fatura (última semana)
         ultima_fatura = faturas_base.order_by(Fatura.data_inicio.desc()).first()
         if ultima_fatura:
             faturas = [ultima_fatura]
@@ -331,18 +377,14 @@ def api_explicacao_dashboard():
         else:
             faturas = []
             periodo = "Nenhuma fatura encontrada"
-    
     dias = []
     totais = {'bruto': 0.0, 'liquido': 0.0, 'repasse': 0.0}
     is_comissao = (current_user.modelo_negocio != 'compra' and not current_user.is_isento)
-    
     for fatura in faturas:
         for dia in fatura.dias:
             if dia.status != 'relatorio_enviado':
                 continue
-            # Cálculo dos custos (taxas B3 + IRRF1)
             custos = (dia.taxas_b3 or 0.0) + (dia.irrf_1 or 0.0)
-            # CORREÇÃO: Performance Bruta usa liquido_pregao (igual ao card)
             liquido_pregao = dia.liquido_pregao or 0.0
             if liquido_pregao > 0:
                 irrf_19 = liquido_pregao * 0.19
@@ -353,11 +395,10 @@ def api_explicacao_dashboard():
                 repasse = (dia.repasse or 0.0)
             else:
                 repasse = 0.0
-            
             dias.append({
                 'data': dia.data_pregao.isoformat(),
                 'data_formatada': dia.data_pregao.strftime('%d/%m/%Y'),
-                'bruto': liquido_pregao,  # Agora é o mesmo que o card (líquido do pregão)
+                'bruto': liquido_pregao,
                 'custos_b3_irrf1': custos,
                 'liquido_pregao': liquido_pregao,
                 'irrf_19': irrf_19,
@@ -368,7 +409,6 @@ def api_explicacao_dashboard():
             totais['bruto'] += liquido_pregao
             totais['liquido'] += liquido_real
             totais['repasse'] += repasse
-    
     return jsonify({
         'periodo': periodo,
         'dias': dias,
@@ -377,12 +417,12 @@ def api_explicacao_dashboard():
         'modelo_negocio': current_user.modelo_negocio
     })
 
+
 @client_bp.route('/ajuda')
 @login_required
 def ajuda():
     msg_suporte = f"Olá, me chamo {current_user.nome}. Preciso de ajuda, segue minhas informações:\nID: {current_user.id}\nCPF: {current_user.cpf}"
     msg_suporte_encoded = urllib.parse.quote(msg_suporte)
-    
-    return render_template('client/ajuda.html', 
+    return render_template('client/ajuda.html',
                            link_suporte=f"https://wa.me/5511991167709?text={msg_suporte_encoded}",
                            link_comercial=f"https://wa.me/5511920504850?text={msg_suporte_encoded}")

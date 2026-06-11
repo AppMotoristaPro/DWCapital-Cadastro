@@ -36,6 +36,13 @@ class User(db.Model, UserMixin):
     # NOVO CAMPO: bloqueio de download e geração de novas licenças (admin)
     robot_acesso_bloqueado = db.Column(db.Boolean, default=False)
     
+    # NOVO CAMPO: indica se o cliente comissionado pagou a taxa única de setup (R$ 399,90)
+    setup_pago = db.Column(db.Boolean, default=False)
+    
+    # Campos para controle do PIX do setup
+    setup_txid = db.Column(db.String(100), nullable=True)
+    setup_payload = db.Column(db.Text, nullable=True)
+    
     perfil_risco = db.Column(db.String(20))
     data_cadastro = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     matricula = db.Column(db.String(20), unique=True, nullable=True)

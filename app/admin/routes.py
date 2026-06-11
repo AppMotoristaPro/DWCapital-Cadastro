@@ -239,6 +239,9 @@ def editar_cliente(id):
         
         cliente.licenca_bloqueada = True if request.form.get('licenca_bloqueada') else False
         
+        # NOVO: Setup pago (taxa única de R$ 399,90)
+        cliente.setup_pago = True if request.form.get('setup_pago') else False
+        
         novo_modelo = request.form.get('modelo_negocio', 'comissao')
         
         if novo_modelo == 'compra' and not cliente.parcelas_licenca:
@@ -288,7 +291,7 @@ def editar_cliente(id):
                     registrar_log(f"Alterou modelo para comissão e cancelou licença vitalícia de {cliente.nome}.", "Clientes")
         
         status_isento = "Sim" if cliente.is_isento else "Não"
-        registrar_log(f"Editou o cadastro (Isento: {status_isento}, Modelo: {novo_modelo.upper()}) e alocações do cliente {cliente.nome} (Novo Capital: R$ {capital_soma:,.2f}).", "Clientes")
+        registrar_log(f"Editou o cadastro (Isento: {status_isento}, Modelo: {novo_modelo.upper()}, Setup pago: {cliente.setup_pago}) e alocações do cliente {cliente.nome} (Novo Capital: R$ {capital_soma:,.2f}).", "Clientes")
         
         db.session.commit()
         flash('Dados e alocações atualizados com sucesso!', 'success')

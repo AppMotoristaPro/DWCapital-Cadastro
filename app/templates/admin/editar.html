@@ -76,6 +76,17 @@
                     <div class="w-14 h-7 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-red-600 shadow-inner"></div>
                 </label>
             </div>
+            <!-- NOVO BLOCO: Setup pago (taxa única) -->
+            <div class="mt-6 p-6 bg-green-50/50 border border-green-100 rounded-2xl flex items-center justify-between shadow-sm">
+                <div>
+                    <p class="text-sm font-black text-green-800 uppercase tracking-widest">Setup pago (R$ 399,90)</p>
+                    <p class="text-[11px] text-green-700 font-bold mt-1.5 leading-tight">Marque quando o cliente pagar a taxa única de ativação.</p>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer ml-4 shrink-0">
+                    <input type="checkbox" name="setup_pago" value="1" class="sr-only peer" {% if cliente.setup_pago %}checked{% endif %}>
+                    <div class="w-14 h-7 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-green-600 shadow-inner"></div>
+                </label>
+            </div>
         </div>
 
         <div class="space-y-5 pt-4">
