@@ -11,14 +11,15 @@ from app.models import User
 from app.services.robo_service import (
     versao_atual, liberado_para_download, registrar_download, historico_downloads_cliente,
     obter_produtos_ativos, liberado_para_download_produto, registrar_download_produto,
-    obter_produto_baixado_no_ciclo   # NOVA IMPORTAÇÃO
+    obter_produto_baixado_no_ciclo_atual   # NOVA FUNÇÃO
 )
 from app.services.licenca_service import (
     gerar_licenca_comissao,
     obter_licenca_ativa,
     salvar_conta_mt5_e_gerar_vitalicia_se_necessario,
     is_modo_teste,
-    is_licenca_bloqueada
+    is_licenca_bloqueada,
+    calcular_ciclo_por_data
 )
 
 logger = logging.getLogger(__name__)
@@ -31,17 +32,17 @@ licenca_bp = Blueprint('licenca', __name__, url_prefix='/licenca')
 def robo_download():
     """Página principal de download – exibe os 3 robôs disponíveis."""
     produtos = obter_produtos_ativos()
-    licenca = obter_licenca_ativa(current_user)
-    ciclo_inicio = licenca.ciclo_inicio if licenca else None
+    # Obtém ciclo atual (sem depender de licença)
+    ciclo_inicio, _ = calcular_ciclo_por_data()
 
     for p in produtos:
-        if licenca and p['disponivel']:
+        if p['disponivel']:
             liberado, msg, _ = liberado_para_download_produto(current_user, p['produto'].id, ciclo_inicio)
             p['liberado'] = liberado
             p['mensagem'] = msg
         else:
             p['liberado'] = False
-            p['mensagem'] = "Sem licença ativa" if not licenca else "Robô sem versão publicada"
+            p['mensagem'] = "Robô sem versão publicada"
 
     historico = historico_downloads_cliente(current_user)
 
@@ -56,12 +57,11 @@ def robo_download():
 @login_required
 @limiter.limit("3 per minute")
 def baixar_robo_produto(produto_id):
-    """Baixa um robô específico, obedecendo as regras de licença e ciclo."""
-    licenca = obter_licenca_ativa(current_user)
-    if not licenca:
-        return jsonify({"error": "Sem licença ativa"}), 403
+    """Baixa um robô específico – NÃO exige licença ativa."""
+    # Obtém ciclo atual
+    ciclo_inicio, _ = calcular_ciclo_por_data()
 
-    liberado, msg, versao = liberado_para_download_produto(current_user, produto_id, licenca.ciclo_inicio)
+    liberado, msg, versao = liberado_para_download_produto(current_user, produto_id, ciclo_inicio)
     if not liberado:
         return jsonify({"error": msg}), 403
 
@@ -72,10 +72,11 @@ def baixar_robo_produto(produto_id):
         logger.error(f"Erro ao baixar arquivo do Cloudinary: {e}")
         return jsonify({"error": "Falha ao obter o arquivo do robô"}), 500
 
-    registrar_download_produto(current_user, versao, licenca.ciclo_inicio)
+    # Registra o download (mesmo sem licença ativa)
+    registrar_download_produto(current_user, versao, ciclo_inicio)
 
-    extensao = versao.extensao if versao.extensao else '.exe'
-    nome_arquivo = f"dwcapital_v{versao.versao}{versao.extensao}"
+    # Define o nome do arquivo: dwcapital_{versão}{extensão}
+    nome_arquivo = f"dwcapital_{versao.versao}{versao.extensao or '.exe'}"
     return send_file(
         io.BytesIO(response.content),
         as_attachment=True,
@@ -84,7 +85,7 @@ def baixar_robo_produto(produto_id):
     )
 
 
-# ========== ROTA DE GERAÇÃO DE LICENÇA (ATUALIZADA) ==========
+# ========== ROTA DE GERAÇÃO DE LICENÇA ==========
 
 @licenca_bp.route('/gerar', methods=['POST'])
 @login_required
@@ -113,8 +114,8 @@ def licenca_gerar():
             "message": "Você precisa cadastrar sua conta MT5 antes de gerar a licença."
         }), 200
 
-    # NOVO: Verificar se o cliente já baixou algum robô neste ciclo
-    produto_id = obter_produto_baixado_no_ciclo(current_user)
+    # Verifica qual robô foi baixado no ciclo atual
+    produto_id = obter_produto_baixado_no_ciclo_atual(current_user)
     if not produto_id:
         return jsonify({
             "success": False,
@@ -122,7 +123,7 @@ def licenca_gerar():
             "message": "Você precisa baixar um robô antes de gerar a licença. Escolha um robô na página de download."
         }), 400
 
-    # Gera a licença para o produto que foi baixado
+    # Gera a licença para o produto específico
     chave, msg, licenca_obj, ja_existente = gerar_licenca_comissao(
         current_user, 
         current_user.conta_mt5, 
@@ -144,7 +145,7 @@ def licenca_gerar():
     })
 
 
-# ========== ROTAS ANTIGAS (compatibilidade, podem ser removidas depois) ==========
+# ========== ROTAS ANTIGAS (compatibilidade) ==========
 
 @licenca_bp.route('/robo/download', methods=['POST'])
 @login_required

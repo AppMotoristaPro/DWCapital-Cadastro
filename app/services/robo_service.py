@@ -7,7 +7,7 @@ from datetime import datetime
 import pytz
 from app import db
 from app.models import VersaoRobo, DownloadControle, ProdutoRobo
-from app.services.licenca_service import obter_licenca_ativa
+from app.services.licenca_service import obter_licenca_ativa, calcular_ciclo_por_data
 
 tz_br = pytz.timezone('America/Sao_Paulo')
 
@@ -95,7 +95,7 @@ def ultimo_download_por_produto(user, produto_id):
 
 def cliente_baixou_algum_produto_no_ciclo(user, ciclo_inicio):
     """
-    Retorna o produto_id do primeiro download feito no ciclo da licença (ou None).
+    Retorna o produto_id do primeiro download feito no ciclo (ou None).
     """
     download = DownloadControle.query.join(VersaoRobo).filter(
         DownloadControle.user_id == user.id,
@@ -106,27 +106,27 @@ def cliente_baixou_algum_produto_no_ciclo(user, ciclo_inicio):
     return None
 
 
-def liberado_para_download_produto(user, produto_id, licenca_ciclo_inicio):
+def liberado_para_download_produto(user, produto_id, ciclo_inicio=None):
     """
-    Verifica se o cliente pode baixar um determinado produto no ciclo atual.
+    Verifica se o cliente pode baixar um determinado produto.
+    AGORA NÃO EXIGE LICENÇA ATIVA.
     Retorna (bool, mensagem, versao_obj)
     """
     # Bloqueio administrativo geral
     if getattr(user, 'robot_acesso_bloqueado', False):
         return False, "Acesso ao robô bloqueado pelo administrador.", None
 
-    # Licença ativa?
-    licenca = obter_licenca_ativa(user)
-    if not licenca:
-        return False, "Você não possui licença ativa. Gere uma licença em Extrato de Faturamento.", None
-
     # Versão publicada do produto?
     versao = VersaoRobo.query.filter_by(produto_id=produto_id, publicada=True).first()
     if not versao:
         return False, "Robô indisponível no momento.", None
 
-    # Já baixou algum produto neste ciclo?
-    produto_baixado = cliente_baixou_algum_produto_no_ciclo(user, licenca.ciclo_inicio)
+    # Se ciclo_inicio não foi fornecido, calcula com base na data atual
+    if ciclo_inicio is None:
+        ciclo_inicio, _ = calcular_ciclo_por_data()
+
+    # Verifica se já baixou algum produto neste ciclo
+    produto_baixado = cliente_baixou_algum_produto_no_ciclo(user, ciclo_inicio)
 
     if produto_baixado is None:
         # Nenhum download neste ciclo → liberado
@@ -140,13 +140,13 @@ def liberado_para_download_produto(user, produto_id, licenca_ciclo_inicio):
             else:
                 return False, "Você já baixou este robô e ele não foi atualizado.", None
         else:
-            # Baixou outro produto → bloqueado até próximo ciclo ou atualização
+            # Baixou outro produto → bloqueado até próximo ciclo
             return False, f"Você já baixou outro robô neste ciclo. Aguarde a próxima semana ou atualização.", None
 
 
 def registrar_download_produto(user, versao_obj, ciclo_inicio):
     """
-    Registra o download de uma versão de um produto, vinculando ao ciclo da licença.
+    Registra o download de uma versão de um produto, vinculando ao ciclo.
     """
     novo = DownloadControle(
         user_id=user.id,
@@ -158,23 +158,19 @@ def registrar_download_produto(user, versao_obj, ciclo_inicio):
     db.session.commit()
 
 
-# ========== FUNÇÃO PARA A ETAPA 3 (OBTER PRODUTO BAIXADO NO CICLO) ==========
+# ========== FUNÇÃO PARA OBTER PRODUTO BAIXADO NO CICLO ATUAL (independente de licença) ==========
 
-def obter_produto_baixado_no_ciclo(user):
+def obter_produto_baixado_no_ciclo_atual(user):
     """
-    Retorna o ID do produto (robô) que o cliente baixou no ciclo da licença atual.
+    Retorna o ID do produto (robô) que o cliente baixou no ciclo atual.
     Utilizado para forçar a geração de licença apenas para o robô já baixado.
-    Se não houver licença ativa ou nenhum download no ciclo, retorna None.
+    Se nenhum download no ciclo atual, retorna None.
     """
-    licenca = obter_licenca_ativa(user)
-    if not licenca:
-        return None
-
+    ciclo_inicio, _ = calcular_ciclo_por_data()
     download = DownloadControle.query.join(VersaoRobo).filter(
         DownloadControle.user_id == user.id,
-        DownloadControle.ciclo_inicio == licenca.ciclo_inicio
+        DownloadControle.ciclo_inicio == ciclo_inicio
     ).first()
-
     if download:
         return download.versao.produto_id
     return None
