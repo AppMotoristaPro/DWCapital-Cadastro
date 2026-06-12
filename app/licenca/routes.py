@@ -57,32 +57,28 @@ def robo_download():
 @limiter.limit("3 per minute")
 def baixar_robo_produto(produto_id):
     """Baixa um robô específico – NÃO exige licença ativa."""
+    print(f"[DOWNLOAD] Requisição recebida: user={current_user.id}, produto={produto_id}")
     try:
-        # Log 1: início da requisição
-        logger.info(f"[DOWNLOAD] Iniciando download para user={current_user.id}, produto={produto_id}")
-
         ciclo_inicio, _ = calcular_ciclo_por_data()
-        logger.info(f"[DOWNLOAD] Ciclo calculado: inicio={ciclo_inicio}")
+        print(f"[DOWNLOAD] Ciclo calculado: inicio={ciclo_inicio}")
 
         liberado, msg, versao = liberado_para_download_produto(current_user, produto_id, ciclo_inicio)
-        logger.info(f"[DOWNLOAD] liberado_para_download_produto retornou: liberado={liberado}, msg='{msg}', versao={versao.id if versao else None}")
+        print(f"[DOWNLOAD] liberado_para_download_produto retornou: liberado={liberado}, msg='{msg}', versao={versao.id if versao else None}")
 
         if not liberado:
-            logger.warning(f"[DOWNLOAD] Bloqueado: {msg}")
+            print(f"[DOWNLOAD] Bloqueado: {msg}")
             return jsonify({"error": msg}), 403
 
-        # Baixar arquivo do Cloudinary
-        logger.info(f"[DOWNLOAD] Baixando arquivo do Cloudinary: {versao.arquivo_url}")
+        print(f"[DOWNLOAD] Baixando arquivo do Cloudinary: {versao.arquivo_url}")
         response = requests.get(versao.arquivo_url, stream=True, timeout=30)
         response.raise_for_status()
-        logger.info(f"[DOWNLOAD] Arquivo baixado com sucesso, tamanho: {len(response.content)} bytes")
+        print(f"[DOWNLOAD] Arquivo baixado, tamanho: {len(response.content)} bytes")
 
-        # Registrar download
         registrar_download_produto(current_user, versao, ciclo_inicio)
-        logger.info(f"[DOWNLOAD] Download registrado com sucesso")
+        print(f"[DOWNLOAD] Download registrado")
 
         nome_arquivo = f"dwcapital_{versao.versao}{versao.extensao or '.exe'}"
-        logger.info(f"[DOWNLOAD] Enviando arquivo ao cliente: {nome_arquivo}")
+        print(f"[DOWNLOAD] Enviando arquivo: {nome_arquivo}")
 
         return send_file(
             io.BytesIO(response.content),
@@ -91,8 +87,11 @@ def baixar_robo_produto(produto_id):
             mimetype='application/octet-stream'
         )
     except Exception as e:
-        logger.exception(f"[DOWNLOAD] Erro inesperado: {str(e)}")
+        print(f"[DOWNLOAD] ERRO: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": f"Erro interno: {str(e)}"}), 500
+
 
 @licenca_bp.route('/gerar', methods=['POST'])
 @login_required
@@ -151,7 +150,6 @@ def licenca_gerar():
 
 
 # ========== ROTAS ANTIGAS ==========
-
 @licenca_bp.route('/robo/download', methods=['POST'])
 @login_required
 @limiter.limit("3 per minute")
@@ -161,7 +159,6 @@ def baixar_robo_antigo():
     if primeiro_produto:
         return baixar_robo_produto(primeiro_produto.id)
     return jsonify({"error": "Nenhum robô disponível"}), 404
-
 
 @licenca_bp.route('/status', methods=['GET'])
 @login_required
@@ -177,17 +174,12 @@ def licenca_status():
             "status": licenca.status
         })
     else:
-        return jsonify({
-            "success": True,
-            "tem_licenca": False
-        })
-
+        return jsonify({"success": True, "tem_licenca": False})
 
 @licenca_bp.route('/visualizar', methods=['POST'])
 @login_required
 def licenca_visualizar():
     return licenca_gerar()
-
 
 @licenca_bp.route('/api/salvar_conta_mt5', methods=['POST'])
 @login_required
@@ -197,12 +189,9 @@ def api_salvar_conta_mt5():
     nova_conta = data.get('conta_mt5', '').strip()
     if not nova_conta:
         return jsonify({"success": False, "message": "Número da conta MT5 é obrigatório."}), 400
-
     if not nova_conta.isdigit():
         return jsonify({"success": False, "message": "A conta MT5 deve conter apenas números."}), 400
-
     gerou, chave, msg = salvar_conta_mt5_e_gerar_vitalicia_se_necessario(current_user, nova_conta)
-
     return jsonify({
         "success": True,
         "conta_salva": nova_conta,

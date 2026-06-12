@@ -46,6 +46,7 @@
             </div>
         </div>
 
+        <!-- Modal para cada robô -->
         <div id="modal-{{ item.produto.id }}" class="hidden fixed inset-0 z-[1000] flex items-center justify-center bg-navy/80 backdrop-blur-sm p-4">
             <div class="bg-white/95 backdrop-blur-xl border border-white/60 w-full max-w-2xl rounded-2xl shadow-2xl relative max-h-[85vh] overflow-y-auto">
                 <button onclick="fecharModal({{ item.produto.id }})" class="absolute top-3 right-3 w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center text-gray-700 font-bold text-lg transition shadow-md">✕</button>
@@ -53,9 +54,9 @@
                     <h3 class="text-2xl font-black text-navy mb-2">{{ item.produto.nome }}</h3>
                     <p class="text-xs text-gray-500 mb-4">Versão: {{ item.versao.versao if item.versao else 'Indisponível' }}</p>
 
+                    <!-- Changelog -->
                     <div class="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-6">
                         <p class="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Novidades desta versão</p>
-                        <!-- ⬇️ AQUI FOI ADICIONADA A CLASSE "changelog-content" ⬇️ -->
                         <div class="changelog-content text-sm text-gray-700">
                             {% if item.versao and item.versao.novidades %}
                                 {{ item.versao.novidades|safe }}
@@ -65,6 +66,7 @@
                         </div>
                     </div>
 
+                    <!-- Botão de download -->
                     {% if item.disponivel and item.liberado %}
                     <form method="POST" action="{{ url_for('licenca.baixar_robo_produto', produto_id=item.produto.id) }}" class="download-form-modal" data-produto-id="{{ item.produto.id }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -83,6 +85,7 @@
         {% endfor %}
     </div>
 
+    <!-- Histórico de versões baixadas -->
     <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden">
         <div class="px-8 py-6 border-b border-gray-100 bg-white/50">
             <h2 class="text-xl font-black text-navy">Histórico de downloads</h2>
@@ -117,78 +120,17 @@
 
 <style>
     /* Estilos aplicados somente ao conteúdo do changelog */
-    .changelog-content {
-        font-family: 'Inter', sans-serif;
-        line-height: 1.6;
-        color: #1e293b;
-    }
-    .changelog-content h1 {
-        font-size: 1.8rem;
-        font-weight: 700;
-        margin: 1rem 0 0.5rem;
-        color: #0f172a;
-        border-bottom: 1px solid #e2e8f0;
-        padding-bottom: 0.3rem;
-    }
-    .changelog-content h2 {
-        font-size: 1.5rem;
-        font-weight: 700;
-        margin: 1rem 0 0.5rem;
-        color: #1e293b;
-    }
-    .changelog-content h3 {
-        font-size: 1.25rem;
-        font-weight: 600;
-        margin: 0.75rem 0 0.5rem;
-        color: #334155;
-    }
-    .changelog-content p {
-        margin-bottom: 0.75rem;
-    }
-    .changelog-content ul, .changelog-content ol {
-        margin-left: 1.5rem;
-        margin-bottom: 0.75rem;
-    }
-    .changelog-content li {
-        margin-bottom: 0.25rem;
-    }
-    .changelog-content a {
-        color: #4169E1;
-        text-decoration: underline;
-    }
-    .changelog-content table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-bottom: 1rem;
-        background-color: #fff;
-    }
-    .changelog-content th, .changelog-content td {
-        border: 1px solid #cbd5e1;
-        padding: 8px;
-        text-align: left;
-        vertical-align: top;
-    }
-    .changelog-content th {
-        background-color: #f1f5f9;
-        font-weight: 700;
-    }
-    .changelog-content code, .changelog-content pre {
-        background-color: #f1f5f9;
-        padding: 0.2rem 0.4rem;
-        border-radius: 0.25rem;
-        font-family: monospace;
-    }
-    .changelog-content pre {
-        padding: 0.75rem;
-        overflow-x: auto;
-    }
-    .changelog-content blockquote {
-        border-left: 4px solid #4169E1;
-        margin: 0.75rem 0;
-        padding-left: 1rem;
-        color: #475569;
-        font-style: italic;
-    }
+    .changelog-content { font-family: 'Inter', sans-serif; line-height: 1.6; color: #1e293b; }
+    .changelog-content h1 { font-size: 1.8rem; font-weight: 700; margin: 1rem 0 0.5rem; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.3rem; }
+    .changelog-content h2 { font-size: 1.5rem; font-weight: 700; margin: 1rem 0 0.5rem; color: #1e293b; }
+    .changelog-content h3 { font-size: 1.25rem; font-weight: 600; margin: 0.75rem 0 0.5rem; color: #334155; }
+    .changelog-content p { margin-bottom: 0.75rem; }
+    .changelog-content ul, .changelog-content ol { margin-left: 1.5rem; margin-bottom: 0.75rem; }
+    .changelog-content li { margin-bottom: 0.25rem; }
+    .changelog-content a { color: #4169E1; text-decoration: underline; }
+    .changelog-content table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; background-color: #fff; }
+    .changelog-content th, .changelog-content td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; vertical-align: top; }
+    .changelog-content th { background-color: #f1f5f9; font-weight: 700; }
 </style>
 
 <script>
@@ -205,11 +147,13 @@
             event.target.classList.add('hidden');
         }
     };
+
     document.querySelectorAll('.download-form-modal').forEach(form => {
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
             const btn = this.querySelector('button');
             const originalText = btn.innerHTML;
+            const produtoId = this.getAttribute('data-produto-id');
             btn.disabled = true;
             btn.innerHTML = '<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Processando...';
             const formData = new FormData(this);
@@ -220,20 +164,37 @@
                     body: formData,
                     credentials: 'same-origin'
                 });
-                if (!response.ok) throw new Error('Erro no download');
+                if (!response.ok) {
+                    let errorMsg = `Erro ${response.status}`;
+                    try {
+                        const errorData = await response.json();
+                        if (errorData.error) errorMsg = errorData.error;
+                    } catch (e) {}
+                    alert(`Download falhou: ${errorMsg}`);
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                    return;
+                }
                 const blob = await response.blob();
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `dwcapital_v${versao}.exe`;
+                // Obtém o nome do arquivo do header Content-Disposition
+                const contentDisposition = response.headers.get('Content-Disposition');
+                let filename = `dwcapital_robo_${produtoId}.exe`;
+                if (contentDisposition && contentDisposition.includes('filename=')) {
+                    const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                    if (match && match[1]) filename = match[1].replace(/['"]/g, '');
+                }
+                a.download = filename;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
                 window.URL.revokeObjectURL(url);
-                const produtoId = this.getAttribute('data-produto-id');
                 fecharModal(produtoId);
                 setTimeout(() => location.reload(), 1500);
             } catch (error) {
+                console.error('Erro no download:', error);
                 alert('Falha ao iniciar o download. Tente novamente.');
                 btn.disabled = false;
                 btn.innerHTML = originalText;
