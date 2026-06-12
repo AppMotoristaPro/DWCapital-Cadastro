@@ -47,7 +47,7 @@
         </div>
 
         <!-- Modal para cada robô -->
-        <div id="modal-{{ item.produto.id }}" class="hidden fixed inset-0 z-[1000] flex items-center justify-center bg-navy/80 backdrop-blur-sm p-4">
+        <div id="modal-{{ item.produto.id }}" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-navy/80 backdrop-blur-sm p-4">
             <div class="bg-white/95 backdrop-blur-xl border border-white/60 w-full max-w-2xl rounded-2xl shadow-2xl relative max-h-[85vh] overflow-y-auto">
                 <button onclick="fecharModal({{ item.produto.id }})" class="absolute top-3 right-3 w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center text-gray-700 font-bold text-lg transition shadow-md">✕</button>
                 <div class="p-6">
@@ -103,8 +103,8 @@
                 <tbody class="divide-y divide-gray-50 bg-white">
                     {% for item in historico %}
                     <tr class="hover:bg-gray-50/50 transition-colors">
-                        <td class="px-8 py-5 font-bold text-navy">{{ item.versao }}<\/td>
-                        <td class="px-6 py-5 text-[10px] font-bold text-gray-500">{{ (item.data_download | to_tz_br).strftime('%d/%m/%Y %H:%M') }}<\/td>
+                        <td class="px-8 py-5 font-bold text-navy">{{ item.versao|e }}</td>
+                        <td class="px-6 py-5 text-[10px] font-bold text-gray-500">{{ (item.data_download | to_tz_br).strftime('%d/%m/%Y %H:%M') }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
