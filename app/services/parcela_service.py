@@ -5,6 +5,7 @@ Fornece funções para:
 - Gerar as 10 parcelas de um novo cliente compra: entrada R$ 3.000 + 9x R$ 500 semanais.
 - Contar quantas indicações de um usuário já pagaram a entrada (parcela 1).
 - Calcular o prêmio acumulado do indicador.
+- Verificar se todas as parcelas de um cliente compra foram pagas.
 """
 
 from datetime import datetime, timedelta
@@ -112,3 +113,21 @@ def calcular_premio_acumulado(user_id: int) -> dict:
         'valor_acumulado': valor_acumulado,
         'pode_solicitar': pode_solicitar
     }
+
+
+def todas_parcelas_pagas(user_id: int) -> bool:
+    """
+    Verifica se o cliente (modelo compra) quitou todas as parcelas.
+    
+    Args:
+        user_id (int): ID do usuário.
+    
+    Returns:
+        bool: True se o total de parcelas for igual ao número de parcelas com status 'pago'.
+              False caso contrário ou se o usuário não tiver parcelas.
+    """
+    total = ParcelaCompra.query.filter_by(user_id=user_id).count()
+    if total == 0:
+        return False
+    pagas = ParcelaCompra.query.filter_by(user_id=user_id, status='pago').count()
+    return total == pagas

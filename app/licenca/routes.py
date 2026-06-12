@@ -19,8 +19,10 @@ from app.services.licenca_service import (
     salvar_conta_mt5_e_gerar_vitalicia_se_necessario,
     is_modo_teste,
     is_licenca_bloqueada,
-    calcular_ciclo_por_data
+    calcular_ciclo_por_data,
+    gerar_licenca_vitalicia
 )
+from app.services.parcela_service import todas_parcelas_pagas
 
 logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
@@ -30,9 +32,16 @@ licenca_bp = Blueprint('licenca', __name__, url_prefix='/licenca')
 @licenca_bp.route('/robo')
 @login_required
 def robo_download():
-    """Página principal de download – exibe os 3 robôs disponíveis."""
+    """Página principal de download – exibe os robôs disponíveis."""
     produtos = obter_produtos_ativos()
     ciclo_inicio, _ = calcular_ciclo_por_data()
+
+    # Se cliente compra já possui vínculo vitalício, bloqueia os outros produtos
+    if current_user.modelo_negocio == 'compra' and current_user.produto_vitalicio_id:
+        for p in produtos:
+            if p['produto'].id != current_user.produto_vitalicio_id:
+                p['liberado'] = False
+                p['mensagem'] = "Você já possui licença vitalícia para outro robô e não pode mais baixar este."
 
     for p in produtos:
         if p['disponivel']:
@@ -128,18 +137,68 @@ def licenca_gerar():
             "message": "Você precisa baixar um robô antes de gerar a licença. Escolha um robô na página de download."
         }), 400
 
+    # ==================== LÓGICA PARA CLIENTES COMPRA ====================
+    if current_user.modelo_negocio == 'compra':
+        # Verifica se todas as parcelas foram pagas
+        if todas_parcelas_pagas(current_user.id):
+            # Cliente quite: deve ter licença vitalícia
+            if current_user.produto_vitalicio_id and current_user.produto_vitalicio_id != produto_id:
+                return jsonify({
+                    "success": False,
+                    "error": "VINCULO_PERMANENTE",
+                    "message": "Você já possui licença vitalícia para outro robô e não pode trocar."
+                }), 400
+
+            # Verifica se já existe licença vitalícia ativa
+            licenca_vital = obter_licenca_ativa(current_user, tipo='vitalicia')
+            if licenca_vital:
+                return jsonify({
+                    "success": True,
+                    "chave": licenca_vital.chave_licenca,
+                    "message": "Licença vitalícia já gerada anteriormente.",
+                    "validade": None,
+                    "ja_existente": True
+                })
+            else:
+                # Gera nova vitalícia
+                chave, msg, licenca_obj = gerar_licenca_vitalicia(
+                    current_user,
+                    current_user.conta_mt5,
+                    produto_id
+                )
+                if not chave:
+                    return jsonify({"success": False, "message": msg}), 400
+                # Vincula o cliente permanentemente a este produto
+                current_user.produto_vitalicio_id = produto_id
+                db.session.commit()
+                return jsonify({
+                    "success": True,
+                    "chave": chave,
+                    "message": "Licença vitalícia gerada com sucesso. Agora você está vinculado permanentemente a este robô.",
+                    "validade": None,
+                    "ja_existente": False
+                })
+        else:
+            # Ainda pagando → licença semanal (mesmo fluxo comissão)
+            chave, msg, licenca_obj, ja_existente = gerar_licenca_comissao(
+                current_user, current_user.conta_mt5, produto_id
+            )
+            if not chave:
+                return jsonify({"success": False, "message": msg}), 400
+            return jsonify({
+                "success": True,
+                "chave": chave,
+                "message": msg,
+                "validade": licenca_obj.data_expiracao.strftime('%d/%m/%Y %H:%M') if licenca_obj.data_expiracao else None,
+                "ja_existente": ja_existente
+            })
+
+    # ==================== CLIENTES COMISSÃO (padrão) ====================
     chave, msg, licenca_obj, ja_existente = gerar_licenca_comissao(
-        current_user, 
-        current_user.conta_mt5, 
-        produto_id=produto_id
+        current_user, current_user.conta_mt5, produto_id
     )
     if not chave:
-        return jsonify({
-            "success": False,
-            "error": "CONDICOES_NAO_ATENDIDAS",
-            "message": msg
-        }), 400
-
+        return jsonify({"success": False, "message": msg}), 400
     return jsonify({
         "success": True,
         "chave": chave,

@@ -116,6 +116,16 @@ def liberado_para_download_produto(user, produto_id, ciclo_inicio):
     """
     logger.info(f"[LIBERADO] Iniciando verificação: user={user.id}, produto={produto_id}, ciclo={ciclo_inicio}")
 
+    # ========== NOVA VERIFICAÇÃO DE VÍNCULO VITALÍCIO ==========
+    # Se o cliente (modelo compra) já possui um produto vitalício vinculado,
+    # ele só pode baixar exatamente aquele produto.
+    if user.modelo_negocio == 'compra' and user.produto_vitalicio_id is not None:
+        if user.produto_vitalicio_id != produto_id:
+            logger.warning(f"[LIBERADO] Bloqueado: usuário tem vínculo vitalício com produto {user.produto_vitalicio_id}, tentou baixar {produto_id}")
+            return False, "Você já possui licença vitalícia para outro robô e não pode mais trocar.", None
+        logger.info(f"[LIBERADO] Usuário com vínculo vitalício, permitindo download do produto vinculado")
+    # ===========================================================
+
     # Bloqueio administrativo geral
     if getattr(user, 'robot_acesso_bloqueado', False):
         logger.warning(f"[LIBERADO] Bloqueado: robot_acesso_bloqueado=True")

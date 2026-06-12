@@ -55,6 +55,11 @@ class User(db.Model, UserMixin):
     is_indicado = db.Column(db.Boolean, default=False)
     data_indicacao = db.Column(db.DateTime, nullable=True)
     
+    # ==================== VÍNCULO VITALÍCIO ====================
+    produto_vitalicio_id = db.Column(db.Integer, db.ForeignKey('produto_robo.id'), nullable=True)
+    produto_vitalicio = db.relationship('ProdutoRobo', foreign_keys=[produto_vitalicio_id])
+    # ============================================================
+    
     # Relacionamentos
     indicado_por = db.relationship('User', remote_side=[id], backref='indicacoes')
     # ================================================================
