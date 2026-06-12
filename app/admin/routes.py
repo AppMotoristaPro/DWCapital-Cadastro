@@ -22,6 +22,20 @@ from app.services.parcela_service import gerar_parcelas_compra_unificado, contar
 import cloudinary.uploader
 import pytz
 import re
+import bleach
+
+# Tags e atributos permitidos para o campo novidades (changelog)
+ALLOWED_TAGS = [
+    'p', 'br', 'strong', 'b', 'em', 'i', 'u', 'ul', 'ol', 'li',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'div', 'a', 'pre', 'code'
+]
+ALLOWED_ATTRIBUTES = {
+    'a': ['href', 'title', 'target'],
+    'span': ['style', 'class'],
+    'div': ['style', 'class'],
+    'p': ['style', 'class'],
+    'code': ['class']
+}
 
 logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
@@ -852,7 +866,8 @@ def excluir_todos_pendentes():
 def upload_versao_robo():
     if request.method == 'POST':
         versao = request.form.get('versao')
-        novidades = request.form.get('novidades')
+        novidades_raw = request.form.get('novidades', '')
+        novidades = bleach.clean(novidades_raw, tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRIBUTES, strip=True)
         arquivo = request.files.get('arquivo')
         produto_id = request.form.get('produto_id')
 
@@ -932,7 +947,8 @@ def editar_versao_robo(id):
     
     if request.method == 'POST':
         nova_versao = request.form.get('versao')
-        novas_novidades = request.form.get('novidades')
+        novas_novidades_raw = request.form.get('novidades', '')
+        novas_novidades = bleach.clean(novas_novidades_raw, tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRIBUTES, strip=True)
         arquivo = request.files.get('arquivo')
         
         if not nova_versao:

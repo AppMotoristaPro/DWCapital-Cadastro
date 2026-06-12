@@ -54,12 +54,12 @@
                     <h3 class="text-2xl font-black text-navy mb-2">{{ item.produto.nome }}</h3>
                     <p class="text-xs text-gray-500 mb-4">Versão: {{ item.versao.versao if item.versao else 'Indisponível' }}</p>
 
-                    <!-- Changelog -->
+                    <!-- Changelog com formatação HTML segura -->
                     <div class="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-6">
                         <p class="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Novidades desta versão</p>
-                        <div class="text-sm text-gray-700 whitespace-pre-line">
+                        <div class="text-sm text-gray-700 ck-content">
                             {% if item.versao and item.versao.novidades %}
-                                {{ item.versao.novidades }}
+                                {{ item.versao.novidades|safe }}
                             {% else %}
                                 <em>Nenhuma novidade informada.</em>
                             {% endif %}
@@ -117,6 +117,23 @@
         {% endif %}
     </div>
 </div>
+
+<style>
+    /* Estilos básicos para o conteúdo do CKEditor */
+    .ck-content {
+        font-family: inherit;
+        line-height: 1.5;
+    }
+    .ck-content h1 { font-size: 1.5rem; font-weight: bold; margin: 0.5rem 0; }
+    .ck-content h2 { font-size: 1.25rem; font-weight: bold; margin: 0.5rem 0; }
+    .ck-content h3 { font-size: 1.125rem; font-weight: bold; margin: 0.5rem 0; }
+    .ck-content ul, .ck-content ol { margin-left: 1.5rem; margin-bottom: 0.5rem; }
+    .ck-content li { margin-bottom: 0.25rem; }
+    .ck-content a { color: #4169E1; text-decoration: underline; }
+    .ck-content p { margin-bottom: 0.5rem; }
+    .ck-content strong, .ck-content b { font-weight: bold; }
+    .ck-content em, .ck-content i { font-style: italic; }
+</style>
 
 <script>
     function abrirModal(produtoId) {

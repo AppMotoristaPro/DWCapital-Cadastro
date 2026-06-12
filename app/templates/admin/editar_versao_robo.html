@@ -26,7 +26,7 @@
 
             <div class="mb-6">
                 <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Novidades (changelog)</label>
-                <textarea name="novidades" rows="6" class="w-full px-5 py-3.5 bg-white border border-gray-200 rounded-xl outline-none font-medium text-navy focus:border-royal transition shadow-sm">{{ versao.novidades or '' }}</textarea>
+                <textarea name="novidades" id="editor-novidades" rows="6" class="w-full px-5 py-3.5 bg-white border border-gray-200 rounded-xl outline-none font-medium text-navy focus:border-royal transition shadow-sm">{{ versao.novidades or '' }}</textarea>
             </div>
 
             <div class="flex justify-end gap-3">
@@ -36,4 +36,21 @@
         </form>
     </div>
 </div>
+
+<script src="https://cdn.ckeditor.com/ckeditor5/39.0.1/classic/ckeditor.js"></script>
+<script>
+    ClassicEditor
+        .create(document.querySelector('#editor-novidades'), {
+            toolbar: ['heading', '|', 'bold', 'italic', 'underline', 'bulletedList', 'numberedList', 'link', 'undo', 'redo'],
+            heading: {
+                options: [
+                    { model: 'paragraph', title: 'Parágrafo', class: 'ck-heading_paragraph' },
+                    { model: 'heading1', view: 'h1', title: 'Título 1', class: 'ck-heading_heading1' },
+                    { model: 'heading2', view: 'h2', title: 'Título 2', class: 'ck-heading_heading2' },
+                    { model: 'heading3', view: 'h3', title: 'Título 3', class: 'ck-heading_heading3' }
+                ]
+            }
+        })
+        .catch(error => console.error(error));
+</script>
 {% endblock %}
