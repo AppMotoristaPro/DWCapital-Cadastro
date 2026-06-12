@@ -55,7 +55,8 @@
 
                     <div class="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-6">
                         <p class="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Novidades desta versão</p>
-                        <div class="text-sm text-gray-700">
+                        <!-- ⬇️ AQUI FOI ADICIONADA A CLASSE "changelog-content" ⬇️ -->
+                        <div class="changelog-content text-sm text-gray-700">
                             {% if item.versao and item.versao.novidades %}
                                 {{ item.versao.novidades|safe }}
                             {% else %}
@@ -99,8 +100,8 @@
                 <tbody class="divide-y divide-gray-50 bg-white">
                     {% for item in historico %}
                     <tr class="hover:bg-gray-50/50 transition-colors">
-                        <td class="px-8 py-5 font-bold text-navy">{{ item.versao }}</td>
-                        <td class="px-6 py-5 text-[10px] font-bold text-gray-500">{{ (item.data_download | to_tz_br).strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td class="px-8 py-5 font-bold text-navy">{{ item.versao }}<\/td>
+                        <td class="px-6 py-5 text-[10px] font-bold text-gray-500">{{ (item.data_download | to_tz_br).strftime('%d/%m/%Y %H:%M') }}<\/td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -115,15 +116,79 @@
 </div>
 
 <style>
-    .changelog-content h1 { font-size: 1.5rem; font-weight: bold; margin: 0.5rem 0; }
-    .changelog-content h2 { font-size: 1.25rem; font-weight: bold; margin: 0.5rem 0; }
-    .changelog-content h3 { font-size: 1.125rem; font-weight: bold; margin: 0.5rem 0; }
-    .changelog-content ul, .changelog-content ol { margin-left: 1.5rem; margin-bottom: 0.5rem; }
-    .changelog-content li { margin-bottom: 0.25rem; }
-    .changelog-content a { color: #4169E1; text-decoration: underline; }
-    .changelog-content table { border-collapse: collapse; width: 100%; margin-bottom: 1rem; }
-    .changelog-content th, .changelog-content td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-    .changelog-content th { background-color: #f2f2f2; }
+    /* Estilos aplicados somente ao conteúdo do changelog */
+    .changelog-content {
+        font-family: 'Inter', sans-serif;
+        line-height: 1.6;
+        color: #1e293b;
+    }
+    .changelog-content h1 {
+        font-size: 1.8rem;
+        font-weight: 700;
+        margin: 1rem 0 0.5rem;
+        color: #0f172a;
+        border-bottom: 1px solid #e2e8f0;
+        padding-bottom: 0.3rem;
+    }
+    .changelog-content h2 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin: 1rem 0 0.5rem;
+        color: #1e293b;
+    }
+    .changelog-content h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin: 0.75rem 0 0.5rem;
+        color: #334155;
+    }
+    .changelog-content p {
+        margin-bottom: 0.75rem;
+    }
+    .changelog-content ul, .changelog-content ol {
+        margin-left: 1.5rem;
+        margin-bottom: 0.75rem;
+    }
+    .changelog-content li {
+        margin-bottom: 0.25rem;
+    }
+    .changelog-content a {
+        color: #4169E1;
+        text-decoration: underline;
+    }
+    .changelog-content table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 1rem;
+        background-color: #fff;
+    }
+    .changelog-content th, .changelog-content td {
+        border: 1px solid #cbd5e1;
+        padding: 8px;
+        text-align: left;
+        vertical-align: top;
+    }
+    .changelog-content th {
+        background-color: #f1f5f9;
+        font-weight: 700;
+    }
+    .changelog-content code, .changelog-content pre {
+        background-color: #f1f5f9;
+        padding: 0.2rem 0.4rem;
+        border-radius: 0.25rem;
+        font-family: monospace;
+    }
+    .changelog-content pre {
+        padding: 0.75rem;
+        overflow-x: auto;
+    }
+    .changelog-content blockquote {
+        border-left: 4px solid #4169E1;
+        margin: 0.75rem 0;
+        padding-left: 1rem;
+        color: #475569;
+        font-style: italic;
+    }
 </style>
 
 <script>
