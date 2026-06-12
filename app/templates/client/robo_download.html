@@ -4,7 +4,7 @@
     <div class="flex justify-between items-end mb-8">
         <div>
             <h1 class="text-4xl font-black text-navy tracking-tight">Download do Robô</h1>
-            <p class="text-gray-500 mt-2 font-medium">Escolha um dos robôs disponíveis para download.</p>
+            <p class="text-gray-500 mt-2 font-medium">Escolha um dos robôs e veja as novidades.</p>
         </div>
     </div>
 
@@ -19,19 +19,9 @@
         <div class="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-md border border-gray-200 flex flex-col">
             <div class="mb-4">
                 <h2 class="text-2xl font-black text-navy">{{ item.produto.nome }}</h2>
-                
-                <!-- Versão e data -->
                 {% if item.versao %}
                 <p class="text-xs text-royal mt-2">Versão: {{ item.versao.versao }}</p>
-                <p class="text-[10px] text-gray-400">Publicado em: {{ (item.versao.data_upload | to_tz_br).strftime('%d/%m/%Y') }}</p>
-                
-                <!-- Changelog (novidades) -->
-                <div class="mt-3 p-3 bg-blue-50/50 border border-blue-100 rounded-lg">
-                    <p class="text-[10px] font-black text-blue-600 uppercase tracking-widest">Novidades</p>
-                    <p class="text-xs text-gray-700 mt-1">
-                        {{ item.versao.novidades if item.versao.novidades else 'Nenhuma novidade informada.' }}
-                    </p>
-                </div>
+                <p class="text-[10px] text-gray-400 mt-1">Publicado em: {{ (item.versao.data_upload | to_tz_br).strftime('%d/%m/%Y') }}</p>
                 {% else %}
                 <p class="text-xs text-gray-400 mt-2">Nenhuma versão publicada</p>
                 {% endif %}
@@ -39,12 +29,9 @@
             <div class="mt-auto">
                 {% if item.disponivel %}
                     {% if item.liberado %}
-                    <form method="POST" action="{{ url_for('licenca.baixar_robo_produto', produto_id=item.produto.id) }}" class="download-form">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">
-                            Baixar {{ item.produto.nome }}
-                        </button>
-                    </form>
+                    <button onclick="abrirModal({{ item.produto.id }})" class="w-full py-3 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">
+                        Ver detalhes e baixar
+                    </button>
                     {% else %}
                     <div class="w-full py-3 bg-gray-200 text-gray-500 rounded-xl text-center text-xs font-black uppercase tracking-widest cursor-not-allowed">
                         Bloqueado
@@ -56,6 +43,43 @@
                     Indisponível
                 </div>
                 {% endif %}
+            </div>
+        </div>
+
+        <!-- Modal para cada robô -->
+        <div id="modal-{{ item.produto.id }}" class="hidden fixed inset-0 z-[1000] flex items-center justify-center bg-navy/80 backdrop-blur-sm p-4">
+            <div class="bg-white/95 backdrop-blur-xl border border-white/60 w-full max-w-2xl rounded-2xl shadow-2xl relative max-h-[85vh] overflow-y-auto">
+                <button onclick="fecharModal({{ item.produto.id }})" class="absolute top-3 right-3 w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center text-gray-700 font-bold text-lg transition shadow-md">✕</button>
+                <div class="p-6">
+                    <h3 class="text-2xl font-black text-navy mb-2">{{ item.produto.nome }}</h3>
+                    <p class="text-xs text-gray-500 mb-4">Versão: {{ item.versao.versao if item.versao else 'Indisponível' }}</p>
+
+                    <!-- Changelog -->
+                    <div class="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-6">
+                        <p class="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Novidades desta versão</p>
+                        <div class="text-sm text-gray-700 whitespace-pre-line">
+                            {% if item.versao and item.versao.novidades %}
+                                {{ item.versao.novidades }}
+                            {% else %}
+                                <em>Nenhuma novidade informada.</em>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Botão de download -->
+                    {% if item.disponivel and item.liberado %}
+                    <form method="POST" action="{{ url_for('licenca.baixar_robo_produto', produto_id=item.produto.id) }}" class="download-form-modal" data-produto-id="{{ item.produto.id }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">
+                            Baixar {{ item.produto.nome }}
+                        </button>
+                    </form>
+                    {% else %}
+                    <div class="w-full py-3 bg-gray-200 text-gray-500 rounded-xl text-center text-xs font-black uppercase tracking-widest">
+                        {{ item.mensagem if item.mensagem else 'Download indisponível' }}
+                    </div>
+                    {% endif %}
+                </div>
             </div>
         </div>
         {% endfor %}
@@ -79,7 +103,7 @@
                 <tbody class="divide-y divide-gray-50 bg-white">
                     {% for item in historico %}
                     <tr class="hover:bg-gray-50/50 transition-colors">
-                        <td class="px-8 py-5 font-bold text-navy">{{ item.versao }}<tr>
+                        <td class="px-8 py-5 font-bold text-navy">{{ item.versao }}</td>
                         <td class="px-6 py-5 text-[10px] font-bold text-gray-500">{{ (item.data_download | to_tz_br).strftime('%d/%m/%Y %H:%M') }}</td>
                     </tr>
                     {% endfor %}
@@ -95,13 +119,32 @@
 </div>
 
 <script>
-    document.querySelectorAll('.download-form').forEach(form => {
+    function abrirModal(produtoId) {
+        const modal = document.getElementById(`modal-${produtoId}`);
+        if (modal) modal.classList.remove('hidden');
+    }
+
+    function fecharModal(produtoId) {
+        const modal = document.getElementById(`modal-${produtoId}`);
+        if (modal) modal.classList.add('hidden');
+    }
+
+    // Fechar modal ao clicar fora do conteúdo (opcional)
+    window.onclick = function(event) {
+        if (event.target.classList.contains('fixed')) {
+            event.target.classList.add('hidden');
+        }
+    };
+
+    // Lógica de download nos formulários dentro dos modais
+    document.querySelectorAll('.download-form-modal').forEach(form => {
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
             const btn = this.querySelector('button');
             const originalText = btn.innerHTML;
             btn.disabled = true;
-            btn.innerHTML = '<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Preparando...';
+            btn.innerHTML = '<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Processando...';
+
             const formData = new FormData(this);
             try {
                 const response = await fetch(this.action, {
@@ -132,6 +175,9 @@
                 a.click();
                 document.body.removeChild(a);
                 window.URL.revokeObjectURL(url);
+                // Fecha o modal após o download iniciar
+                const produtoId = this.getAttribute('data-produto-id');
+                fecharModal(produtoId);
                 setTimeout(() => location.reload(), 1500);
             } catch (error) {
                 console.error('Erro no download:', error);
@@ -142,4 +188,4 @@
         });
     });
 </script>
-{% endblock %}  
+{% endblock %}
