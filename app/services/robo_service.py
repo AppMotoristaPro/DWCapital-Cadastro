@@ -20,12 +20,12 @@ def versao_atual():
 
 
 def cliente_ja_baixou(user, versao_id):
-    """Verifica se o cliente já baixou uma determinada versão do robô."""
+    """Verifica se o cliente já baixou uma determinada versão do robô (ignorando ciclo)."""
     return DownloadControle.query.filter_by(user_id=user.id, versao_id=versao_id).first() is not None
 
 
 def registrar_download(user, versao_id):
-    """Registra o download de uma versão por um cliente."""
+    """Registra o download de uma versão por um cliente (sem ciclo)."""
     if cliente_ja_baixou(user, versao_id):
         return False
     novo_download = DownloadControle(
@@ -143,7 +143,18 @@ def liberado_para_download_produto(user, produto_id, ciclo_inicio):
 def registrar_download_produto(user, versao_obj, ciclo_inicio):
     """
     Registra o download de uma versão de um produto, vinculando ao ciclo.
+    Impede duplicatas no mesmo ciclo (idempotente).
     """
+    # Verifica se já existe um registro exatamente igual (mesmo ciclo e versão)
+    existente = DownloadControle.query.filter_by(
+        user_id=user.id,
+        versao_id=versao_obj.id,
+        ciclo_inicio=ciclo_inicio
+    ).first()
+    if existente:
+        # Já registrado, não faz nada
+        return
+
     novo = DownloadControle(
         user_id=user.id,
         versao_id=versao_obj.id,
