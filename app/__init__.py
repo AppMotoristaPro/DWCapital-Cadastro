@@ -79,7 +79,8 @@ def create_app():
                 'cdn.tailwindcss.com',
                 'cdn.jsdelivr.net',
                 'https://api.qrserver.com',
-                'https://cdn.jsdelivr.net'
+                'https://cdn.jsdelivr.net',
+                'https://cdn.ckeditor.com'
             ],
             'style-src': [
                 "'self'",
