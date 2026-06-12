@@ -19,9 +19,21 @@
         <div class="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-md border border-gray-200 flex flex-col">
             <div class="mb-4">
                 <h2 class="text-2xl font-black text-navy">{{ item.produto.nome }}</h2>
-                <p class="text-sm text-gray-500 mt-1">{{ item.produto.descricao }}</p>
+                
+                <!-- Versão e data -->
                 {% if item.versao %}
                 <p class="text-xs text-royal mt-2">Versão: {{ item.versao.versao }}</p>
+                <p class="text-[10px] text-gray-400">Publicado em: {{ (item.versao.data_upload | to_tz_br).strftime('%d/%m/%Y') }}</p>
+                
+                <!-- Changelog (novidades) -->
+                <div class="mt-3 p-3 bg-blue-50/50 border border-blue-100 rounded-lg">
+                    <p class="text-[10px] font-black text-blue-600 uppercase tracking-widest">Novidades</p>
+                    <p class="text-xs text-gray-700 mt-1">
+                        {{ item.versao.novidades if item.versao.novidades else 'Nenhuma novidade informada.' }}
+                    </p>
+                </div>
+                {% else %}
+                <p class="text-xs text-gray-400 mt-2">Nenhuma versão publicada</p>
                 {% endif %}
             </div>
             <div class="mt-auto">
@@ -43,7 +55,6 @@
                 <div class="w-full py-3 bg-gray-200 text-gray-500 rounded-xl text-center text-xs font-black uppercase tracking-widest">
                     Indisponível
                 </div>
-                <p class="text-xs text-gray-400 mt-2 text-center">Nenhuma versão publicada.</p>
                 {% endif %}
             </div>
         </div>
@@ -68,7 +79,7 @@
                 <tbody class="divide-y divide-gray-50 bg-white">
                     {% for item in historico %}
                     <tr class="hover:bg-gray-50/50 transition-colors">
-                        <td class="px-8 py-5 font-bold text-navy">{{ item.versao }}</td>
+                        <td class="px-8 py-5 font-bold text-navy">{{ item.versao }}<tr>
                         <td class="px-6 py-5 text-[10px] font-bold text-gray-500">{{ (item.data_download | to_tz_br).strftime('%d/%m/%Y %H:%M') }}</td>
                     </tr>
                     {% endfor %}
@@ -87,29 +98,22 @@
     document.querySelectorAll('.download-form').forEach(form => {
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
-
             const btn = this.querySelector('button');
             const originalText = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Preparando...';
-
             const formData = new FormData(this);
             try {
                 const response = await fetch(this.action, {
                     method: 'POST',
-                    headers: {
-                        'X-CSRFToken': '{{ csrf_token() }}'
-                    },
+                    headers: { 'X-CSRFToken': '{{ csrf_token() }}' },
                     body: formData,
                     credentials: 'same-origin'
                 });
-
                 if (!response.ok) {
                     const errorText = await response.text();
                     throw new Error(errorText || 'Erro no download');
                 }
-
-                // Obtém o nome do arquivo do header Content-Disposition (se disponível)
                 const contentDisposition = response.headers.get('Content-Disposition');
                 let filename = 'download';
                 if (contentDisposition && contentDisposition.includes('filename=')) {
@@ -119,7 +123,6 @@
                     const produtoId = urlParts[urlParts.length - 1];
                     filename = `dwcapital_robo_${produtoId}.exe`;
                 }
-
                 const blob = await response.blob();
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -129,11 +132,7 @@
                 a.click();
                 document.body.removeChild(a);
                 window.URL.revokeObjectURL(url);
-
-                // Aguarda o download iniciar e recarrega a página para atualizar os cards
-                setTimeout(() => {
-                    location.reload();
-                }, 1500);
+                setTimeout(() => location.reload(), 1500);
             } catch (error) {
                 console.error('Erro no download:', error);
                 alert('Falha ao iniciar o download. Tente novamente.');
@@ -143,4 +142,4 @@
         });
     });
 </script>
-{% endblock %}
+{% endblock %}  
