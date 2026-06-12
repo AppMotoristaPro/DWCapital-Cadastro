@@ -10,7 +10,8 @@ from app import db, limiter
 from app.models import User
 from app.services.robo_service import (
     versao_atual, liberado_para_download, registrar_download, historico_downloads_cliente,
-    obter_produtos_ativos, liberado_para_download_produto, registrar_download_produto
+    obter_produtos_ativos, liberado_para_download_produto, registrar_download_produto,
+    obter_produto_baixado_no_ciclo   # NOVA IMPORTAÇÃO
 )
 from app.services.licenca_service import (
     gerar_licenca_comissao,
@@ -83,6 +84,66 @@ def baixar_robo_produto(produto_id):
     )
 
 
+# ========== ROTA DE GERAÇÃO DE LICENÇA (ATUALIZADA) ==========
+
+@licenca_bp.route('/gerar', methods=['POST'])
+@login_required
+@limiter.limit("10 per minute", key_func=lambda: current_user.id)
+def licenca_gerar():
+    if is_licenca_bloqueada(current_user):
+        return jsonify({
+            "success": False,
+            "error": "BLOQUEADO",
+            "message": "A geração de licenças está bloqueada para este cliente. Entre em contato com o suporte."
+        }), 403
+
+    hoje = datetime.now(tz_br).date()
+    if not is_modo_teste():
+        if hoje.weekday() >= 5:
+            return jsonify({
+                "success": False,
+                "error": "DIA_INVALIDO",
+                "message": "A geração de licenças semanais só é permitida em dias úteis (segunda a sexta)."
+            }), 400
+
+    if not current_user.conta_mt5:
+        return jsonify({
+            "success": False,
+            "error": "PRECISA_CONTA",
+            "message": "Você precisa cadastrar sua conta MT5 antes de gerar a licença."
+        }), 200
+
+    # NOVO: Verificar se o cliente já baixou algum robô neste ciclo
+    produto_id = obter_produto_baixado_no_ciclo(current_user)
+    if not produto_id:
+        return jsonify({
+            "success": False,
+            "error": "PRECISA_BAIXAR",
+            "message": "Você precisa baixar um robô antes de gerar a licença. Escolha um robô na página de download."
+        }), 400
+
+    # Gera a licença para o produto que foi baixado
+    chave, msg, licenca_obj, ja_existente = gerar_licenca_comissao(
+        current_user, 
+        current_user.conta_mt5, 
+        produto_id=produto_id
+    )
+    if not chave:
+        return jsonify({
+            "success": False,
+            "error": "CONDICOES_NAO_ATENDIDAS",
+            "message": msg
+        }), 400
+
+    return jsonify({
+        "success": True,
+        "chave": chave,
+        "message": msg,
+        "validade": licenca_obj.data_expiracao.strftime('%d/%m/%Y %H:%M') if licenca_obj.data_expiracao else None,
+        "ja_existente": ja_existente
+    })
+
+
 # ========== ROTAS ANTIGAS (compatibilidade, podem ser removidas depois) ==========
 
 @licenca_bp.route('/robo/download', methods=['POST'])
@@ -115,50 +176,6 @@ def licenca_status():
             "success": True,
             "tem_licenca": False
         })
-
-
-@licenca_bp.route('/gerar', methods=['POST'])
-@login_required
-@limiter.limit("10 per minute", key_func=lambda: current_user.id)
-def licenca_gerar():
-    if is_licenca_bloqueada(current_user):
-        return jsonify({
-            "success": False,
-            "error": "BLOQUEADO",
-            "message": "A geração de licenças está bloqueada para este cliente. Entre em contato com o suporte."
-        }), 403
-
-    hoje = datetime.now(tz_br).date()
-    if not is_modo_teste():
-        if hoje.weekday() >= 5:
-            return jsonify({
-                "success": False,
-                "error": "DIA_INVALIDO",
-                "message": "A geração de licenças semanais só é permitida em dias úteis (segunda a sexta)."
-            }), 400
-
-    if not current_user.conta_mt5:
-        return jsonify({
-            "success": False,
-            "error": "PRECISA_CONTA",
-            "message": "Você precisa cadastrar sua conta MT5 antes de gerar a licença."
-        }), 200
-
-    chave, msg, licenca_obj, ja_existente = gerar_licenca_comissao(current_user, current_user.conta_mt5)
-    if not chave:
-        return jsonify({
-            "success": False,
-            "error": "CONDICOES_NAO_ATENDIDAS",
-            "message": msg
-        }), 400
-
-    return jsonify({
-        "success": True,
-        "chave": chave,
-        "message": msg,
-        "validade": licenca_obj.data_expiracao.strftime('%d/%m/%Y %H:%M') if licenca_obj.data_expiracao else None,
-        "ja_existente": ja_existente
-    })
 
 
 @licenca_bp.route('/visualizar', methods=['POST'])

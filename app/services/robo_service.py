@@ -12,7 +12,7 @@ from app.services.licenca_service import obter_licenca_ativa
 tz_br = pytz.timezone('America/Sao_Paulo')
 
 
-# ========== FUNÇÕES EXISTENTES (já no arquivo) ==========
+# ========== FUNÇÕES EXISTENTES ==========
 
 def versao_atual():
     """Retorna o objeto VersaoRobo que está com publicada=True, ou None."""
@@ -156,3 +156,25 @@ def registrar_download_produto(user, versao_obj, ciclo_inicio):
     )
     db.session.add(novo)
     db.session.commit()
+
+
+# ========== FUNÇÃO PARA A ETAPA 3 (OBTER PRODUTO BAIXADO NO CICLO) ==========
+
+def obter_produto_baixado_no_ciclo(user):
+    """
+    Retorna o ID do produto (robô) que o cliente baixou no ciclo da licença atual.
+    Utilizado para forçar a geração de licença apenas para o robô já baixado.
+    Se não houver licença ativa ou nenhum download no ciclo, retorna None.
+    """
+    licenca = obter_licenca_ativa(user)
+    if not licenca:
+        return None
+
+    download = DownloadControle.query.join(VersaoRobo).filter(
+        DownloadControle.user_id == user.id,
+        DownloadControle.ciclo_inicio == licenca.ciclo_inicio
+    ).first()
+
+    if download:
+        return download.versao.produto_id
+    return None
