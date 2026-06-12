@@ -251,6 +251,9 @@ class ProdutoRobo(db.Model):
     ordem = db.Column(db.Integer, default=0)                          # ordenação na tela
     ativo = db.Column(db.Boolean, default=True)
     
+    # NOVO CAMPO: código do algoritmo (700, 1005, 1006) conforme novo gerador
+    codigo_algoritmo = db.Column(db.Integer, nullable=False, default=700)
+    
     # Relacionamento com versões
     versoes = db.relationship('VersaoRobo', backref='produto', lazy=True)
     
