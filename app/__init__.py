@@ -5,7 +5,7 @@ from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_talisman import Talisman  # ALTERAÇÃO FASE 3
+from flask_talisman import Talisman
 from werkzeug.middleware.proxy_fix import ProxyFix
 import os
 from dotenv import load_dotenv
@@ -47,14 +47,13 @@ def create_app():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
     
-    # ALTERAÇÃO FASE 3 - Desabilita ordenação automática de chaves JSON (reduz fingerprinting)
     app.config['JSON_SORT_KEYS'] = False
 
     cloudinary.config(
-        cloud_name = os.getenv('CLOUDINARY_CLOUD_NAME'),
-        api_key = os.getenv('CLOUDINARY_API_KEY'),
-        api_secret = os.getenv('CLOUDINARY_API_SECRET'),
-        secure = True
+        cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
+        api_key=os.getenv('CLOUDINARY_API_KEY'),
+        api_secret=os.getenv('CLOUDINARY_API_SECRET'),
+        secure=True
     )
 
     db.init_app(app)
@@ -65,7 +64,6 @@ def create_app():
     
     login_manager.login_view = 'auth.login'
     
-    # ALTERAÇÃO FASE 3 - Configuração do Talisman (headers de segurança)
     force_https = os.getenv('FORCE_HTTPS', 'false').lower() == 'true'
     Talisman(
         app,
@@ -75,35 +73,31 @@ def create_app():
             'default-src': "'self'",
             'script-src': [
                 "'self'",
-                "'unsafe-inline'",   # necessário para scripts inline do Tailwind/JS
+                "'unsafe-inline'",
                 'cdn.tailwindcss.com',
                 'cdn.jsdelivr.net',
-                'https://api.qrserver.com',
-                'https://cdn.jsdelivr.net',
-                'https://cdn.ckeditor.com',
-                'cdn.jsdelivr.net'
+                'https://api.qrserver.com'
             ],
             'style-src': [
                 "'self'",
                 "'unsafe-inline'",
                 'fonts.googleapis.com',
-                'cdn.tailwindcss.com'
+                'cdn.tailwindcss.com',
+                'cdn.jsdelivr.net'   # <-- ESSENCIAL para os estilos do TinyMCE
             ],
             'font-src': ["'self'", 'fonts.gstatic.com', 'data:'],
             'img-src': ["'self'", 'data:', 'res.cloudinary.com', 'https://api.qrserver.com'],
             'connect-src': ["'self'", 'https://viacep.com.br'],
             'frame-ancestors': "'none'"
         },
-        # content_security_policy_nonce_in=['script-src'],  # ← REMOVIDO para permitir scripts inline
         force_file_save=False
     )
     
-    # ALTERAÇÃO FASE 3 - Remove o header Server e adiciona headers de segurança adicionais
     @app.after_request
     def security_headers(response):
         response.headers.pop('Server', None)
         response.headers['X-Content-Type-Options'] = 'nosniff'
-        response.headers['X-Frame-Options'] = 'DENY'  # redundante, mas seguro
+        response.headers['X-Frame-Options'] = 'DENY'
         return response
 
     app.jinja_env.filters['format_brl'] = format_brl
@@ -115,7 +109,7 @@ def create_app():
     from app.auth.routes import auth_bp
     from app.client.routes import client_bp
     from app.admin.routes import admin_bp
-    from app.api.pix_webhook import api_bp # Importa as rotas de API do Webhook
+    from app.api.pix_webhook import api_bp
     from app.licenca.routes import licenca_bp
     from app.indicacao.routes import indicacao_bp
     from app.nao_operei.routes import nao_operei_bp
@@ -128,11 +122,11 @@ def create_app():
     app.register_blueprint(indicacao_bp)
     app.register_blueprint(nao_operei_bp)
 
-    # 🛡️ TRAVA DE SEGURANÇA: Isenta a API do Webhook do bloqueio CSRF do Flask-WTF
     csrf.exempt(api_bp)
 
     @app.route('/')
-    def root(): return redirect(url_for('auth.login'))
+    def root():
+        return redirect(url_for('auth.login'))
 
     @app.errorhandler(404)
     def page_not_found(e):
