@@ -80,7 +80,8 @@ def create_app():
                 'cdn.jsdelivr.net',
                 'https://api.qrserver.com',
                 'https://cdn.jsdelivr.net',
-                'https://cdn.ckeditor.com'
+                'https://cdn.ckeditor.com',
+                'cdn.jsdelivr.net'
             ],
             'style-src': [
                 "'self'",

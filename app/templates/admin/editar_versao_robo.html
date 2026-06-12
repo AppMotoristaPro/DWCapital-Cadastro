@@ -39,13 +39,19 @@
 
 <script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js"></script>
 <script>
-    tinymce.init({
-        selector: '#editor-novidades',
-        height: 300,
-        menubar: false,
-        plugins: 'lists link code',
-        toolbar: 'code | bold italic underline | bullist numlist | link | undo redo',
-        content_style: 'body { font-family: Inter, sans-serif; font-size: 14px; }'
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof tinymce !== 'undefined') {
+            tinymce.init({
+                selector: '#editor-novidades',
+                height: 300,
+                menubar: false,
+                plugins: 'lists link code',
+                toolbar: 'code | bold italic underline | bullist numlist | link | undo redo',
+                content_style: 'body { font-family: Inter, sans-serif; font-size: 14px; }'
+            });
+        } else {
+            console.error('TinyMCE não carregou. Verifique CSP.');
+        }
     });
 </script>
 {% endblock %}

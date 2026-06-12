@@ -20,7 +20,6 @@
       {% endfor %}{% endif %}
     {% endwith %}
 
-    <!-- Formulário de upload -->
     <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white p-8 mb-10">
         <h2 class="text-xl font-black text-navy mb-6">Enviar nova versão</h2>
         <form method="POST" enctype="multipart/form-data">
@@ -55,7 +54,6 @@
         </form>
     </div>
 
-    <!-- Lista de versões existentes -->
     <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden">
         <div class="px-8 py-6 border-b border-gray-100 bg-white/50">
             <h2 class="text-xl font-black text-navy">Versões enviadas</h2>
@@ -78,9 +76,9 @@
                 <tbody class="divide-y divide-gray-50 bg-white">
                     {% for v in versoes %}
                     <tr class="hover:bg-gray-50/50 transition-colors">
-                        <td class="px-8 py-5 font-bold text-navy">{{ v.produto.nome }}</td>
-                        <td class="px-6 py-5 font-bold text-navy">{{ v.versao }}</td>
-                        <td class="px-6 py-5 text-[10px] font-bold text-gray-500">{{ (v.data_upload | to_tz_br).strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td class="px-8 py-5 font-bold text-navy">{{ v.produto.nome }}<\/td>
+                        <td class="px-6 py-5 font-bold text-navy">{{ v.versao }}<\/td>
+                        <td class="px-6 py-5 text-[10px] font-bold text-gray-500">{{ (v.data_upload | to_tz_br).strftime('%d/%m/%Y %H:%M') }}<\/td>
                         <td class="px-6 py-5">
                             {% if v.publicada %}
                                 <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-green-100 text-green-700 text-[9px] font-black uppercase rounded-lg shadow-sm">
@@ -89,12 +87,11 @@
                             {% else %}
                                 <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-100 text-gray-500 text-[9px] font-black uppercase rounded-lg shadow-sm">Inativa</span>
                             {% endif %}
-                        </td>
-                        <td class="px-6 py-5 text-xs text-gray-600 max-w-xs truncate">{{ v.novidades|safe if v.novidades else '—' }}</td>
+                        <\/td>
+                        <td class="px-6 py-5 text-xs text-gray-600 max-w-xs truncate">{{ v.novidades|safe if v.novidades else '—' }}<\/td>
                         <td class="px-8 py-5 text-right">
                             <div class="flex justify-end gap-2 whitespace-nowrap">
                                 <a href="{{ url_for('admin.editar_versao_robo', id=v.id) }}" class="px-3 py-1.5 bg-blue-50 text-blue-600 text-[10px] font-black uppercase rounded-lg hover:bg-blue-100 transition border border-blue-200 shadow-sm">Editar</a>
-                                
                                 {% if not v.publicada %}
                                     <form method="POST" action="{{ url_for('admin.publicar_versao_robo', id=v.id) }}" class="inline" onsubmit="return confirm('Publicar a versão {{ v.versao }} como versão ativa para este robô?')">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -108,7 +105,7 @@
                                     <span class="text-[10px] text-gray-400">Ativa</span>
                                 {% endif %}
                             </div>
-                        </td>
+                        <\/td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -124,13 +121,19 @@
 
 <script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js"></script>
 <script>
-    tinymce.init({
-        selector: '#editor-novidades',
-        height: 300,
-        menubar: false,
-        plugins: 'lists link code',
-        toolbar: 'code | bold italic underline | bullist numlist | link | undo redo',
-        content_style: 'body { font-family: Inter, sans-serif; font-size: 14px; }'
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof tinymce !== 'undefined') {
+            tinymce.init({
+                selector: '#editor-novidades',
+                height: 300,
+                menubar: false,
+                plugins: 'lists link code',
+                toolbar: 'code | bold italic underline | bullist numlist | link | undo redo',
+                content_style: 'body { font-family: Inter, sans-serif; font-size: 14px; }'
+            });
+        } else {
+            console.error('TinyMCE não carregou. Verifique CSP.');
+        }
     });
 </script>
 {% endblock %}
