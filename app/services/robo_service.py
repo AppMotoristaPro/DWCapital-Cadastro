@@ -7,7 +7,7 @@ from datetime import datetime
 import pytz
 from app import db
 from app.models import VersaoRobo, DownloadControle, ProdutoRobo
-from app.services.licenca_service import obter_licenca_ativa, calcular_ciclo_por_data
+from app.services.licenca_service import calcular_ciclo_por_data
 
 tz_br = pytz.timezone('America/Sao_Paulo')
 
@@ -106,10 +106,10 @@ def cliente_baixou_algum_produto_no_ciclo(user, ciclo_inicio):
     return None
 
 
-def liberado_para_download_produto(user, produto_id, ciclo_inicio=None):
+def liberado_para_download_produto(user, produto_id, ciclo_inicio):
     """
-    Verifica se o cliente pode baixar um determinado produto.
-    AGORA NÃO EXIGE LICENÇA ATIVA.
+    Verifica se o cliente pode baixar um determinado produto no ciclo atual.
+    NÃO exige licença ativa.
     Retorna (bool, mensagem, versao_obj)
     """
     # Bloqueio administrativo geral
@@ -120,10 +120,6 @@ def liberado_para_download_produto(user, produto_id, ciclo_inicio=None):
     versao = VersaoRobo.query.filter_by(produto_id=produto_id, publicada=True).first()
     if not versao:
         return False, "Robô indisponível no momento.", None
-
-    # Se ciclo_inicio não foi fornecido, calcula com base na data atual
-    if ciclo_inicio is None:
-        ciclo_inicio, _ = calcular_ciclo_por_data()
 
     # Verifica se já baixou algum produto neste ciclo
     produto_baixado = cliente_baixou_algum_produto_no_ciclo(user, ciclo_inicio)
@@ -141,7 +137,7 @@ def liberado_para_download_produto(user, produto_id, ciclo_inicio=None):
                 return False, "Você já baixou este robô e ele não foi atualizado.", None
         else:
             # Baixou outro produto → bloqueado até próximo ciclo
-            return False, f"Você já baixou outro robô neste ciclo. Aguarde a próxima semana ou atualização.", None
+            return False, "Você já baixou outro robô neste ciclo. Aguarde a próxima semana.", None
 
 
 def registrar_download_produto(user, versao_obj, ciclo_inicio):
@@ -157,8 +153,6 @@ def registrar_download_produto(user, versao_obj, ciclo_inicio):
     db.session.add(novo)
     db.session.commit()
 
-
-# ========== FUNÇÃO PARA OBTER PRODUTO BAIXADO NO CICLO ATUAL (independente de licença) ==========
 
 def obter_produto_baixado_no_ciclo_atual(user):
     """

@@ -11,7 +11,7 @@ from app.models import User
 from app.services.robo_service import (
     versao_atual, liberado_para_download, registrar_download, historico_downloads_cliente,
     obter_produtos_ativos, liberado_para_download_produto, registrar_download_produto,
-    obter_produto_baixado_no_ciclo_atual   # NOVA FUNÇÃO
+    obter_produto_baixado_no_ciclo_atual
 )
 from app.services.licenca_service import (
     gerar_licenca_comissao,
@@ -32,7 +32,6 @@ licenca_bp = Blueprint('licenca', __name__, url_prefix='/licenca')
 def robo_download():
     """Página principal de download – exibe os 3 robôs disponíveis."""
     produtos = obter_produtos_ativos()
-    # Obtém ciclo atual (sem depender de licença)
     ciclo_inicio, _ = calcular_ciclo_por_data()
 
     for p in produtos:
@@ -58,34 +57,33 @@ def robo_download():
 @limiter.limit("3 per minute")
 def baixar_robo_produto(produto_id):
     """Baixa um robô específico – NÃO exige licença ativa."""
-    # Obtém ciclo atual
-    ciclo_inicio, _ = calcular_ciclo_por_data()
-
-    liberado, msg, versao = liberado_para_download_produto(current_user, produto_id, ciclo_inicio)
-    if not liberado:
-        return jsonify({"error": msg}), 403
-
     try:
+        ciclo_inicio, _ = calcular_ciclo_por_data()
+        logger.info(f"Download solicitado: user={current_user.id}, produto={produto_id}, ciclo={ciclo_inicio}")
+
+        liberado, msg, versao = liberado_para_download_produto(current_user, produto_id, ciclo_inicio)
+        if not liberado:
+            logger.warning(f"Download bloqueado: {msg}")
+            return jsonify({"error": msg}), 403
+
+        # Baixar arquivo do Cloudinary
         response = requests.get(versao.arquivo_url, stream=True, timeout=30)
         response.raise_for_status()
+
+        # Registrar download
+        registrar_download_produto(current_user, versao, ciclo_inicio)
+
+        nome_arquivo = f"dwcapital_{versao.versao}{versao.extensao or '.exe'}"
+        return send_file(
+            io.BytesIO(response.content),
+            as_attachment=True,
+            download_name=nome_arquivo,
+            mimetype='application/octet-stream'
+        )
     except Exception as e:
-        logger.error(f"Erro ao baixar arquivo do Cloudinary: {e}")
-        return jsonify({"error": "Falha ao obter o arquivo do robô"}), 500
+        logger.exception(f"Erro no download do robô: {str(e)}")
+        return jsonify({"error": f"Erro interno: {str(e)}"}), 500
 
-    # Registra o download (mesmo sem licença ativa)
-    registrar_download_produto(current_user, versao, ciclo_inicio)
-
-    # Define o nome do arquivo: dwcapital_{versão}{extensão}
-    nome_arquivo = f"dwcapital_{versao.versao}{versao.extensao or '.exe'}"
-    return send_file(
-        io.BytesIO(response.content),
-        as_attachment=True,
-        download_name=nome_arquivo,
-        mimetype='application/octet-stream'
-    )
-
-
-# ========== ROTA DE GERAÇÃO DE LICENÇA ==========
 
 @licenca_bp.route('/gerar', methods=['POST'])
 @login_required
@@ -114,7 +112,6 @@ def licenca_gerar():
             "message": "Você precisa cadastrar sua conta MT5 antes de gerar a licença."
         }), 200
 
-    # Verifica qual robô foi baixado no ciclo atual
     produto_id = obter_produto_baixado_no_ciclo_atual(current_user)
     if not produto_id:
         return jsonify({
@@ -123,7 +120,6 @@ def licenca_gerar():
             "message": "Você precisa baixar um robô antes de gerar a licença. Escolha um robô na página de download."
         }), 400
 
-    # Gera a licença para o produto específico
     chave, msg, licenca_obj, ja_existente = gerar_licenca_comissao(
         current_user, 
         current_user.conta_mt5, 
@@ -145,14 +141,13 @@ def licenca_gerar():
     })
 
 
-# ========== ROTAS ANTIGAS (compatibilidade) ==========
+# ========== ROTAS ANTIGAS ==========
 
 @licenca_bp.route('/robo/download', methods=['POST'])
 @login_required
 @limiter.limit("3 per minute")
 def baixar_robo_antigo():
-    """Rota antiga – redireciona para o download do primeiro produto com versão ativa (fallback)."""
-    from app.models import ProdutoRobo, VersaoRobo
+    from app.models import ProdutoRobo
     primeiro_produto = ProdutoRobo.query.order_by(ProdutoRobo.ordem).first()
     if primeiro_produto:
         return baixar_robo_produto(primeiro_produto.id)
