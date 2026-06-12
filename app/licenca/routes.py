@@ -75,7 +75,7 @@ def baixar_robo_produto(produto_id):
     registrar_download_produto(current_user, versao, licenca.ciclo_inicio)
 
     extensao = versao.extensao if versao.extensao else '.exe'
-    nome_arquivo = f"dwcapital_{versao.produto.slug}_v{versao.versao}{extensao}"
+    nome_arquivo = f"dwcapital_v{versao.versao}{versao.extensao}"
     return send_file(
         io.BytesIO(response.content),
         as_attachment=True,

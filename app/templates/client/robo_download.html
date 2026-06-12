@@ -225,7 +225,7 @@
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `dwcapital_robo_${this.getAttribute('data-produto-id')}.exe`;
+                a.download = `dwcapital_v${versao}.exe`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
