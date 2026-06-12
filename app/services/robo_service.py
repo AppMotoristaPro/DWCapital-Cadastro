@@ -5,10 +5,12 @@ Gerencia a versão ativa, o histórico de downloads por cliente e o bloqueio de 
 
 from datetime import datetime
 import pytz
+import logging
 from app import db
 from app.models import VersaoRobo, DownloadControle, ProdutoRobo
 from app.services.licenca_service import calcular_ciclo_por_data
 
+logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
 
 
@@ -112,31 +114,41 @@ def liberado_para_download_produto(user, produto_id, ciclo_inicio):
     NÃO exige licença ativa.
     Retorna (bool, mensagem, versao_obj)
     """
+    logger.info(f"[LIBERADO] Iniciando verificação: user={user.id}, produto={produto_id}, ciclo={ciclo_inicio}")
+
     # Bloqueio administrativo geral
     if getattr(user, 'robot_acesso_bloqueado', False):
+        logger.warning(f"[LIBERADO] Bloqueado: robot_acesso_bloqueado=True")
         return False, "Acesso ao robô bloqueado pelo administrador.", None
 
     # Versão publicada do produto?
     versao = VersaoRobo.query.filter_by(produto_id=produto_id, publicada=True).first()
     if not versao:
+        logger.warning(f"[LIBERADO] Bloqueado: versão publicada não encontrada para produto_id={produto_id}")
         return False, "Robô indisponível no momento.", None
+
+    logger.info(f"[LIBERADO] Versão encontrada: id={versao.id}, versao={versao.versao}")
 
     # Verifica se já baixou algum produto neste ciclo
     produto_baixado = cliente_baixou_algum_produto_no_ciclo(user, ciclo_inicio)
+    logger.info(f"[LIBERADO] produto_baixado no ciclo: {produto_baixado}")
 
     if produto_baixado is None:
-        # Nenhum download neste ciclo → liberado
+        logger.info(f"[LIBERADO] Nenhum download neste ciclo → liberado")
         return True, "", versao
     else:
         if produto_baixado == produto_id:
             # Já baixou este produto no ciclo: só libera se houve atualização
             ultimo = ultimo_download_por_produto(user, produto_id)
+            logger.info(f"[LIBERADO] Último download deste produto: versao_id={ultimo.versao_id if ultimo else None}, versao_atual_id={versao.id}")
             if ultimo and ultimo.versao_id != versao.id:
+                logger.info(f"[LIBERADO] Versão atualizada → liberado")
                 return True, "", versao
             else:
+                logger.warning(f"[LIBERADO] Bloqueado: já baixou este robô e não foi atualizado")
                 return False, "Você já baixou este robô e ele não foi atualizado.", None
         else:
-            # Baixou outro produto → bloqueado até próximo ciclo
+            logger.warning(f"[LIBERADO] Bloqueado: já baixou outro produto (id={produto_baixado}) neste ciclo")
             return False, "Você já baixou outro robô neste ciclo. Aguarde a próxima semana.", None
 
 
@@ -145,14 +157,16 @@ def registrar_download_produto(user, versao_obj, ciclo_inicio):
     Registra o download de uma versão de um produto, vinculando ao ciclo.
     Impede duplicatas no mesmo ciclo (idempotente).
     """
-    # Verifica se já existe um registro exatamente igual (mesmo ciclo e versão)
+    logger.info(f"[REGISTRAR] Tentando registrar: user={user.id}, versao_id={versao_obj.id}, ciclo={ciclo_inicio}")
+
+    # Verifica se já existe um registro exatamente igual
     existente = DownloadControle.query.filter_by(
         user_id=user.id,
         versao_id=versao_obj.id,
         ciclo_inicio=ciclo_inicio
     ).first()
     if existente:
-        # Já registrado, não faz nada
+        logger.info(f"[REGISTRAR] Registro já existe (id={existente.id}), ignorando")
         return
 
     novo = DownloadControle(
@@ -163,6 +177,7 @@ def registrar_download_produto(user, versao_obj, ciclo_inicio):
     )
     db.session.add(novo)
     db.session.commit()
+    logger.info(f"[REGISTRAR] Registro criado com sucesso, id={novo.id}")
 
 
 def obter_produto_baixado_no_ciclo_atual(user):
