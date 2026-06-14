@@ -47,7 +47,11 @@
             </button>
             
             <button onclick="gerarLicencaComissao()" class="px-6 py-2.5 bg-purple-50 hover:bg-purple-100 text-purple-700 text-[10px] font-black uppercase tracking-widest rounded-xl transition border border-purple-200 shadow-sm">
-                Gerar Licença Semanal
+                {% if todas_parcelas_quitadas %}
+                    Gerar Licença Vitalícia
+                {% else %}
+                    Gerar Licença Semanal
+                {% endif %}
             </button>
 
             <!-- Botão do vídeo tutorial -->
@@ -191,16 +195,16 @@
     </div>
 
     <div id="modal-nao-operei" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-[300]">
-    <div class="bg-white rounded-lg p-6 w-full max-w-md">
-        <h3 class="text-lg font-bold mb-2">📄 Não operei nesse dia</h3>
-        <p class="text-sm text-gray-600 mb-4">Envie o arquivo HTML gerado pelo MetaTrader referente ao dia <span id="modal-data-nao-operei" class="font-bold"></span>.</p>
-        <input type="file" id="html-file-input" accept=".html,.htm" class="w-full mb-4 border p-2 rounded">
-        <div class="flex justify-end gap-2">
-            <button onclick="fecharModalNaoOperei()" class="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
-            <button onclick="enviarRelatorioNaoOperei()" class="px-4 py-2 bg-blue-600 text-white rounded">Enviar e isentar</button>
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 class="text-lg font-bold mb-2">📄 Não operei nesse dia</h3>
+            <p class="text-sm text-gray-600 mb-4">Envie o arquivo HTML gerado pelo MetaTrader referente ao dia <span id="modal-data-nao-operei" class="font-bold"></span>.</p>
+            <input type="file" id="html-file-input" accept=".html,.htm" class="w-full mb-4 border p-2 rounded">
+            <div class="flex justify-end gap-2">
+                <button onclick="fecharModalNaoOperei()" class="px-4 py-2 bg-gray-200 rounded">Cancelar</button>
+                <button onclick="enviarRelatorioNaoOperei()" class="px-4 py-2 bg-blue-600 text-white rounded">Enviar e isentar</button>
+            </div>
         </div>
     </div>
-</div>
 
     <!-- DEMAIS MODAIS (PIX, LICENÇA, ETC.) - MANTIDOS ORIGINAIS -->
     {% if current_user.modelo_negocio != 'compra' %}
@@ -290,22 +294,41 @@
         </div>
     </div>
 
-    <!-- Modal de regras para licença semanal -->
+    <!-- Modal de regras para licença (condicional) -->
     <div id="modal-regras-licenca" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
         <div class="bg-white w-full max-w-md rounded-[2rem] shadow-2xl p-10 relative border border-gray-100">
             <button onclick="fecharModalRegras()" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black text-xl outline-none">&times;</button>
             <div class="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-6 text-purple-600">
                 <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
             </div>
-            <h3 class="text-xl font-black text-navy mb-4">Regras da Licença Semanal</h3>
+            <h3 class="text-xl font-black text-navy mb-4">
+                {% if todas_parcelas_quitadas %}
+                    Regras da Licença Vitalícia
+                {% else %}
+                    Regras da Licença Semanal
+                {% endif %}
+            </h3>
             <ul class="text-sm text-gray-600 space-y-2 text-left list-disc pl-4 mb-6">
-                <li>A licença é gerada apenas em dias úteis (segunda a sexta).</li>
-                <li>O ciclo anterior (sexta a quinta) deve estar com TODAS as notas enviadas.</li>
-                <li>Para comissionados o pagamento do ciclo deve estar confirmado pelo administrador.</li>
-                <li>Uma mesma licença não pode ser gerada duas vezes para o mesmo ciclo.</li>
-                <li>A licença gerada é válida até o domingo seguinte, às 23:59.</li>
+                {% if todas_parcelas_quitadas %}
+                    <li>A licença vitalícia é gerada apenas uma vez e é válida para sempre.</li>
+                    <li>Você ficará permanentemente vinculado ao robô baixado no ciclo atual.</li>
+                    <li>Não será possível trocar de robô após gerar a licença vitalícia.</li>
+                    <li>A chave gerada não expira nunca.</li>
+                {% else %}
+                    <li>A licença é gerada apenas em dias úteis (segunda a sexta).</li>
+                    <li>O ciclo anterior (sexta a quinta) deve estar com TODAS as notas enviadas.</li>
+                    <li>Para comissionados o pagamento do ciclo deve estar confirmado pelo administrador.</li>
+                    <li>Uma mesma licença não pode ser gerada duas vezes para o mesmo ciclo.</li>
+                    <li>A licença gerada é válida até o domingo seguinte, às 23:59.</li>
+                {% endif %}
             </ul>
-            <button onclick="aceitarRegrasEProsseguir()" class="w-full py-4 bg-purple-600 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg hover:bg-purple-700 transition">Li e Aceito as Regras</button>
+            <button onclick="aceitarRegrasEProsseguir()" class="w-full py-4 bg-purple-600 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg hover:bg-purple-700 transition">
+                {% if todas_parcelas_quitadas %}
+                    Li e Aceito as Regras (Vitalícia)
+                {% else %}
+                    Li e Aceito as Regras
+                {% endif %}
+            </button>
         </div>
     </div>
 
@@ -402,7 +425,6 @@ function toggleDropdown(btn) {
     }
 }
 
-// Fechar dropdown ao clicar fora
 document.addEventListener('click', function(event) {
     if (!event.target.closest('.relative')) {
         document.querySelectorAll('.dropdown-menu').forEach(menu => {

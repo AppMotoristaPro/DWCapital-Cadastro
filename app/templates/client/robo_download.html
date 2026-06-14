@@ -103,8 +103,8 @@
                 <tbody class="divide-y divide-gray-50 bg-white">
                     {% for item in historico %}
                     <tr class="hover:bg-gray-50/50 transition-colors">
-                        <td class="px-8 py-5 font-bold text-navy">{{ item.versao|e }}</td>
-                        <td class="px-6 py-5 text-[10px] font-bold text-gray-500">{{ (item.data_download | to_tz_br).strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td class="px-8 py-5 font-bold text-navy">{{ item.versao|e }}<\/td>
+                        <td class="px-6 py-5 text-[10px] font-bold text-gray-500">{{ (item.data_download | to_tz_br).strftime('%d/%m/%Y %H:%M') }}<\/td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -131,6 +131,14 @@
     .changelog-content table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; background-color: #fff; }
     .changelog-content th, .changelog-content td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; vertical-align: top; }
     .changelog-content th { background-color: #f1f5f9; font-weight: 700; }
+
+    /* Garante que o modal fique acima do cabeçalho e de qualquer outro elemento */
+    .fixed.z-\[9999\] {
+        z-index: 99999 !important;
+    }
+    header.sticky {
+        z-index: 50 !important;
+    }
 </style>
 
 <script>

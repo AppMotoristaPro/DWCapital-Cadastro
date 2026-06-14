@@ -275,7 +275,16 @@ def faturas():
         )
         return jsonify(resultado)
     inter_sandbox = os.environ.get('INTER_SANDBOX', 'true').lower() in ('true', '1', 't')
-    return render_template('client/faturas.html', faturas=faturas_carregadas, inter_sandbox=inter_sandbox)
+    
+    # Calcula se todas as parcelas do cliente compra estão pagas
+    todas_parcelas_quitadas = False
+    if current_user.modelo_negocio == 'compra':
+        todas_parcelas_quitadas = todas_parcelas_pagas(current_user.id)
+    
+    return render_template('client/faturas.html', 
+                           faturas=faturas_carregadas, 
+                           inter_sandbox=inter_sandbox,
+                           todas_parcelas_quitadas=todas_parcelas_quitadas)
 
 @client_bp.route('/faturas/comprovante/<int:fatura_id>', methods=['POST'])
 @login_required
