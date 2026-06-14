@@ -1,18 +1,22 @@
-// Alterna a exibição dos detalhes das parcelas (expandir/colapsar)
-function toggleDetalhes(clienteId) {
-    const detalhesRow = document.getElementById(`detalhes-${clienteId}`);
-    if (detalhesRow) {
-        detalhesRow.classList.toggle('hidden');
-    }
+// Obtém o token CSRF da meta tag
+function getCSRFToken() {
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.getAttribute('content') : '';
 }
 
-// Marcar uma parcela como paga via AJAX
+function toggleDetalhes(clienteId) {
+    const detalhesRow = document.getElementById(`detalhes-${clienteId}`);
+    if (detalhesRow) detalhesRow.classList.toggle('hidden');
+}
+
 async function marcarParcelaPaga(parcelaId, clienteId) {
-    if (!confirm('Deseja marcar esta parcela como PAGA?')) {
+    if (!confirm('Deseja marcar esta parcela como PAGA?')) return;
+    
+    const token = getCSRFToken();
+    if (!token) {
+        alert('Token CSRF não encontrado. Recarregue a página.');
         return;
     }
-    
-    const token = document.querySelector('input[name="csrf_token"]')?.value || '';
     
     try {
         const response = await fetch(`/admin/parcela/pagar/${parcelaId}`, {
@@ -20,13 +24,19 @@ async function marcarParcelaPaga(parcelaId, clienteId) {
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': token
-            }
+            },
+            credentials: 'same-origin'
         });
         
-        const data = await response.json();
+        let data;
+        try {
+            data = await response.json();
+        } catch (e) {
+            alert('Erro inesperado do servidor. Verifique os logs.');
+            return;
+        }
         
-        if (data.success) {
-            // Recarrega a página para atualizar todos os dados (simples e seguro)
+        if (response.ok && data.success) {
             window.location.reload();
         } else {
             alert(data.message || 'Erro ao marcar parcela como paga.');

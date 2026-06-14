@@ -1300,16 +1300,19 @@ def parcelas_diretas():
 @admin_bp.route('/parcela/pagar/<int:parcela_id>', methods=['POST'])
 @admin_required
 def parcela_pagar(parcela_id):
-    """Marca uma parcela como paga (admin)."""
-    parcela = ParcelaCompra.query.get_or_404(parcela_id)
-    if parcela.status == 'pago':
-        return jsonify({'success': False, 'message': 'Esta parcela já está paga.'}), 400
-    else:
+    try:
+        parcela = ParcelaCompra.query.get_or_404(parcela_id)
+        if parcela.status == 'pago':
+            return jsonify({'success': False, 'message': 'Esta parcela já está paga.'}), 400
+        
         parcela.status = 'pago'
         parcela.data_pagamento = datetime.now(tz_br)
         db.session.commit()
-        registrar_log(f"Marcou a parcela ID {parcela.id} (ordem {parcela.ordem}, valor R${parcela.valor}) do cliente {parcela.cliente.nome} como PAGA.", "Pagamentos")
+        registrar_log(f"Marcou a parcela ID {parcela.id} (ordem {parcela.ordem}) do cliente {parcela.cliente.nome} como PAGA.", "Pagamentos")
         return jsonify({'success': True, 'message': 'Parcela marcada como paga!'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Erro interno: {str(e)}'}), 500
 
 # ==================== ROTAS DE GESTÃO DE PRÊMIOS (FASE E) ====================
 
