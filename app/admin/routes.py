@@ -1144,7 +1144,8 @@ def cron_gerar_ciclos():
 def cliente_licencas(id):
     cliente = User.query.get_or_404(id)
     licencas = LicencaCliente.query.filter_by(user_id=cliente.id).order_by(LicencaCliente.data_geracao.desc()).all()
-    return render_template('admin/cliente_licencas.html', cliente=cliente, licencas=licencas)
+    produtos_ativos = ProdutoRobo.query.filter_by(ativo=True).order_by(ProdutoRobo.ordem).all()
+    return render_template('admin/cliente_licencas.html', cliente=cliente, licencas=licencas, produtos_ativos=produtos_ativos)
 
 # ==================== ROTA: RELATÓRIO DE GESTÃO ====================
 

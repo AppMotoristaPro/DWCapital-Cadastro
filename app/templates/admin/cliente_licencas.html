@@ -19,8 +19,7 @@
             <div class="flex items-center gap-3">
                 <select id="produto-vitalicio-select" class="px-3 py-2 bg-white text-navy rounded-lg text-xs font-black uppercase">
                     <option value="">Selecione o robô</option>
-                    {% from app.models import ProdutoRobo %}
-                    {% for produto in ProdutoRobo.query.filter_by(ativo=True).order_by(ProdutoRobo.ordem).all() %}
+                    {% for produto in produtos_ativos %}
                     <option value="{{ produto.id }}">{{ produto.nome }}</option>
                     {% endfor %}
                 </select>
