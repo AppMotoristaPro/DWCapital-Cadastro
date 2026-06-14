@@ -11,7 +11,7 @@ from app import db, limiter
 from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, User
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
-from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo
+from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo, modelo_para_fatura
 from app.services.documento_service import verificar_status_documento_cliente, enviar_documento_local_com_link
 from app.services.dashboard_service import obter_dados_dashboard_cliente
 from app.services.pix_service import PixService
@@ -111,6 +111,63 @@ def gerar_pix_setup():
 @login_required
 def status_setup():
     return jsonify({"pago": current_user.setup_pago})
+
+# ==================== NOTIFICAÇÕES ====================
+@client_bp.route('/api/notificacoes')
+@login_required
+def api_notificacoes():
+    """Retorna as notificações não lidas do cliente."""
+    from app.models import Notificacao
+    notificacoes = Notificacao.query.filter_by(
+        user_id=current_user.id, 
+        lida=False
+    ).order_by(Notificacao.data_criacao.desc()).all()
+    
+    return jsonify([{
+        'id': n.id,
+        'titulo': n.titulo,
+        'mensagem': n.mensagem,
+        'link': n.link,
+        'data': n.data_criacao.strftime('%d/%m/%Y')
+    } for n in notificacoes])
+
+@client_bp.route('/api/notificacao/marcar_lida/<int:notif_id>', methods=['POST'])
+@login_required
+def marcar_notificacao_lida(notif_id):
+    """Marca uma notificação como lida."""
+    from app.models import Notificacao
+    notif = Notificacao.query.get_or_404(notif_id)
+    if notif.user_id != current_user.id:
+        return jsonify({"error": "Não autorizado"}), 403
+    notif.lida = True
+    db.session.commit()
+    return jsonify({"success": True})
+
+# ==================== COMPRA DE ROBÔ ====================
+@client_bp.route('/comprar_robo', methods=['GET', 'POST'])
+@login_required
+def comprar_robo():
+    from app.services.parcela_service import gerar_parcelas_compra_unificado
+    from app.models import Notificacao
+
+    if current_user.modelo_negocio == 'compra':
+        flash('Você já está no modelo de compra.', 'info')
+        return redirect(url_for('client.dashboard'))
+    
+    if request.method == 'POST':
+        # Data de migração
+        current_user.modelo_negocio = 'compra'
+        current_user.data_migracao_compra = datetime.now(tz_br)
+        # Gera as 10 parcelas
+        parcelas = gerar_parcelas_compra_unificado(current_user.id)
+        db.session.add_all(parcelas)
+        # Marca todas as notificações de migração como lidas
+        Notificacao.query.filter_by(user_id=current_user.id, tipo='migracao').update({'lida': True})
+        db.session.commit()
+        flash('Parabéns! Agora você é um cliente compra. As parcelas foram geradas e o acesso ao robô será liberado após o pagamento da entrada.', 'success')
+        return redirect(url_for('client.dashboard'))
+    
+    return render_template('client/comprar_robo.html')
 
 # ==================== OUTRAS ROTAS ====================
 @client_bp.route('/api/buscar_dados_whatsapp', methods=['POST'])
@@ -248,12 +305,16 @@ def dados_pessoais():
 def faturas():
     auto_gerar_ciclo(current_user)
     faturas_carregadas = Fatura.query.options(joinedload(Fatura.dias)).filter_by(user_id=current_user.id).order_by(Fatura.data_inicio.desc()).all()
+    
+    # Pré-calcula o subtotal de cada fatura usando a lógica de modelo vigente por data
     for fatura in faturas_carregadas:
-        if current_user.modelo_negocio == 'compra':
+        modelo = modelo_para_fatura(current_user, fatura.data_inicio)
+        if modelo == 'compra':
             subtotal = sum(dia.liquido for dia in fatura.dias if dia.status == 'relatorio_enviado')
         else:
             subtotal = sum(dia.repasse for dia in fatura.dias if dia.status == 'relatorio_enviado')
         fatura.subtotal_exibicao = subtotal
+
     if request.method == 'GET':
         from app.services.fatura_service import garantir_dias_faltantes_para_fatura
         houve_alteracao_global = False
@@ -382,8 +443,11 @@ def api_explicacao_dashboard():
             periodo = "Nenhuma fatura encontrada"
     dias = []
     totais = {'bruto': 0.0, 'liquido': 0.0, 'repasse': 0.0}
-    is_comissao = (current_user.modelo_negocio != 'compra' and not current_user.is_isento)
+    # A variável is_comissao será determinada por fatura, mas para simplificar, usaremos o modelo vigente na primeira fatura (se existir)
+    # Ou podemos calcular por dia. Para não complicar, vamos usar o modelo do usuário (já que a API é usada apenas para explicação).
+    # Mas para precisão, faremos um loop simples.
     for fatura in faturas:
+        modelo = modelo_para_fatura(current_user, fatura.data_inicio)
         for dia in fatura.dias:
             if dia.status != 'relatorio_enviado':
                 continue
@@ -394,7 +458,7 @@ def api_explicacao_dashboard():
             else:
                 irrf_19 = 0.0
             liquido_real = liquido_pregao - irrf_19
-            if is_comissao:
+            if modelo == 'comissao' and not current_user.is_isento:
                 repasse = (dia.repasse or 0.0)
             else:
                 repasse = 0.0
@@ -407,7 +471,7 @@ def api_explicacao_dashboard():
                 'irrf_19': irrf_19,
                 'liquido': liquido_real,
                 'repasse': repasse,
-                'is_comissao': is_comissao
+                'is_comissao': (modelo == 'comissao')
             })
             totais['bruto'] += liquido_pregao
             totais['liquido'] += liquido_real

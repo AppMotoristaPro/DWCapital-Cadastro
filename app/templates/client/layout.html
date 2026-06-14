@@ -41,6 +41,22 @@
                         Ajuda
                     </a>
                     
+                    <!-- Sino de notificações -->
+                    <div class="relative">
+                        <button id="btn-notificacoes" class="text-slate-300 hover:text-white p-2 rounded-full relative">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                            </svg>
+                            <span id="badge-notificacoes" class="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center hidden">0</span>
+                        </button>
+                        <div id="dropdown-notificacoes" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl z-50 border border-gray-200">
+                            <div class="p-3 border-b border-gray-200 font-bold text-navy text-sm">Notificações</div>
+                            <div id="lista-notificacoes" class="max-h-96 overflow-y-auto">
+                                <div class="p-4 text-center text-gray-500 text-sm">Carregando...</div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="h-6 w-px bg-white/10 mx-2"></div>
                     
                     <a href="{{ url_for('auth.logout') }}" class="px-4 py-2.5 bg-red-400/10 text-red-400 hover:bg-red-500 hover:text-white border border-red-400/20 hover:border-transparent rounded-xl text-xs font-bold uppercase tracking-widest transition duration-300">
@@ -83,5 +99,61 @@
         const menu = document.getElementById('mobile-menu');
         menu.classList.toggle('hidden');
     }
+
+    // ==================== NOTIFICAÇÕES ====================
+    function carregarNotificacoes() {
+        fetch('/portal/api/notificacoes')
+            .then(res => res.json())
+            .then(data => {
+                const badge = document.getElementById('badge-notificacoes');
+                if (data.length > 0) {
+                    badge.innerText = data.length;
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
+                const container = document.getElementById('lista-notificacoes');
+                if (data.length === 0) {
+                    container.innerHTML = '<div class="p-4 text-center text-gray-500 text-sm">Nenhuma notificação</div>';
+                    return;
+                }
+                let html = '';
+                data.forEach(n => {
+                    html += `
+                        <div class="border-b border-gray-100 p-3 hover:bg-gray-50 transition cursor-pointer notif-item" data-id="${n.id}" data-link="${n.link || '#'}">
+                            <div class="font-bold text-navy text-sm">${n.titulo}</div>
+                            <div class="text-xs text-gray-600 mt-1">${n.mensagem}</div>
+                            <div class="text-[9px] text-gray-400 mt-1">${n.data}</div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+                document.querySelectorAll('.notif-item').forEach(el => {
+                    el.addEventListener('click', () => {
+                        const id = el.getAttribute('data-id');
+                        const link = el.getAttribute('data-link');
+                        fetch(`/portal/api/notificacao/marcar_lida/${id}`, { 
+                            method: 'POST', 
+                            headers: { 'X-CSRFToken': '{{ csrf_token() }}' } 
+                        }).then(() => {
+                            if (link && link !== '#') window.location.href = link;
+                            else carregarNotificacoes();
+                        });
+                    });
+                });
+            });
+    }
+
+    document.getElementById('btn-notificacoes').addEventListener('click', (e) => {
+        e.stopPropagation();
+        const dropdown = document.getElementById('dropdown-notificacoes');
+        dropdown.classList.toggle('hidden');
+        carregarNotificacoes();
+    });
+    document.addEventListener('click', () => {
+        document.getElementById('dropdown-notificacoes').classList.add('hidden');
+    });
+    // Carrega notificações ao carregar a página (para o badge)
+    carregarNotificacoes();
 </script>
 {% endblock %}

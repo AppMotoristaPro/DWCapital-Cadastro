@@ -1,0 +1,47 @@
+{% extends "client/layout.html" %}
+{% block client_content %}
+<div class="max-w-3xl mx-auto pb-12">
+    <div class="bg-white/80 backdrop-blur-xl rounded-2xl p-8 shadow-md border border-white">
+        <h1 class="text-3xl font-black text-navy mb-6">Compre sua licença do robô</h1>
+        
+        <div class="space-y-6 text-gray-700">
+            <p>Você está atualmente no <strong class="text-navy">modelo comissionado</strong>, onde você paga <strong>30% dos lucros</strong> do robô para a DW Capital.</p>
+            
+            <div class="bg-blue-50 p-5 rounded-xl border border-blue-200">
+                <h3 class="font-bold text-blue-800 text-lg mb-3">🎯 Por que comprar a licença?</h3>
+                <ul class="list-disc ml-5 space-y-2">
+                    <li><strong>Lucro integral</strong> – você fica com <strong>100% dos lucros</strong> gerados pelo robô.</li>
+                    <li><strong>Acesso vitalício</strong> – após quitar as parcelas, a licença é <strong>permanente</strong>.</li>
+                    <li><strong>Sem repasses mensais</strong> – o custo é fixo e previsível.</li>
+                </ul>
+            </div>
+
+            <div class="bg-green-50 p-5 rounded-xl border border-green-200">
+                <h3 class="font-bold text-green-800 text-lg mb-3">📋 Condições da compra</h3>
+                <ul class="list-disc ml-5 space-y-2">
+                    <li><strong>Entrada:</strong> R$ 3.000,00 (paga no momento da migração).</li>
+                    <li><strong>Mais 9 parcelas semanais</strong> de R$ 500,00 cada.</li>
+                    <li>Enquanto houver parcelas pendentes, o acesso ao robô segue as mesmas regras do modelo comissionado (licença semanal).</li>
+                    <li>Após quitar <strong>todas as 10 parcelas</strong>, você gera uma <strong>licença vitalícia</strong> e fica permanentemente vinculado ao robô escolhido.</li>
+                </ul>
+            </div>
+
+            <div class="bg-yellow-50 p-5 rounded-xl border border-yellow-200">
+                <p class="font-bold text-yellow-800">⚠️ Atenção:</p>
+                <p>A migração é <strong>irreversível</strong>. Você não poderá voltar ao modelo de comissão após confirmar.</p>
+            </div>
+        </div>
+
+        <form method="POST" class="mt-8">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="w-full py-3 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-sm transition shadow-md" onclick="return confirm('Tem certeza que deseja comprar a licença do robô? A ação é irreversível.')">
+                Sim, quero comprar meu robô agora!
+            </button>
+        </form>
+        
+        <div class="mt-6 text-center">
+            <a href="{{ url_for('client.dashboard') }}" class="text-sm text-gray-500 hover:text-royal transition">Cancelar e continuar com comissão</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

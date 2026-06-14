@@ -3,6 +3,7 @@ from sqlalchemy.orm import joinedload, contains_eager
 from app import db
 from app.models import Fatura, User
 import pytz
+from app.services.fatura_service import modelo_para_fatura
 
 tz_br = pytz.timezone('America/Sao_Paulo')
 
@@ -14,8 +15,6 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
     O ROI considera todos os clientes (comissionados, compra e isentos) que possuem
     pelo menos um dia com relatório enviado e valor bruto > 0.
     """
-    # FRENTE 1: Retirado o filtro db.or_(User.is_isento == False, User.is_isento.is_(None)) 
-    # para que o Bruto Consolidado puxe TODOS os usuários (normais, isentos e compras).
     faturas_base = Fatura.query.join(User).options(
         contains_eager(Fatura.cliente),
         joinedload(Fatura.dias)
@@ -62,9 +61,10 @@ def obter_dados_dashboard(filtro_dia, filtro_semana_dia, filtro_ano):
     ranking_clientes = {} 
 
     for f in faturas_filtradas:
-        capital_cliente = f.cliente.capital_alocado or 0.0
-        modelo_cliente = getattr(f.cliente, 'modelo_negocio', 'comissao')
+        # Determina modelo vigente com base na data de início da fatura
+        modelo_cliente = modelo_para_fatura(f.cliente, f.data_inicio)
         is_isento_cliente = getattr(f.cliente, 'is_isento', False)
+        capital_cliente = f.cliente.capital_alocado or 0.0
         
         if f.user_id not in rois_clientes:
             rois_clientes[f.user_id] = {
@@ -218,8 +218,12 @@ def obter_dados_dashboard_cliente(user_id, filtro_dia, filtro_semana_dia, filtro
     media_diaria = (liquido_total / dias_unicos_operados) if dias_unicos_operados > 0 else 0.0
     
     user = User.query.get(user_id)
-    # Se isento OU se comprou o robô, recebe 100% do lucro limpo
-    eh_compra = getattr(user, 'modelo_negocio', 'comissao') == 'compra'
+    eh_compra = (user.modelo_negocio == 'compra')
+    # Para dashboard, usamos o modelo atual do usuário (não baseado em data), pois é uma visão agregada.
+    # No entanto, os valores de repasse devem seguir a regra de migração? O dashboard mostra o lucro do cliente,
+    # que para clientes compra é 100% do lucro líquido (já está correto).
+    # Para clientes comissionados que migraram, o dashboard mostra apenas dados atuais (após migração),
+    # então usar o modelo atual é suficiente.
     multiplicador = 1.0 if (getattr(user, 'is_isento', False) or eh_compra) else 0.70
     lucro_parceiro_total = liquido_total * multiplicador
 

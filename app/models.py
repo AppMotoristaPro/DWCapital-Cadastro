@@ -60,6 +60,10 @@ class User(db.Model, UserMixin):
     produto_vitalicio = db.relationship('ProdutoRobo', foreign_keys=[produto_vitalicio_id])
     # ============================================================
     
+    # ==================== MIGRAÇÃO COMPRA ====================
+    data_migracao_compra = db.Column(db.DateTime, nullable=True)
+    # ============================================================
+    
     # Relacionamentos
     indicado_por = db.relationship('User', remote_side=[id], backref='indicacoes')
     # ================================================================
@@ -332,6 +336,28 @@ class LicencaCliente(db.Model):
 
     def __repr__(self):
         return f"<LicencaCliente user={self.user_id} tipo={self.tipo} ciclo={self.ciclo_inicio}>"
+
+# =============================================================================
+# NOTIFICAÇÕES
+# =============================================================================
+
+class Notificacao(db.Model):
+    """Registra notificações enviadas para os clientes."""
+    __tablename__ = 'notificacao'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    titulo = db.Column(db.String(200), nullable=False)
+    mensagem = db.Column(db.Text, nullable=False)
+    link = db.Column(db.String(500), nullable=True)
+    data_criacao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
+    lida = db.Column(db.Boolean, default=False)
+    tipo = db.Column(db.String(50), default='migracao')
+    
+    user = db.relationship('User', backref='notificacoes')
+    
+    def __repr__(self):
+        return f"<Notificacao user={self.user_id} tipo={self.tipo}>"
 
 # =============================================================================
 

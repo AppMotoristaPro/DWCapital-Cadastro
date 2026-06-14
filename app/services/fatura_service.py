@@ -168,6 +168,20 @@ def auto_gerar_ciclos_em_lote(users, data_base=None):
     except IntegrityError:
         db.session.rollback()
 
+# ==================== FUNÇÃO PARA DETERMINAR MODELO VIGENTE POR DATA ====================
+
+def modelo_para_fatura(user, data_inicio_fatura):
+    """
+    Retorna o modelo de negócio que deve ser aplicado para uma fatura com determinada data de início.
+    Se o usuário migrou para compra em uma data posterior, as faturas anteriores continuam como comissão.
+    """
+    if user.modelo_negocio == 'comissao':
+        return 'comissao'
+    if user.modelo_negocio == 'compra' and user.data_migracao_compra:
+        if data_inicio_fatura < user.data_migracao_compra.date():
+            return 'comissao'
+    return 'compra'
+
 # ==================== NOVA FUNÇÃO EXTRAÍDA DA ROTA /faturas ====================
 
 def garantir_dias_faltantes_para_fatura(user, fatura):

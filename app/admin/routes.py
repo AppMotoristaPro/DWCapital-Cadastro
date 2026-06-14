@@ -1137,6 +1137,40 @@ def cron_gerar_ciclos():
         return jsonify({"status": "ok", "clientes_processados": len(clientes_ativos)}), 200
     return jsonify({"status": "ok", "clientes_processados": 0}), 200
 
+@admin_bp.route('/cron/enviar_notificacao_comprar_robo', methods=['POST'])
+@csrf.exempt
+def cron_notificacao_comprar_robo():
+    token = request.headers.get('X-Cron-Secret')
+    if token != os.environ.get('CRON_SECRET'):
+        return jsonify({"error": "Não autorizado"}), 403
+    
+    from app.models import Notificacao
+    clientes = User.query.filter_by(
+        modelo_negocio='comissao',
+        status_acesso='ativo'
+    ).all()
+    
+    count = 0
+    for cliente in clientes:
+        ja_tem = Notificacao.query.filter_by(
+            user_id=cliente.id,
+            tipo='migracao',
+            lida=False
+        ).first()
+        if ja_tem:
+            continue
+        nova = Notificacao(
+            user_id=cliente.id,
+            titulo="💰 Oportunidade especial!",
+            mensagem="Compre sua licença do robô e deixe esses 30% no seu bolso!!",
+            link=url_for('client.comprar_robo', _external=True),
+            tipo='migracao'
+        )
+        db.session.add(nova)
+        count += 1
+    db.session.commit()
+    return jsonify({"status": "ok", "notificacoes_criadas": count})
+
 # ==================== NOVA ROTA: HISTÓRICO DE LICENÇAS ====================
 
 @admin_bp.route('/cliente_licencas/<int:id>')
