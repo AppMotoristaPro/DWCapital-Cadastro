@@ -10,13 +10,20 @@
     </div>
 
     <div class="bg-white/80 backdrop-blur-xl rounded-3xl shadow-md overflow-hidden border border-white">
-        <!-- Cabeçalho com botão de gerar licença vitalícia (AJAX) -->
-        <div class="bg-gradient-to-r from-navy to-royal-dark px-8 py-5 text-white flex justify-between items-center">
+        <!-- Cabeçalho com botão de gerar licença vitalícia -->
+        <div class="bg-gradient-to-r from-navy to-royal-dark px-8 py-5 text-white flex justify-between items-center flex-wrap gap-4">
             <div>
                 <h2 class="text-xl font-black tracking-tight">{{ cliente.nome }}</h2>
                 <p class="text-sm text-blue-200">CPF: {{ cliente.cpf }} | ID: {{ cliente.id }} | Conta MT5: {{ cliente.conta_mt5 or 'Não informada' }}</p>
             </div>
-            <div>
+            <div class="flex items-center gap-3">
+                <select id="produto-vitalicio-select" class="px-3 py-2 bg-white text-navy rounded-lg text-xs font-black uppercase">
+                    <option value="">Selecione o robô</option>
+                    {% from app.models import ProdutoRobo %}
+                    {% for produto in ProdutoRobo.query.filter_by(ativo=True).order_by(ProdutoRobo.ordem).all() %}
+                    <option value="{{ produto.id }}">{{ produto.nome }}</option>
+                    {% endfor %}
+                </select>
                 <button type="button" onclick="gerarLicencaVitalicia()" class="px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-black uppercase tracking-widest transition shadow-md">
                     🔓 Gerar Licença Vitalícia
                 </button>
@@ -38,23 +45,23 @@
                 <tbody class="divide-y divide-gray-100 bg-white">
                     {% for lic in licencas %}
                     <tr class="hover:bg-gray-50/50 transition-colors">
-                        <td class="px-6 py-5 text-sm font-mono">{{ (lic.data_geracao | to_tz_br).strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td class="px-6 py-5 text-sm font-mono">{{ (lic.data_geracao | to_tz_br).strftime('%d/%m/%Y %H:%M') }}<\/td>
                         <td class="px-6 py-5">
                             <span class="px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest 
                                 {% if lic.tipo == 'semanal' %}bg-blue-100 text-royal border border-blue-200
                                 {% else %}bg-purple-100 text-purple-700 border border-purple-200{% endif %}">
                                 {{ lic.tipo }}
                             </span>
-                        </td>
-                        <td class="px-6 py-5 font-mono text-sm text-navy font-bold break-all">{{ lic.chave_licenca }}</td>
-                        <td class="px-6 py-5 text-sm">{{ lic.ciclo_inicio.strftime('%d/%m/%Y') }} a {{ lic.ciclo_fim.strftime('%d/%m/%Y') }}</td>
+                        <\/td>
+                        <td class="px-6 py-5 font-mono text-sm text-navy font-bold break-all">{{ lic.chave_licenca }}<\/td>
+                        <td class="px-6 py-5 text-sm">{{ lic.ciclo_inicio.strftime('%d/%m/%Y') }} a {{ lic.ciclo_fim.strftime('%d/%m/%Y') }}<\/td>
                         <td class="px-6 py-5 text-sm">
                             {% if lic.data_expiracao %}
                                 {{ (lic.data_expiracao | to_tz_br).strftime('%d/%m/%Y %H:%M') }}
                             {% else %}
                                 <span class="text-green-600 font-black">Vitalícia (nunca expira)</span>
                             {% endif %}
-                        </td>
+                        <\/td>
                         <td class="px-6 py-5">
                             <span class="px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest
                                 {% if lic.status == 'ativa' %}bg-green-100 text-green-700 border border-green-200
@@ -62,13 +69,13 @@
                                 {% else %}bg-red-100 text-red-700 border border-red-200{% endif %}">
                                 {{ lic.status }}
                             </span>
-                        </td>
+                        <\/td>
                     </tr>
                     {% else %}
                     <tr>
                         <td colspan="6" class="px-6 py-20 text-center text-gray-400 font-medium text-sm">
                             Este cliente ainda não gerou nenhuma licença.
-                        </td>
+                        <\/td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -99,14 +106,23 @@
 function gerarLicencaVitalicia() {
     const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '{{ csrf_token() }}';
     const userId = {{ cliente.id }};
+    const produtoId = document.getElementById('produto-vitalicio-select').value;
+    if (!produtoId) {
+        alert('Selecione o robô para o qual deseja gerar a licença vitalícia.');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('produto_id', produtoId);
+    formData.append('csrf_token', csrfToken);
     
     fetch(`/admin/forcar_licenca_vitalicia/${userId}`, {
         method: 'POST',
         headers: {
             'X-Requested-With': 'XMLHttpRequest',
-            'X-CSRFToken': csrfToken,
-            'Content-Type': 'application/json'
+            'X-CSRFToken': csrfToken
         },
+        body: formData,
         credentials: 'same-origin'
     })
     .then(response => response.json())
@@ -114,8 +130,7 @@ function gerarLicencaVitalicia() {
         if (data.success) {
             document.getElementById('chave-gerada').innerText = data.chave;
             document.getElementById('modal-chave-vitalicia').classList.remove('hidden');
-            // Recarrega a página para mostrar a nova licença na tabela
-            location.reload();
+            setTimeout(() => location.reload(), 1500);
         } else {
             alert(data.message || 'Erro ao gerar licença vitalícia.');
         }

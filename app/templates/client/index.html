@@ -174,4 +174,36 @@
         });
     });
 </script>
+
+{% if mostrar_aviso_vitalicia %}
+<div id="modal-aviso-vitalicia" class="fixed inset-0 z-[200] flex items-center justify-center bg-navy/80 backdrop-blur-md p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-8 relative">
+        <button onclick="fecharAvisoVitalicia()" class="absolute top-3 right-3 text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        <div class="w-16 h-16 bg-royal/10 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg class="w-8 h-8 text-royal" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+        </div>
+        <h3 class="text-2xl font-black text-navy text-center mb-4">🎉 Parabéns!</h3>
+        <p class="text-gray-600 text-center mb-4">Você quitou todas as parcelas do seu robô! Agora você tem direito a uma <strong class="text-royal">licença vitalícia</strong>.</p>
+        <p class="text-gray-600 text-center mb-6">Para ativá-la, siga os passos:</p>
+        <ol class="list-decimal list-inside text-gray-600 mb-6 space-y-2">
+            <li>Vá em <strong>Baixar Robô</strong> e escolha o robô desejado.</li>
+            <li>Após baixar, volte ao <strong>Extrato de Faturamento</strong> e clique em <strong>Gerar Licença Semanal</strong>.</li>
+            <li>A primeira licença gerada será <strong>vitalícia</strong> e você ficará vinculado permanentemente a esse robô.</li>
+        </ol>
+        <button onclick="fecharAvisoVitalicia()" class="w-full py-3 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-sm transition shadow-md">
+            Entendi, vou gerar minha licença!
+        </button>
+    </div>
+</div>
+<script>
+    function fecharAvisoVitalicia() {
+        fetch("{{ url_for('client.fechar_aviso_vitalicia') }}", {
+            method: 'POST',
+            headers: { 'X-CSRFToken': '{{ csrf_token() }}' }
+        }).then(() => {
+            document.getElementById('modal-aviso-vitalicia').remove();
+        });
+    }
+</script>
+{% endif %}
 {% endblock %}

@@ -3,12 +3,12 @@ import urllib.parse
 from datetime import datetime, timedelta
 import pytz
 import logging
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify, abort
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify, abort, session
 from flask_login import login_required, current_user
 import cloudinary
 import cloudinary.uploader
 from app import db, limiter
-from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, User, PremioSolicitacao
+from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, User
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo
@@ -16,12 +16,27 @@ from app.services.documento_service import verificar_status_documento_cliente, e
 from app.services.dashboard_service import obter_dados_dashboard_cliente
 from app.services.pix_service import PixService
 from app.utils.autentique import obter_url_visualizacao_autentique
+from app.services.parcela_service import todas_parcelas_pagas
+from app.services.licenca_service import obter_licenca_ativa
 
 logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
 
+# ==================== FUNÇÃO AUXILIAR ====================
+def precisa_gerar_vitalicia_aviso(user):
+    """Verifica se o usuário (compra) quitou todas as parcelas e ainda não possui licença vitalícia."""
+    if user.modelo_negocio != 'compra':
+        return False
+    if not todas_parcelas_pagas(user.id):
+        return False
+    if obter_licenca_ativa(user, tipo='vitalicia'):
+        return False
+    if user.produto_vitalicio_id:
+        return False
+    return True
 
+# ==================== BEFORE_REQUEST ====================
 @client_bp.before_request
 def check_paywall():
     """Verifica pendências: documentos, parcelas (compra) e agora setup para comissionados novos."""
@@ -47,12 +62,11 @@ def check_paywall():
     if (current_user.modelo_negocio == 'comissao' and 
         not current_user.setup_pago and
         current_user.status_acesso == 'ativo'):
-        # Permite apenas rotas de setup e logout
         if request.endpoint not in ['client.pagamento_setup', 'client.gerar_pix_setup', 'client.status_setup', 'auth.logout']:
             return redirect(url_for('client.pagamento_setup'))
 
     # 3. Bloqueio por parcelas de compra (modelo compra)
-    if request.endpoint not in ['client.bloqueio_pagamento', 'client.gerar_pix_licenca', 'client.status_licenca_api', 'auth.logout']:
+    if request.endpoint not in ['client.bloqueio_pagamento', 'client.gerar_pix_licenca', 'client.status_licenca_api', 'auth.logout', 'client.fechar_aviso_vitalicia']:
         if getattr(current_user, 'modelo_negocio', 'comissao') == 'compra':
             hoje = datetime.now(tz_br).date()
             parcela_pendente = ParcelaCompra.query.filter(
@@ -63,36 +77,29 @@ def check_paywall():
             if parcela_pendente:
                 return redirect(url_for('client.bloqueio_pagamento'))
 
+    # 4. Verificação para exibir modal de aviso de licença vitalícia
+    if current_user.is_authenticated and not getattr(current_user, 'precisa_trocar_senha', False):
+        if precisa_gerar_vitalicia_aviso(current_user):
+            session['mostrar_aviso_vitalicia'] = True
+        else:
+            session.pop('mostrar_aviso_vitalicia', None)
 
 # ==================== SETUP (taxa única) ====================
-
 @client_bp.route('/setup')
 @login_required
 def pagamento_setup():
-    """Página de pagamento da taxa única de setup."""
-    # Se já estiver pago, redireciona para dashboard
     if current_user.setup_pago:
         return redirect(url_for('client.dashboard'))
     inter_sandbox = os.environ.get('INTER_SANDBOX', 'true').lower() in ('true', '1', 't')
     return render_template('client/setup_pagamento.html', inter_sandbox=inter_sandbox)
 
-
 @client_bp.route('/setup/gerar_pix', methods=['POST'])
 @login_required
 def gerar_pix_setup():
-    """Gera PIX para o setup (R$ 399,90)."""
     if current_user.setup_pago:
         return jsonify({"success": False, "message": "Setup já foi pago."}), 400
-
     try:
-        # Verifica se já existe um txid pendente (opcional: reutilizar)
-        # Vamos criar um novo sempre
-        dados_pix = PixService.criar_cobranca_imediata(
-            valor=399.90,
-            nome_devedor=current_user.nome,
-            cpf_devedor=current_user.cpf
-        )
-        # Armazena o txid e payload no próprio usuário (campos novos que adicionamos)
+        dados_pix = PixService.criar_cobranca_imediata(399.90, current_user.nome, current_user.cpf)
         current_user.setup_txid = dados_pix["txid"]
         current_user.setup_payload = dados_pix["pix_copia_e_cola"]
         db.session.commit()
@@ -100,16 +107,12 @@ def gerar_pix_setup():
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
-
 @client_bp.route('/setup/status')
 @login_required
 def status_setup():
-    """Retorna se o setup já foi pago."""
     return jsonify({"pago": current_user.setup_pago})
 
-
-# ==================== DEMais ROTAS (não alteradas) ====================
-
+# ==================== OUTRAS ROTAS ====================
 @client_bp.route('/api/buscar_dados_whatsapp', methods=['POST'])
 def buscar_dados_whatsapp():
     data = request.get_json()
@@ -120,7 +123,6 @@ def buscar_dados_whatsapp():
         link = f"https://wa.me/5511991167709?text={urllib.parse.quote(msg)}"
         return jsonify({"success": True, "link": link})
     return jsonify({"success": False, "message": "O CPF informado não foi encontrado em nossa base de dados."})
-
 
 @client_bp.route('/bloqueio_pagamento')
 @login_required
@@ -137,7 +139,6 @@ def bloqueio_pagamento():
         return redirect(url_for('client.dashboard'))
     inter_sandbox = os.environ.get('INTER_SANDBOX', 'true').lower() in ('true', '1', 't')
     return render_template('client/bloqueio_pix.html', parcela=parcela_pendente, inter_sandbox=inter_sandbox)
-
 
 @client_bp.route('/faturas/gerar_pix/<int:fatura_id>', methods=['POST'])
 @login_required
@@ -157,7 +158,6 @@ def gerar_pix_fatura(fatura_id):
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
-
 @client_bp.route('/licencas/gerar_pix/<int:parcela_id>', methods=['POST'])
 @login_required
 def gerar_pix_licenca(parcela_id):
@@ -173,13 +173,11 @@ def gerar_pix_licenca(parcela_id):
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
-
 @client_bp.route('/api/status_fatura/<int:fatura_id>')
 @login_required
 def status_fatura_api(fatura_id):
     fatura = Fatura.query.get_or_404(fatura_id)
     return jsonify({"pago": fatura.status == 'pago'})
-
 
 @client_bp.route('/api/status_licenca/<int:parcela_id>')
 @login_required
@@ -187,6 +185,11 @@ def status_licenca_api(parcela_id):
     parcela = ParcelaCompra.query.get_or_404(parcela_id)
     return jsonify({"pago": parcela.status == 'pago'})
 
+@client_bp.route('/fechar_aviso_vitalicia', methods=['POST'])
+@login_required
+def fechar_aviso_vitalicia():
+    session.pop('mostrar_aviso_vitalicia', None)
+    return jsonify({"success": True})
 
 @client_bp.route('/dashboard')
 @login_required
@@ -195,8 +198,8 @@ def dashboard():
         return redirect(url_for('auth.forcar_troca_senha'))
     auto_gerar_ciclo(current_user)
     dados = obter_dados_dashboard_cliente(current_user.id, request.args.get('dia'), request.args.get('semana_dia'), request.args.get('ano'))
-    return render_template('client/index.html', user=current_user, **dados)
-
+    mostrar_aviso = session.get('mostrar_aviso_vitalicia', False)
+    return render_template('client/index.html', user=current_user, mostrar_aviso_vitalicia=mostrar_aviso, **dados)
 
 @client_bp.route('/assinar')
 @login_required
@@ -223,7 +226,6 @@ def assinar_termo():
     ).options(joinedload(DocumentoCliente.template)).all()
     return render_template('client/assinar_termo.html', documentos=pendentes)
 
-
 @client_bp.route('/api/status_assinatura')
 @login_required
 def api_status_assinatura():
@@ -235,12 +237,10 @@ def api_status_assinatura():
             all_signed = False
     return jsonify({"assinado": all_signed})
 
-
 @client_bp.route('/dados_pessoais')
 @login_required
 def dados_pessoais():
     return render_template('client/dados_pessoais.html', user=current_user)
-
 
 @client_bp.route('/faturas', methods=['GET', 'POST'])
 @login_required
@@ -277,7 +277,6 @@ def faturas():
     inter_sandbox = os.environ.get('INTER_SANDBOX', 'true').lower() in ('true', '1', 't')
     return render_template('client/faturas.html', faturas=faturas_carregadas, inter_sandbox=inter_sandbox)
 
-
 @client_bp.route('/faturas/comprovante/<int:fatura_id>', methods=['POST'])
 @login_required
 def enviar_comprovante(fatura_id):
@@ -296,7 +295,6 @@ def enviar_comprovante(fatura_id):
             flash(f"Erro ao enviar para nuvem: {str(e)}", "danger")
     return redirect(url_for('client.faturas'))
 
-
 @client_bp.route('/faturas/remover/<int:dia_id>', methods=['POST'])
 @login_required
 def remover_fatura(dia_id):
@@ -309,13 +307,11 @@ def remover_fatura(dia_id):
     atualizar_totais_semana(dia.fatura_semanal)
     return redirect(url_for('client.faturas'))
 
-
 @client_bp.route('/documentos')
 @login_required
 def documentos():
     meus_docs = DocumentoCliente.query.filter_by(user_id=current_user.id, status='assinado').options(joinedload(DocumentoCliente.template)).order_by(DocumentoCliente.data_envio.desc()).all()
     return render_template('client/documentos.html', documentos=meus_docs)
-
 
 @client_bp.route('/documentos/visualizar/<int:doc_id>')
 @login_required
@@ -335,7 +331,6 @@ def visualizar_documento(doc_id):
     flash('Não foi possível localizar o documento. Entre em contato com o suporte.', 'error')
     return redirect(url_for('client.documentos'))
 
-
 @client_bp.route('/api/status_documento/<int:doc_id>')
 @login_required
 def api_status_documento(doc_id):
@@ -343,7 +338,6 @@ def api_status_documento(doc_id):
     if not autorizado:
         return jsonify({"assinado": False}), 403
     return jsonify({"assinado": assinado})
-
 
 @client_bp.route('/api/explicacao_dashboard', methods=['GET'])
 @login_required
@@ -416,7 +410,6 @@ def api_explicacao_dashboard():
         'is_isento': current_user.is_isento,
         'modelo_negocio': current_user.modelo_negocio
     })
-
 
 @client_bp.route('/ajuda')
 @login_required

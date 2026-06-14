@@ -354,7 +354,7 @@ def pagamentos():
     
     repasse_global = db.session.query(db.func.sum(Fatura.repasse)).join(User).filter(
         User.modelo_negocio == 'comissao',
-        db.or_(User.is_isento == False, User.is_isento.is_(None))
+        db.or_(User.is_isento.is_(False), User.is_isento.is_(None))
     ).scalar() or 0.0
     
     if ciclo:
@@ -394,7 +394,7 @@ def pagamentos():
         repasse_ciclo = db.session.query(db.func.sum(Fatura.repasse)).join(User).filter(
             Fatura.data_inicio == inicio_ciclo,
             User.modelo_negocio == 'comissao',
-            db.or_(User.is_isento == False, User.is_isento.is_(None))
+            db.or_(User.is_isento.is_(False), User.is_isento.is_(None))
         ).scalar() or 0.0
         
         clientes_dados = []
@@ -485,14 +485,14 @@ def exportar_pendencias():
     ativos = User.query.filter(
         User.role == 'cliente', 
         User.status_acesso == 'ativo',
-        db.or_(User.is_isento == False, User.is_isento.is_(None))
+        db.or_(User.is_isento.is_(False), User.is_isento.is_(None))
     ).options(joinedload(User.faturas).joinedload(Fatura.dias)).order_by(User.nome.asc()).all()
     
     from app.utils.processador_xlsx import gerar_relatorio_pendencias
     
     caminho_tmp = os.path.join(current_app.root_path, 'static', 'uploads')
     os.makedirs(caminho_tmp, exist_ok=True)
-    arquivo_saida = os.path.join(caminho_tmp, f'Pendencias_Ate_Ontem.xlsx')
+    arquivo_saida = os.path.join(caminho_tmp, 'Pendencias_Ate_Ontem.xlsx')
     
     tem_dados = gerar_relatorio_pendencias(ativos, arquivo_saida)
     
@@ -1043,18 +1043,36 @@ def forcar_licenca_vitalicia(id):
     if not cliente.conta_mt5:
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({"success": False, "message": "Cliente não possui conta MT5 cadastrada."}), 400
-        flash('Cliente não possui conta MT5 cadastrada. Preencha o campo antes de gerar a licença.', 'error')
+        flash('Cliente não possui conta MT5 cadastrada.', 'error')
         return redirect(url_for('admin.editar_cliente', id=id))
     
-    # Usar a nova função de licença vitalícia (já atualizada)
-    chave, msg, nova_licenca = gerar_licenca_vitalicia(cliente, cliente.conta_mt5)
+    # Obtém o produto_id do formulário (select no template) ou fallback
+    produto_id = request.form.get('produto_id')
+    if not produto_id:
+        # Fallback: tenta obter o último produto baixado no ciclo atual
+        from app.services.robo_service import obter_produto_baixado_no_ciclo_atual
+        produto_id = obter_produto_baixado_no_ciclo_atual(cliente)
+        if not produto_id:
+            # Fallback: primeiro produto ativo
+            primeiro = ProdutoRobo.query.filter_by(ativo=True).order_by(ProdutoRobo.ordem).first()
+            produto_id = primeiro.id if primeiro else None
+        if not produto_id:
+            return jsonify({"success": False, "message": "Nenhum produto disponível para gerar licença vitalícia."}), 400
+    
+    # Gera licença vitalícia usando o produto escolhido
+    chave, msg, nova_licenca = gerar_licenca_vitalicia(cliente, cliente.conta_mt5, produto_id)
     if not chave:
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({"success": False, "message": msg}), 400
         flash(msg, 'error')
         return redirect(url_for('admin.editar_cliente', id=id))
     
-    registrar_log(f"Forçou a geração de nova licença vitalícia para {cliente.nome}. Chave: {chave}", "Clientes")
+    # Vincula o cliente ao produto vitalício (se ainda não estiver)
+    if not cliente.produto_vitalicio_id:
+        cliente.produto_vitalicio_id = produto_id
+        db.session.commit()
+    
+    registrar_log(f"Forçou a geração de nova licença vitalícia para {cliente.nome} (produto {produto_id}). Chave: {chave}", "Clientes")
     
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return jsonify({
@@ -1112,7 +1130,7 @@ def cron_gerar_ciclos():
     if token != os.environ.get('CRON_SECRET'):
         return jsonify({"error": "Não autorizado"}), 403
     
-    from app.services.fatura_service import auto_gerar_ciclos_em_lote
+    # Usa a função importada no topo (não reimportar)
     clientes_ativos = User.query.filter_by(role='cliente', status_acesso='ativo').all()
     if clientes_ativos:
         auto_gerar_ciclos_em_lote(clientes_ativos)
@@ -1191,7 +1209,7 @@ def parcelas():
     page = request.args.get('page', 1, type=int)
     per_page = 20
     
-    query = ParcelaCompra.query.join(User).filter(User.modelo_negocio == 'compra', User.is_indicado == True)
+    query = ParcelaCompra.query.join(User).filter(User.modelo_negocio == 'compra', User.is_indicado.is_(True))
     
     if status_filter in ['pendente', 'pago']:
         query = query.filter(ParcelaCompra.status == status_filter)
@@ -1241,7 +1259,7 @@ def parcelas_diretas():
     
     query = ParcelaCompra.query.join(User).filter(
         User.modelo_negocio == 'compra',
-        User.is_indicado == False
+        User.is_indicado.is_(False)
     )
     
     if status_filter in ['pendente', 'pago']:
