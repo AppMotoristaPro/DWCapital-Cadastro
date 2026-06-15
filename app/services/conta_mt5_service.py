@@ -25,11 +25,7 @@ def obter_conta(conta_id, user_id):
 
 
 def adicionar_conta(user_id, numero_conta, nome_corretora, capital_alocado=0.0):
-    """
-    Adiciona uma nova conta MT5 para o usuário.
-    Valida se o número da conta não está duplicado para o mesmo usuário (ativo).
-    """
-    # Verifica se já existe uma conta ativa com o mesmo número
+    """Adiciona uma nova conta MT5 para o usuário."""
     existente = ContaMT5Cliente.query.filter_by(
         user_id=user_id,
         numero_conta=numero_conta,
@@ -42,7 +38,7 @@ def adicionar_conta(user_id, numero_conta, nome_corretora, capital_alocado=0.0):
         user_id=user_id,
         numero_conta=numero_conta,
         nome_corretora=nome_corretora.upper(),
-        capital_alocado=capital_alocado,
+        capital_alocado=float(capital_alocado),
         ativo=True,
         bloqueada=False,
         data_cadastro=datetime.now(tz_br)
@@ -53,22 +49,32 @@ def adicionar_conta(user_id, numero_conta, nome_corretora, capital_alocado=0.0):
 
 
 def atualizar_conta(conta_id, user_id, **kwargs):
-    """
-    Atualiza os campos de uma conta (capital_alocado, nome_corretora, etc.).
-    Não permite atualizar número da conta (evita inconsistências).
-    """
+    """Atualiza os campos de uma conta (capital_alocado, nome_corretora)."""
     conta = obter_conta(conta_id, user_id)
     if not conta:
         raise ValueError("Conta não encontrada.")
 
+    # Converte capital_alocado para float se presente
+    if 'capital_alocado' in kwargs:
+        try:
+            kwargs['capital_alocado'] = float(kwargs['capital_alocado'])
+            if kwargs['capital_alocado'] < 0:
+                raise ValueError("Capital não pode ser negativo.")
+        except (TypeError, ValueError):
+            raise ValueError("Capital alocado deve ser um número válido.")
+
     campos_permitidos = ['capital_alocado', 'nome_corretora']
     for campo in campos_permitidos:
         if campo in kwargs:
+            if campo == 'nome_corretora':
+                kwargs[campo] = kwargs[campo].upper()
             setattr(conta, campo, kwargs[campo])
-    if 'nome_corretora' in kwargs:
-        conta.nome_corretora = kwargs['nome_corretora'].upper()
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        raise ValueError(f"Erro ao salvar: {str(e)}")
     return conta
 
 
@@ -83,10 +89,7 @@ def desativar_conta(conta_id, user_id):
 
 
 def bloquear_conta(conta_id, user_id, bloqueado):
-    """
-    Altera o status de bloqueio da conta (admin apenas).
-    Se bloqueada, o cliente não pode baixar/gerar licença para esta conta.
-    """
+    """Altera o status de bloqueio da conta (admin apenas)."""
     conta = obter_conta(conta_id, user_id)
     if not conta:
         raise ValueError("Conta não encontrada.")

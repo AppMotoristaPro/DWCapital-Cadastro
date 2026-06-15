@@ -17,7 +17,7 @@ from app.services.dashboard_service import obter_dados_dashboard_cliente
 from app.services.pix_service import PixService
 from app.utils.autentique import obter_url_visualizacao_autentique
 from app.services.parcela_service import todas_parcelas_pagas
-from app.services.licenca_service import obter_licenca_ativa_por_conta  # ajustado
+from app.services.licenca_service import obter_licenca_ativa_por_conta
 
 logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
@@ -31,7 +31,6 @@ def precisa_gerar_vitalicia_aviso(user):
         return False
     if not todas_parcelas_pagas(user.id):
         return False
-    # Verifica se já existe alguma licença vitalícia ativa para qualquer conta
     from app.models import LicencaCliente
     tem_vitalicia = LicencaCliente.query.filter_by(
         user_id=user.id, tipo='vitalicia', status='ativa'
@@ -362,7 +361,6 @@ def faturas():
     if current_user.modelo_negocio == 'compra':
         todas_parcelas_quitadas = todas_parcelas_pagas(current_user.id)
     
-    # Busca contas ativas do cliente para usar na geração de licença
     from app.services.conta_mt5_service import listar_contas
     contas_ativas = listar_contas(current_user.id, apenas_ativas=True)
     
@@ -576,16 +574,24 @@ def api_adicionar_conta():
 @client_bp.route('/api/contas/<int:conta_id>', methods=['PUT'])
 @login_required
 def api_atualizar_conta(conta_id):
-    """Atualiza capital alocado e/ou corretora de uma conta."""
+    """Atualiza capital alocado e/ou corretora de uma conta (cliente logado)."""
     data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'message': 'Dados não enviados.'}), 400
+
     capital_alocado = data.get('capital_alocado')
     nome_corretora = data.get('nome_corretora')
 
     kwargs = {}
     if capital_alocado is not None:
-        if capital_alocado < 0:
-            return jsonify({'success': False, 'message': 'Capital alocado não pode ser negativo.'}), 400
-        kwargs['capital_alocado'] = capital_alocado
+        try:
+            capital = float(capital_alocado)
+            if capital < 0:
+                return jsonify({'success': False, 'message': 'Capital não pode ser negativo.'}), 400
+            kwargs['capital_alocado'] = capital
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'message': 'Valor de capital inválido.'}), 400
+
     if nome_corretora:
         nome_corretora = nome_corretora.upper()
         if nome_corretora not in ['GENIAL', 'BTG', 'XP']:
@@ -597,9 +603,11 @@ def api_atualizar_conta(conta_id):
 
     try:
         atualizar_conta(conta_id, current_user.id, **kwargs)
-        return jsonify({'success': True})
+        return jsonify({'success': True, 'message': 'Conta atualizada com sucesso.'})
     except ValueError as e:
         return jsonify({'success': False, 'message': str(e)}), 404
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Erro interno: {str(e)}'}), 500
 
 
 @client_bp.route('/api/contas/<int:conta_id>', methods=['DELETE'])
