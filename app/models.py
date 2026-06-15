@@ -2,8 +2,8 @@ from app import db, login_manager
 from flask_login import UserMixin
 from datetime import datetime
 import pytz
-from sqlalchemy.orm import validates  # ALTERAÇÃO FASE 1 - para validação de CPF
-from app.utils.validators import validar_cpf  # ALTERAÇÃO FASE 1 - função de validação
+from sqlalchemy.orm import validates
+from app.utils.validators import validar_cpf
 
 tz_br = pytz.timezone('America/Sao_Paulo')
 
@@ -17,29 +17,22 @@ class User(db.Model, UserMixin):
     status_acesso = db.Column(db.String(20), default='pendente_cadastro')
     
     is_isento = db.Column(db.Boolean, default=False)
-    
     modelo_negocio = db.Column(db.String(20), default='comissao')
     
     endereco = db.Column(db.Text)
     email = db.Column(db.String(120))
     celular = db.Column(db.String(20))
     
+    # Campos legados (serão mantidos para compatibilidade, mas novos dados vão para ContaMT5Cliente)
     corretora = db.Column(db.String(50), nullable=True)
     capital_alocado = db.Column(db.Float, default=0.0)
     
-    # Conta MT5 do cliente (usada para geração de licenças)
-    conta_mt5 = db.Column(db.String(20), nullable=True)
+    # Campo antigo (será removido na migração)
+    # conta_mt5 = db.Column(db.String(20), nullable=True)  # REMOVIDO
     
-    # NOVO CAMPO: bloqueio de geração de licenças (admin)
     licenca_bloqueada = db.Column(db.Boolean, default=False)
-    
-    # NOVO CAMPO: bloqueio de download e geração de novas licenças (admin)
     robot_acesso_bloqueado = db.Column(db.Boolean, default=False)
-    
-    # NOVO CAMPO: indica se o cliente comissionado pagou a taxa única de setup (R$ 399,90)
     setup_pago = db.Column(db.Boolean, default=False)
-    
-    # Campos para controle do PIX do setup
     setup_txid = db.Column(db.String(100), nullable=True)
     setup_payload = db.Column(db.Text, nullable=True)
     
@@ -50,41 +43,51 @@ class User(db.Model, UserMixin):
     termo_assinado = db.Column(db.Boolean, default=False)
     docusign_envelope_id = db.Column(db.String(100), nullable=True)
     
-    # ==================== PROGRAMA DE INDICAÇÃO ====================
     indicador_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     is_indicado = db.Column(db.Boolean, default=False)
     data_indicacao = db.Column(db.DateTime, nullable=True)
     
-    # ==================== VÍNCULO VITALÍCIO ====================
     produto_vitalicio_id = db.Column(db.Integer, db.ForeignKey('produto_robo.id'), nullable=True)
     produto_vitalicio = db.relationship('ProdutoRobo', foreign_keys=[produto_vitalicio_id])
-    # ============================================================
     
-    # ==================== MIGRAÇÃO COMPRA ====================
     data_migracao_compra = db.Column(db.DateTime, nullable=True)
-    # ============================================================
     
     # Relacionamentos
     indicado_por = db.relationship('User', remote_side=[id], backref='indicacoes')
-    # ================================================================
-    
     faturas = db.relationship('Fatura', backref='cliente', lazy=True, cascade="all, delete-orphan")
     alocacoes = db.relationship('AlocacaoCorretora', backref='cliente', lazy=True, cascade="all, delete-orphan")
     logs = db.relationship('LogAuditoria', backref='admin', lazy=True)
     documentos_extras = db.relationship('DocumentoCliente', backref='cliente', lazy=True, cascade="all, delete-orphan")
-    
     parcelas_licenca = db.relationship('ParcelaCompra', backref='cliente', lazy=True, cascade="all, delete-orphan", order_by="ParcelaCompra.ordem")
-    
-    # Relacionamentos de download e licenças
     downloads = db.relationship('DownloadControle', backref='cliente', lazy=True, cascade="all, delete-orphan")
     licencas = db.relationship('LicencaCliente', backref='cliente', lazy=True, cascade="all, delete-orphan")
+    
+    # NOVO: contas MT5 do cliente
+    contas_mt5 = db.relationship('ContaMT5Cliente', backref='cliente', lazy=True, cascade="all, delete-orphan")
 
-    # ALTERAÇÃO FASE 1 - Validação automática de CPF ao salvar/atualizar
     @validates('cpf')
     def validate_cpf(self, key, cpf):
         if cpf and not validar_cpf(cpf):
             raise ValueError("CPF inválido")
         return cpf
+
+
+class ContaMT5Cliente(db.Model):
+    """Conta MT5 associada a um cliente, com corretora e capital alocado."""
+    __tablename__ = 'conta_mt5_cliente'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    numero_conta = db.Column(db.String(20), nullable=False)
+    nome_corretora = db.Column(db.String(50), nullable=False)
+    capital_alocado = db.Column(db.Float, default=0.0)
+    ativo = db.Column(db.Boolean, default=True)
+    bloqueada = db.Column(db.Boolean, default=False)       # bloqueio específico por conta
+    data_cadastro = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
+
+    def __repr__(self):
+        return f"<ContaMT5Cliente user={self.user_id} conta={self.numero_conta}>"
+
 
 class ParcelaCompra(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -100,12 +103,14 @@ class ParcelaCompra(db.Model):
     data_pagamento = db.Column(db.DateTime, nullable=True)
     data_criacao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
 
+
 class AlocacaoCorretora(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     nome_corretora = db.Column(db.String(50), nullable=False)
     capital_alocado = db.Column(db.Float, default=0.0)
     data_criacao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
+
 
 class Fatura(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -121,7 +126,6 @@ class Fatura(db.Model):
     repasse = db.Column(db.Float, default=0.0)
     
     comprovante_pix = db.Column(db.String(255), nullable=True)
-    
     txid_pix = db.Column(db.String(100), nullable=True)
     payload_pix = db.Column(db.Text, nullable=True)
     
@@ -152,6 +156,7 @@ class Fatura(db.Model):
         else:
             self.status = 'parcial'
 
+
 class FaturaDiaria(db.Model):
     __table_args__ = (db.UniqueConstraint('fatura_id', 'data_pregao', 'nome_corretora', name='_fatura_dia_corretora_uc'),)
     
@@ -170,10 +175,9 @@ class FaturaDiaria(db.Model):
     arquivo_pdf = db.Column(db.String(255), nullable=True)
     status = db.Column(db.String(20), default='pendente')
     
-    # NOVOS CAMPOS PARA RELATÓRIO HTML DE "NÃO OPEREI"
-    relatorio_html_url = db.Column(db.String(255), nullable=True)   # URL do HTML no Cloudinary
-    motivo_isencao = db.Column(db.String(50), default='')          # 'nao_operou', 'admin', 'feriado'
-    operacao_detectada = db.Column(db.Boolean, default=False)      # True se o sistema identificou operação no HTML
+    relatorio_html_url = db.Column(db.String(255), nullable=True)
+    motivo_isencao = db.Column(db.String(50), default='')
+    operacao_detectada = db.Column(db.Boolean, default=False)
 
     def zerar_valores(self, isentar=False):
         self.arquivo_pdf = None
@@ -191,6 +195,7 @@ class FaturaDiaria(db.Model):
             self.is_isento = False
             self.status = 'pendente'
 
+
 class LogAuditoria(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     admin_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -198,8 +203,8 @@ class LogAuditoria(db.Model):
     acao_detalhada = db.Column(db.Text, nullable=False)
     categoria = db.Column(db.String(50), nullable=False) 
     timestamp = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
-    # ALTERAÇÃO FASE 1 - Adiciona campo IP do admin
-    ip_address = db.Column(db.String(45), nullable=True)  # suporta IPv4 e IPv6
+    ip_address = db.Column(db.String(45), nullable=True)
+
 
 class DocumentoTemplate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -208,6 +213,7 @@ class DocumentoTemplate(db.Model):
     is_onboarding = db.Column(db.Boolean, default=False)
     data_criacao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     
+
 class DocumentoCliente(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -222,59 +228,43 @@ class DocumentoCliente(db.Model):
 
     template = db.relationship('DocumentoTemplate', backref='documentos_enviados')
 
-# =============================================================================
-# PROGRAMA DE INDICAÇÃO - SOLICITAÇÕES DE PRÊMIO
-# =============================================================================
 
 class PremioSolicitacao(db.Model):
-    """Registra as solicitações de prêmio dos indicadores."""
     __tablename__ = 'premio_solicitacao'
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     data_solicitacao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
-    status = db.Column(db.String(20), default='pendente')  # pendente, aprovado, pago, recusado
-    tipo_premio = db.Column(db.String(20), nullable=False)  # 'dinheiro' ou 'vitalicia'
+    status = db.Column(db.String(20), default='pendente')
+    tipo_premio = db.Column(db.String(20), nullable=False)
     valor = db.Column(db.Float, default=1000.0)
     admin_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     data_aprovacao = db.Column(db.DateTime, nullable=True)
     data_pagamento = db.Column(db.DateTime, nullable=True)
     observacao = db.Column(db.Text, nullable=True)
     
-    # Relacionamentos
     user = db.relationship('User', foreign_keys=[user_id], backref='solicitacoes_premio')
     admin = db.relationship('User', foreign_keys=[admin_id])
 
-# =============================================================================
-# PRODUTOS (ROBÔS) PARA DOWNLOAD MÚLTIPLO
-# =============================================================================
 
 class ProdutoRobo(db.Model):
-    """Tabela com os robôs disponíveis para download (comissionados)."""
     __tablename__ = 'produto_robo'
     
     id = db.Column(db.Integer, primary_key=True)
-    slug = db.Column(db.String(50), unique=True, nullable=False)      # robo_b3, robo_forex, robo_opcoes
-    nome = db.Column(db.String(100), nullable=False)                  # Robô B3, Robô Forex, etc.
+    slug = db.Column(db.String(50), unique=True, nullable=False)
+    nome = db.Column(db.String(100), nullable=False)
     descricao = db.Column(db.Text, nullable=True)
-    ordem = db.Column(db.Integer, default=0)                          # ordenação na tela
+    ordem = db.Column(db.Integer, default=0)
     ativo = db.Column(db.Boolean, default=True)
-    
-    # NOVO CAMPO: código do algoritmo (700, 1005, 1006) conforme novo gerador
     codigo_algoritmo = db.Column(db.Integer, nullable=False, default=700)
     
-    # Relacionamento com versões
     versoes = db.relationship('VersaoRobo', backref='produto', lazy=True)
     
     def __repr__(self):
         return f"<ProdutoRobo {self.slug}>"
 
-# =============================================================================
-# CONTROLE DE VERSÃO DO ROBÔ E LICENÇAS
-# =============================================================================
 
 class VersaoRobo(db.Model):
-    """Tabela para armazenar as versões do executável do robô."""
     __tablename__ = 'versao_robo'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -284,65 +274,66 @@ class VersaoRobo(db.Model):
     data_upload = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     publicada = db.Column(db.Boolean, default=False)
     extensao = db.Column(db.String(10), nullable=True)
-    public_id = db.Column(db.String(255), nullable=True)   # ID do arquivo no Cloudinary
-    
-    # NOVO: relacionamento com produto (robô)
+    public_id = db.Column(db.String(255), nullable=True)
     produto_id = db.Column(db.Integer, db.ForeignKey('produto_robo.id'), nullable=False)
 
     def __repr__(self):
         return f"<VersaoRobo {self.versao} (produto_id={self.produto_id})>"
+
 
 class DownloadControle(db.Model):
     __tablename__ = 'download_controle'
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    # CORREÇÃO: Adicionado ondelete='RESTRICT' para impedir exclusão de versão com downloads
+    # Nova FK para a conta MT5
+    conta_mt5_id = db.Column(db.Integer, db.ForeignKey('conta_mt5_cliente.id'), nullable=False)
     versao_id = db.Column(db.Integer, db.ForeignKey('versao_robo.id', ondelete='RESTRICT'), nullable=False)
     data_download = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
-    
-    # NOVO: ciclo da licença em que o download foi feito (para controle de bloqueio)
     ciclo_inicio = db.Column(db.Date, nullable=True)
     
+    # Relacionamentos
     versao = db.relationship('VersaoRobo', backref='downloads')
+    conta = db.relationship('ContaMT5Cliente', backref='downloads')
 
     __table_args__ = (
-        db.UniqueConstraint('user_id', 'versao_id', name='_user_versao_uc'),
+        # Cada conta pode baixar a mesma versão no mesmo ciclo apenas uma vez
+        db.UniqueConstraint('conta_mt5_id', 'versao_id', 'ciclo_inicio', name='_conta_versao_ciclo_uc'),
     )
 
     def __repr__(self):
-        return f"<DownloadControle user={self.user_id} versao={self.versao_id} ciclo={self.ciclo_inicio}>"
+        return f"<DownloadControle user={self.user_id} conta={self.conta_mt5_id} versao={self.versao_id} ciclo={self.ciclo_inicio}>"
+
 
 class LicencaCliente(db.Model):
-    """Registra as licenças geradas (semanais ou vitalícias)."""
     __tablename__ = 'licenca_cliente'
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    # Nova FK para a conta MT5
+    conta_mt5_id = db.Column(db.Integer, db.ForeignKey('conta_mt5_cliente.id'), nullable=False)
     chave_licenca = db.Column(db.String(100), nullable=False)
     data_geracao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
-    ciclo_inicio = db.Column(db.Date, nullable=False)    # para semanais; para vitalícias pode ser a data de criação
+    ciclo_inicio = db.Column(db.Date, nullable=False)
     ciclo_fim = db.Column(db.Date, nullable=False)
     
-    tipo = db.Column(db.String(20), nullable=False, default='semanal')   # 'semanal' ou 'vitalicia'
-    data_expiracao = db.Column(db.DateTime, nullable=True)               # apenas para semanais
-    status = db.Column(db.String(20), nullable=False, default='ativa')   # 'ativa', 'expirada', 'cancelada'
-    conta_mt5 = db.Column(db.String(20), nullable=True)                  # redundante (cópia do User)
+    tipo = db.Column(db.String(20), nullable=False, default='semanal')
+    data_expiracao = db.Column(db.DateTime, nullable=True)
+    status = db.Column(db.String(20), nullable=False, default='ativa')
     
-    # ALTERAÇÃO FASE 1 - Adiciona constraint única para evitar duplicidade de licença por ciclo
+    # Relacionamentos
+    conta = db.relationship('ContaMT5Cliente', backref='licencas')
+
     __table_args__ = (
-        db.UniqueConstraint('user_id', 'ciclo_inicio', name='_user_ciclo_uc'),
+        # Cada conta pode ter apenas uma licença ativa por ciclo (evita duplicidade)
+        db.UniqueConstraint('conta_mt5_id', 'ciclo_inicio', name='_conta_ciclo_uc'),
     )
 
     def __repr__(self):
-        return f"<LicencaCliente user={self.user_id} tipo={self.tipo} ciclo={self.ciclo_inicio}>"
+        return f"<LicencaCliente user={self.user_id} conta={self.conta_mt5_id} tipo={self.tipo} ciclo={self.ciclo_inicio}>"
 
-# =============================================================================
-# NOTIFICAÇÕES
-# =============================================================================
 
 class Notificacao(db.Model):
-    """Registra notificações enviadas para os clientes."""
     __tablename__ = 'notificacao'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -359,7 +350,6 @@ class Notificacao(db.Model):
     def __repr__(self):
         return f"<Notificacao user={self.user_id} tipo={self.tipo}>"
 
-# =============================================================================
 
 @login_manager.user_loader
 def load_user(user_id):

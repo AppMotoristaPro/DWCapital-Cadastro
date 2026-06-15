@@ -1,0 +1,168 @@
+{% extends "client/layout.html" %}
+{% block client_content %}
+<div class="max-w-5xl mx-auto pb-20">
+    <div class="flex justify-between items-end mb-8">
+        <div>
+            <h1 class="text-4xl font-black text-navy tracking-tight">Minhas Contas MT5</h1>
+            <p class="text-gray-500 mt-2 font-medium">Gerencie as contas MetaTrader 5 vinculadas à sua operação.</p>
+        </div>
+        <button onclick="abrirModalNovaConta()" class="px-6 py-3 bg-royal hover:bg-royal-dark text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-md transition">
+            + Nova Conta
+        </button>
+    </div>
+
+    <div class="bg-white/80 backdrop-blur-xl rounded-2xl shadow-md border border-white overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-gray-50/80 border-b border-gray-100 text-gray-400 text-[10px] font-black uppercase tracking-wider">
+                    <tr>
+                        <th class="px-8 py-5">Conta MT5</th>
+                        <th class="px-6 py-5">Corretora</th>
+                        <th class="px-6 py-5">Capital Alocado</th>
+                        <th class="px-6 py-5">Status</th>
+                        <th class="px-8 py-5 text-right">Ações</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50 bg-white">
+                    {% for conta in contas %}
+                    <tr class="hover:bg-gray-50/50 transition-colors">
+                        <td class="px-8 py-5 font-bold text-navy">{{ conta.numero_conta }}</td>
+                        <td class="px-6 py-5">{{ conta.nome_corretora }}</td>
+                        <td class="px-6 py-5">R$ {{ conta.capital_alocado|format_brl }}</td>
+                        <td class="px-6 py-5">
+                            {% if not conta.ativo %}
+                                <span class="px-2 py-1 bg-gray-200 text-gray-500 text-[9px] font-black rounded-lg">Inativa</span>
+                            {% elif conta.bloqueada %}
+                                <span class="px-2 py-1 bg-red-100 text-red-700 text-[9px] font-black rounded-lg">Bloqueada</span>
+                            {% else %}
+                                <span class="px-2 py-1 bg-green-100 text-green-700 text-[9px] font-black rounded-lg">Ativa</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-8 py-5 text-right space-x-2">
+                            {% if conta.ativo %}
+                                <button onclick="editarConta({{ conta.id }}, '{{ conta.numero_conta }}', '{{ conta.nome_corretora }}', {{ conta.capital_alocado }})" 
+                                        class="text-royal text-[10px] font-black uppercase hover:underline">Editar</button>
+                                <button onclick="desativarConta({{ conta.id }})" 
+                                        class="text-red-500 text-[10px] font-black uppercase hover:underline">Desativar</button>
+                            {% else %}
+                                <span class="text-gray-400 text-[10px]">Inativa</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="px-8 py-16 text-center text-gray-400 font-medium">
+                            Nenhuma conta MT5 cadastrada. Clique em "+ Nova Conta" para adicionar.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Nova Conta / Editar -->
+<div id="modal-conta" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-8 relative border border-gray-100">
+        <button onclick="fecharModalConta()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-900 text-xl font-black">&times;</button>
+        <h3 id="modal-title" class="text-2xl font-black text-navy mb-6">Nova Conta MT5</h3>
+        <form id="form-conta">
+            <input type="hidden" id="conta-id" value="">
+            <div class="mb-4">
+                <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Número da Conta MT5</label>
+                <input type="text" id="numero-conta" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-royal" placeholder="Ex: 123456" required>
+            </div>
+            <div class="mb-4">
+                <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Corretora</label>
+                <select id="corretora" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-royal">
+                    <option value="GENIAL">GENIAL INVESTIMENTOS</option>
+                    <option value="BTG">BTG PACTUAL</option>
+                    <option value="XP">XP INVESTIMENTOS</option>
+                </select>
+            </div>
+            <div class="mb-6">
+                <label class="block text-[10px] font-black text-green-600 uppercase tracking-widest mb-1.5">Capital Alocado (R$)</label>
+                <input type="number" step="0.01" min="0" id="capital" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-400" placeholder="0,00">
+            </div>
+            <button type="submit" class="w-full py-3 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-sm transition shadow-md">Salvar</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    let editingId = null;
+
+    function abrirModalNovaConta() {
+        editingId = null;
+        document.getElementById('modal-title').innerText = 'Nova Conta MT5';
+        document.getElementById('form-conta').reset();
+        document.getElementById('conta-id').value = '';
+        document.getElementById('modal-conta').classList.remove('hidden');
+    }
+
+    function editarConta(id, numero, corretora, capital) {
+        editingId = id;
+        document.getElementById('modal-title').innerText = 'Editar Conta';
+        document.getElementById('conta-id').value = id;
+        document.getElementById('numero-conta').value = numero;
+        document.getElementById('corretora').value = corretora;
+        document.getElementById('capital').value = capital;
+        document.getElementById('modal-conta').classList.remove('hidden');
+    }
+
+    function fecharModalConta() {
+        document.getElementById('modal-conta').classList.add('hidden');
+    }
+
+    document.getElementById('form-conta').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const id = document.getElementById('conta-id').value;
+        const numero = document.getElementById('numero-conta').value.trim();
+        const corretora = document.getElementById('corretora').value;
+        const capital = parseFloat(document.getElementById('capital').value) || 0;
+
+        if (!id) {
+            // Criar nova
+            const response = await fetch('/portal/api/contas', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
+                body: JSON.stringify({ numero_conta: numero, nome_corretora: corretora, capital_alocado: capital })
+            });
+            const data = await response.json();
+            if (data.success) {
+                location.reload();
+            } else {
+                alert(data.message || 'Erro ao criar conta.');
+            }
+        } else {
+            // Atualizar (apenas capital e corretora)
+            const response = await fetch(`/portal/api/contas/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
+                body: JSON.stringify({ capital_alocado: capital, nome_corretora: corretora })
+            });
+            const data = await response.json();
+            if (data.success) {
+                location.reload();
+            } else {
+                alert(data.message || 'Erro ao atualizar conta.');
+            }
+        }
+    });
+
+    async function desativarConta(contaId) {
+        if (!confirm('Tem certeza que deseja desativar esta conta? Ela não poderá mais ser usada para downloads/licenças, mas o histórico será mantido.')) return;
+        const response = await fetch(`/portal/api/contas/${contaId}`, {
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': '{{ csrf_token() }}' }
+        });
+        const data = await response.json();
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.message || 'Erro ao desativar conta.');
+        }
+    }
+</script>
+{% endblock %}

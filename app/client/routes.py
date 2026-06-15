@@ -484,6 +484,106 @@ def api_explicacao_dashboard():
         'modelo_negocio': current_user.modelo_negocio
     })
 
+# ==================== MÚLTIPLAS CONTAS MT5 ====================
+
+from app.services.conta_mt5_service import (
+    listar_contas, adicionar_conta, atualizar_conta, desativar_conta,
+    obter_conta, validar_numero_conta, contar_contas_ativas
+)
+
+@client_bp.route('/minhas_contas')
+@login_required
+def minhas_contas():
+    """Página para gerenciar as contas MT5 do cliente."""
+    contas = listar_contas(current_user.id, apenas_ativas=False)
+    return render_template('client/minhas_contas.html', contas=contas)
+
+
+@client_bp.route('/api/contas', methods=['GET'])
+@login_required
+def api_listar_contas():
+    """Retorna as contas ativas do cliente em JSON (para selects dinâmicos)."""
+    contas = listar_contas(current_user.id, apenas_ativas=True)
+    return jsonify([{
+        'id': c.id,
+        'numero_conta': c.numero_conta,
+        'nome_corretora': c.nome_corretora,
+        'capital_alocado': c.capital_alocado,
+        'bloqueada': c.bloqueada
+    } for c in contas])
+
+
+@client_bp.route('/api/contas', methods=['POST'])
+@login_required
+@limiter.limit("10 per minute")
+def api_adicionar_conta():
+    """Adiciona uma nova conta MT5."""
+    data = request.get_json()
+    numero_conta = data.get('numero_conta', '').strip()
+    nome_corretora = data.get('nome_corretora', '').strip().upper()
+    capital_alocado = float(data.get('capital_alocado', 0))
+
+    if not validar_numero_conta(numero_conta):
+        return jsonify({'success': False, 'message': 'Número da conta inválido. Use apenas números.'}), 400
+
+    if nome_corretora not in ['GENIAL', 'BTG', 'XP']:
+        return jsonify({'success': False, 'message': 'Corretora inválida.'}), 400
+
+    if capital_alocado < 0:
+        return jsonify({'success': False, 'message': 'Capital alocado não pode ser negativo.'}), 400
+
+    try:
+        nova = adicionar_conta(current_user.id, numero_conta, nome_corretora, capital_alocado)
+        return jsonify({'success': True, 'conta': {
+            'id': nova.id,
+            'numero_conta': nova.numero_conta,
+            'nome_corretora': nova.nome_corretora,
+            'capital_alocado': nova.capital_alocado,
+            'bloqueada': nova.bloqueada
+        }})
+    except ValueError as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+
+@client_bp.route('/api/contas/<int:conta_id>', methods=['PUT'])
+@login_required
+def api_atualizar_conta(conta_id):
+    """Atualiza capital alocado e/ou corretora de uma conta."""
+    data = request.get_json()
+    capital_alocado = data.get('capital_alocado')
+    nome_corretora = data.get('nome_corretora')
+
+    kwargs = {}
+    if capital_alocado is not None:
+        if capital_alocado < 0:
+            return jsonify({'success': False, 'message': 'Capital alocado não pode ser negativo.'}), 400
+        kwargs['capital_alocado'] = capital_alocado
+    if nome_corretora:
+        nome_corretora = nome_corretora.upper()
+        if nome_corretora not in ['GENIAL', 'BTG', 'XP']:
+            return jsonify({'success': False, 'message': 'Corretora inválida.'}), 400
+        kwargs['nome_corretora'] = nome_corretora
+
+    if not kwargs:
+        return jsonify({'success': False, 'message': 'Nenhum campo para atualizar.'}), 400
+
+    try:
+        atualizar_conta(conta_id, current_user.id, **kwargs)
+        return jsonify({'success': True})
+    except ValueError as e:
+        return jsonify({'success': False, 'message': str(e)}), 404
+
+
+@client_bp.route('/api/contas/<int:conta_id>', methods=['DELETE'])
+@login_required
+def api_desativar_conta(conta_id):
+    """Desativa uma conta (não exclui fisicamente)."""
+    try:
+        desativar_conta(conta_id, current_user.id)
+        return jsonify({'success': True})
+    except ValueError as e:
+        return jsonify({'success': False, 'message': str(e)}), 404
+
 @client_bp.route('/ajuda')
 @login_required
 def ajuda():
