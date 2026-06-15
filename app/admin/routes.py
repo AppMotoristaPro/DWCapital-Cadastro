@@ -1042,48 +1042,53 @@ def forcar_licenca_vitalicia(id):
             return jsonify({"success": False, "message": "Este cliente não está no modelo compra."}), 400
         flash('Este cliente não está no modelo compra.', 'error')
         return redirect(url_for('admin.editar_cliente', id=id))
-    
-    if not cliente.conta_mt5:
+
+    # Buscar a primeira conta MT5 ativa do cliente (o admin pode selecionar qual conta, mas por enquanto usa a primeira)
+    from app.services.conta_mt5_service import listar_contas
+    contas = listar_contas(cliente.id, apenas_ativas=True)
+    if not contas:
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({"success": False, "message": "Cliente não possui conta MT5 cadastrada."}), 400
-        flash('Cliente não possui conta MT5 cadastrada.', 'error')
+            return jsonify({"success": False, "message": "Cliente não possui conta MT5 ativa."}), 400
+        flash('Cliente não possui conta MT5 ativa. Cadastre uma conta em "Minhas Contas" ou no admin.', 'error')
         return redirect(url_for('admin.editar_cliente', id=id))
     
+    conta_mt5_id = contas[0].id  # usa a primeira conta ativa
+
     # Obtém o produto_id do formulário (select no template) ou fallback
     produto_id = request.form.get('produto_id')
     if not produto_id:
-        # Fallback: tenta obter o último produto baixado no ciclo atual
-        from app.services.robo_service import obter_produto_baixado_no_ciclo_atual
-        produto_id = obter_produto_baixado_no_ciclo_atual(cliente)
+        # Fallback: tenta obter o produto baixado pela conta ativa no ciclo atual
+        from app.services.robo_service import obter_produto_baixado_no_ciclo_atual_por_conta
+        produto_id = obter_produto_baixado_no_ciclo_atual_por_conta(conta_mt5_id)
         if not produto_id:
             # Fallback: primeiro produto ativo
             primeiro = ProdutoRobo.query.filter_by(ativo=True).order_by(ProdutoRobo.ordem).first()
             produto_id = primeiro.id if primeiro else None
         if not produto_id:
             return jsonify({"success": False, "message": "Nenhum produto disponível para gerar licença vitalícia."}), 400
-    
-    # Gera licença vitalícia usando o produto escolhido
-    chave, msg, nova_licenca = gerar_licenca_vitalicia(cliente, cliente.conta_mt5, produto_id)
+
+    # Gera licença vitalícia usando a conta encontrada e o produto
+    chave, msg, nova_licenca = gerar_licenca_vitalicia(cliente, conta_mt5_id, produto_id)
     if not chave:
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({"success": False, "message": msg}), 400
         flash(msg, 'error')
         return redirect(url_for('admin.editar_cliente', id=id))
-    
+
     # Vincula o cliente ao produto vitalício (se ainda não estiver)
     if not cliente.produto_vitalicio_id:
         cliente.produto_vitalicio_id = produto_id
         db.session.commit()
-    
+
     registrar_log(f"Forçou a geração de nova licença vitalícia para {cliente.nome} (produto {produto_id}). Chave: {chave}", "Clientes")
-    
+
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return jsonify({
             "success": True,
             "message": "Licença vitalícia gerada com sucesso!",
             "chave": chave
         }), 200
-    
+
     flash(f'Licença vitalícia gerada/regenerada com sucesso! Chave: {chave}', 'success')
     return redirect(url_for('admin.editar_cliente', id=id))
 
