@@ -7,16 +7,15 @@ import requests
 from flask import Blueprint, flash, render_template, jsonify, request, send_file
 from flask_login import login_required, current_user
 from app import db, limiter
-from app.models import User
+from app.models import User, ContaMT5Cliente
 from app.services.robo_service import (
     versao_atual, liberado_para_download, registrar_download, historico_downloads_cliente,
     obter_produtos_ativos, liberado_para_download_produto, registrar_download_produto,
-    obter_produto_baixado_no_ciclo_atual
+    obter_produto_baixado_no_ciclo_atual_por_conta
 )
 from app.services.licenca_service import (
     gerar_licenca_comissao,
-    obter_licenca_ativa,
-    salvar_conta_mt5_e_gerar_vitalicia_se_necessario,
+    obter_licenca_ativa_por_conta,
     is_modo_teste,
     is_licenca_bloqueada,
     calcular_ciclo_por_data,
@@ -43,21 +42,31 @@ def robo_download():
                 p['liberado'] = False
                 p['mensagem'] = "Você já possui licença vitalícia para outro robô e não pode mais baixar este."
 
+    # Nota: a verificação de liberado_para_download_produto agora precisa de conta_mt5_id
+    # Será preenchida no frontend (select) e validada na rota de download.
+    # Na página inicial, apenas listamos os produtos.
     for p in produtos:
-        if p['disponivel']:
-            liberado, msg, _ = liberado_para_download_produto(current_user, p['produto'].id, ciclo_inicio)
-            p['liberado'] = liberado
-            p['mensagem'] = msg
-        else:
-            p['liberado'] = False
-            p['mensagem'] = "Robô sem versão publicada"
+        p['liberado'] = True  # Será verificado no download
+        p['mensagem'] = "Selecione uma conta para baixar"
 
-    historico = historico_downloads_cliente(current_user)
+    # Histórico de downloads por cliente (agora agregado por conta)
+    from app.services.conta_mt5_service import listar_contas
+    contas = listar_contas(current_user.id, apenas_ativas=True)
+    historico_por_conta = []
+    for conta in contas:
+        from app.services.robo_service import historico_downloads_por_conta
+        hist = historico_downloads_por_conta(conta.id)
+        if hist:
+            historico_por_conta.append({
+                'conta': conta.numero_conta,
+                'downloads': hist
+            })
 
     return render_template(
         'client/robo_download.html',
         produtos=produtos,
-        historico=historico
+        historico_por_conta=historico_por_conta,
+        contas_ativas=contas
     )
 
 
@@ -65,13 +74,30 @@ def robo_download():
 @login_required
 @limiter.limit("3 per minute")
 def baixar_robo_produto(produto_id):
-    """Baixa um robô específico – NÃO exige licença ativa."""
+    """Baixa um robô específico – NÃO exige licença ativa, mas exige conta MT5 selecionada."""
     print(f"[DOWNLOAD] Requisição recebida: user={current_user.id}, produto={produto_id}")
+    
+    # O frontend agora envia conta_mt5_id no corpo da requisição (JSON)
+    data = request.get_json()
+    conta_mt5_id = data.get('conta_mt5_id') if data else None
+    
+    if not conta_mt5_id:
+        return jsonify({"error": "Selecione uma conta MT5 para baixar o robô."}), 400
+    
+    # Valida se a conta pertence ao usuário
+    conta = ContaMT5Cliente.query.filter_by(id=conta_mt5_id, user_id=current_user.id, ativo=True).first()
+    if not conta:
+        return jsonify({"error": "Conta MT5 inválida ou inativa."}), 400
+    if conta.bloqueada:
+        return jsonify({"error": "Esta conta MT5 está bloqueada pelo administrador."}), 403
+
     try:
         ciclo_inicio, _ = calcular_ciclo_por_data()
         print(f"[DOWNLOAD] Ciclo calculado: inicio={ciclo_inicio}")
 
-        liberado, msg, versao = liberado_para_download_produto(current_user, produto_id, ciclo_inicio)
+        liberado, msg, versao = liberado_para_download_produto(
+            current_user, produto_id, ciclo_inicio, conta_mt5_id
+        )
         print(f"[DOWNLOAD] liberado_para_download_produto retornou: liberado={liberado}, msg='{msg}', versao={versao.id if versao else None}")
 
         if not liberado:
@@ -83,7 +109,7 @@ def baixar_robo_produto(produto_id):
         response.raise_for_status()
         print(f"[DOWNLOAD] Arquivo baixado, tamanho: {len(response.content)} bytes")
 
-        registrar_download_produto(current_user, versao, ciclo_inicio)
+        registrar_download_produto(current_user, versao, ciclo_inicio, conta_mt5_id)
         print(f"[DOWNLOAD] Download registrado")
 
         nome_arquivo = f"dwcapital_{versao.versao}{versao.extensao or '.exe'}"
@@ -122,24 +148,43 @@ def licenca_gerar():
                 "message": "A geração de licenças semanais só é permitida em dias úteis (segunda a sexta)."
             }), 400
 
-    if not current_user.conta_mt5:
+    # Recebe a conta selecionada do frontend
+    data = request.get_json()
+    conta_mt5_id = data.get('conta_mt5_id') if data else None
+    
+    if not conta_mt5_id:
         return jsonify({
             "success": False,
             "error": "PRECISA_CONTA",
-            "message": "Você precisa cadastrar sua conta MT5 antes de gerar a licença."
-        }), 200
+            "message": "Selecione uma conta MT5 para gerar a licença."
+        }), 400
 
-    produto_id = obter_produto_baixado_no_ciclo_atual(current_user)
+    # Valida a conta
+    conta = ContaMT5Cliente.query.filter_by(id=conta_mt5_id, user_id=current_user.id, ativo=True).first()
+    if not conta:
+        return jsonify({
+            "success": False,
+            "error": "CONTA_INVALIDA",
+            "message": "Conta MT5 inválida ou inativa."
+        }), 400
+    if conta.bloqueada:
+        return jsonify({
+            "success": False,
+            "error": "CONTA_BLOQUEADA",
+            "message": "Esta conta MT5 está bloqueada pelo administrador."
+        }), 403
+
+    # Descobre qual produto foi baixado para esta conta no ciclo atual
+    produto_id = obter_produto_baixado_no_ciclo_atual_por_conta(conta_mt5_id)
     if not produto_id:
         return jsonify({
             "success": False,
             "error": "PRECISA_BAIXAR",
-            "message": "Você precisa baixar um robô antes de gerar a licença. Escolha um robô na página de download."
+            "message": "Você precisa baixar um robô para esta conta antes de gerar a licença. Escolha um robô na página de download."
         }), 400
 
     # ==================== LÓGICA PARA CLIENTES COMPRA ====================
     if current_user.modelo_negocio == 'compra':
-        # Verifica se todas as parcelas foram pagas
         if todas_parcelas_pagas(current_user.id):
             # Cliente quite: deve ter licença vitalícia
             if current_user.produto_vitalicio_id and current_user.produto_vitalicio_id != produto_id:
@@ -149,39 +194,37 @@ def licenca_gerar():
                     "message": "Você já possui licença vitalícia para outro robô e não pode trocar."
                 }), 400
 
-            # Verifica se já existe licença vitalícia ativa
-            licenca_vital = obter_licenca_ativa(current_user, tipo='vitalicia')
+            # Verifica se já existe licença vitalícia ativa para esta conta
+            licenca_vital = obter_licenca_ativa_por_conta(conta_mt5_id, tipo='vitalicia')
             if licenca_vital:
                 return jsonify({
                     "success": True,
                     "chave": licenca_vital.chave_licenca,
-                    "message": "Licença vitalícia já gerada anteriormente.",
+                    "message": "Licença vitalícia já gerada anteriormente para esta conta.",
                     "validade": None,
                     "ja_existente": True
                 })
             else:
-                # Gera nova vitalícia
                 chave, msg, licenca_obj = gerar_licenca_vitalicia(
-                    current_user,
-                    current_user.conta_mt5,
-                    produto_id
+                    current_user, conta_mt5_id, produto_id
                 )
                 if not chave:
                     return jsonify({"success": False, "message": msg}), 400
-                # Vincula o cliente permanentemente a este produto
-                current_user.produto_vitalicio_id = produto_id
-                db.session.commit()
+                # Vincula o cliente permanentemente a este produto (se ainda não estiver)
+                if not current_user.produto_vitalicio_id:
+                    current_user.produto_vitalicio_id = produto_id
+                    db.session.commit()
                 return jsonify({
                     "success": True,
                     "chave": chave,
-                    "message": "Licença vitalícia gerada com sucesso. Agora você está vinculado permanentemente a este robô.",
+                    "message": "Licença vitalícia gerada com sucesso para esta conta. Agora você está vinculado permanentemente a este robô.",
                     "validade": None,
                     "ja_existente": False
                 })
         else:
-            # Ainda pagando → licença semanal (mesmo fluxo comissão)
+            # Ainda pagando → licença semanal
             chave, msg, licenca_obj, ja_existente = gerar_licenca_comissao(
-                current_user, current_user.conta_mt5, produto_id
+                current_user, conta_mt5_id, produto_id
             )
             if not chave:
                 return jsonify({"success": False, "message": msg}), 400
@@ -195,7 +238,7 @@ def licenca_gerar():
 
     # ==================== CLIENTES COMISSÃO (padrão) ====================
     chave, msg, licenca_obj, ja_existente = gerar_licenca_comissao(
-        current_user, current_user.conta_mt5, produto_id
+        current_user, conta_mt5_id, produto_id
     )
     if not chave:
         return jsonify({"success": False, "message": msg}), 400
@@ -208,7 +251,7 @@ def licenca_gerar():
     })
 
 
-# ========== ROTAS ANTIGAS ==========
+# ========== ROTAS ANTIGAS (adaptadas para compatibilidade) ==========
 @licenca_bp.route('/robo/download', methods=['POST'])
 @login_required
 @limiter.limit("3 per minute")
@@ -216,45 +259,51 @@ def baixar_robo_antigo():
     from app.models import ProdutoRobo
     primeiro_produto = ProdutoRobo.query.order_by(ProdutoRobo.ordem).first()
     if primeiro_produto:
+        # Tenta usar a primeira conta ativa do cliente (fallback)
+        from app.services.conta_mt5_service import listar_contas
+        contas = listar_contas(current_user.id, apenas_ativas=True)
+        if not contas:
+            return jsonify({"error": "Você não possui nenhuma conta MT5 ativa. Cadastre uma em 'Minhas Contas'."}), 400
+        # Chama a nova rota com a primeira conta
+        data = {"conta_mt5_id": contas[0].id}
+        request._cached_json = (data,)
         return baixar_robo_produto(primeiro_produto.id)
     return jsonify({"error": "Nenhum robô disponível"}), 404
+
 
 @licenca_bp.route('/status', methods=['GET'])
 @login_required
 def licenca_status():
-    licenca = obter_licenca_ativa(current_user)
-    if licenca:
-        return jsonify({
-            "success": True,
-            "tem_licenca": True,
-            "tipo": licenca.tipo,
-            "chave": licenca.chave_licenca,
-            "validade": licenca.data_expiracao.strftime('%d/%m/%Y %H:%M') if licenca.data_expiracao else "Vitalícia",
-            "status": licenca.status
-        })
-    else:
-        return jsonify({"success": True, "tem_licenca": False})
+    # Retorna status da primeira conta ativa (fallback)
+    from app.services.conta_mt5_service import listar_contas
+    contas = listar_contas(current_user.id, apenas_ativas=True)
+    if contas:
+        licenca = obter_licenca_ativa_por_conta(contas[0].id)
+        if licenca:
+            return jsonify({
+                "success": True,
+                "tem_licenca": True,
+                "tipo": licenca.tipo,
+                "chave": licenca.chave_licenca,
+                "validade": licenca.data_expiracao.strftime('%d/%m/%Y %H:%M') if licenca.data_expiracao else "Vitalícia",
+                "status": licenca.status
+            })
+    return jsonify({"success": True, "tem_licenca": False})
+
 
 @licenca_bp.route('/visualizar', methods=['POST'])
 @login_required
 def licenca_visualizar():
     return licenca_gerar()
 
+
 @licenca_bp.route('/api/salvar_conta_mt5', methods=['POST'])
 @login_required
 @limiter.limit("5 per minute")
 def api_salvar_conta_mt5():
-    data = request.get_json()
-    nova_conta = data.get('conta_mt5', '').strip()
-    if not nova_conta:
-        return jsonify({"success": False, "message": "Número da conta MT5 é obrigatório."}), 400
-    if not nova_conta.isdigit():
-        return jsonify({"success": False, "message": "A conta MT5 deve conter apenas números."}), 400
-    gerou, chave, msg = salvar_conta_mt5_e_gerar_vitalicia_se_necessario(current_user, nova_conta)
+    # Esta rota está obsoleta com o novo modelo de múltiplas contas.
+    # Mantida para compatibilidade, mas orienta o usuário a usar a página de contas.
     return jsonify({
-        "success": True,
-        "conta_salva": nova_conta,
-        "licenca_gerada": gerou,
-        "chave_licenca": chave,
-        "message": msg
-    })
+        "success": False,
+        "message": "Esta funcionalidade foi substituída. Acesse 'Minhas Contas' para gerenciar suas contas MT5."
+    }), 400

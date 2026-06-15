@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 import pytz
 import os
 from app import db
-from app.models import Fatura, LicencaCliente, User, ProdutoRobo
+from app.models import Fatura, LicencaCliente, User, ProdutoRobo, ContaMT5Cliente
 from sqlalchemy.exc import IntegrityError
 
 tz_br = pytz.timezone('America/Sao_Paulo')
@@ -25,14 +25,29 @@ def is_licenca_bloqueada(user):
     """Retorna True se o cliente está com a geração de licenças bloqueada pelo admin."""
     return getattr(user, 'licenca_bloqueada', False)
 
+
 def is_acesso_robot_bloqueado(user):
     """Retorna True se o cliente está com o acesso ao robô bloqueado (download e novas licenças)."""
     return getattr(user, 'robot_acesso_bloqueado', False)
 
 
+def is_conta_bloqueada(conta_id, user_id):
+    """Verifica se uma conta específica está bloqueada (admin) ou inativa."""
+    conta = ContaMT5Cliente.query.filter_by(id=conta_id, user_id=user_id).first()
+    return conta is None or not conta.ativo or conta.bloqueada
+
+
 # ============================================================
 # AUXILIARES
 # ============================================================
+
+def obter_numero_conta_por_id(conta_id, user_id):
+    """Retorna o número da conta MT5 a partir do ID, validando pertencimento ao usuário."""
+    conta = ContaMT5Cliente.query.filter_by(id=conta_id, user_id=user_id, ativo=True).first()
+    if not conta:
+        return None
+    return conta.numero_conta
+
 
 def proxima_segunda_00h00(data_ref=None):
     """Retorna datetime da próxima segunda-feira às 00:00 (horário BR)."""
@@ -56,7 +71,7 @@ def obter_semana_id_mql5(data_ref=None):
     return (dias_passados // 7) + 1
 
 
-def gerar_chave_semanal(conta_mt5, produto_id, semana_id=None, ano=None):
+def gerar_chave_semanal(conta_mt5_numero, produto_id, semana_id=None, ano=None):
     """
     Gera chave semanal conforme nova fórmula:
         (conta + semanaId + ano + codigo_algoritmo) * 7391
@@ -67,19 +82,19 @@ def gerar_chave_semanal(conta_mt5, produto_id, semana_id=None, ano=None):
         semana_id = obter_semana_id_mql5()
     if ano is None:
         ano = datetime.now(tz_br).year
-    conta = int(conta_mt5) if conta_mt5 else 0
+    conta = int(conta_mt5_numero) if conta_mt5_numero else 0
     produto = ProdutoRobo.query.get(produto_id)
     codigo = produto.codigo_algoritmo if produto else 700
     return str((conta + semana_id + ano + codigo) * 7391)
 
 
-def gerar_chave_vitalicia(conta_mt5, produto_id=None):
+def gerar_chave_vitalicia(conta_mt5_numero, produto_id=None):
     """
     Gera chave vitalícia conforme nova fórmula:
         (conta + codigo_algoritmo) * 8888 + 7391
     Se produto_id não informado ou produto não encontrado, usa codigo=700.
     """
-    conta = int(conta_mt5) if conta_mt5 else 0
+    conta = int(conta_mt5_numero) if conta_mt5_numero else 0
     codigo = 700
     if produto_id:
         produto = ProdutoRobo.query.get(produto_id)
@@ -88,36 +103,42 @@ def gerar_chave_vitalicia(conta_mt5, produto_id=None):
     return str((conta + codigo) * 8888 + 7391)
 
 
-def gerar_licenca_vitalicia(user, conta_mt5, produto_id=None):
+def gerar_licenca_vitalicia(user, conta_mt5_id, produto_id=None):
     """
-    Gera uma licença vitalícia usando a nova fórmula (opcionalmente vinculada a um produto).
-    Se já existir uma licença vitalícia ativa, cancela a anterior.
+    Gera uma licença vitalícia usando a nova fórmula, vinculada a uma conta MT5 específica.
+    Se já existir uma licença vitalícia ativa para essa conta, cancela a anterior.
     Retorna (chave, mensagem, licenca_obj)
     """
     if is_acesso_robot_bloqueado(user):
         return None, "Cliente bloqueado para gerar licenças.", None
-    if not conta_mt5:
-        return None, "Conta MT5 não informada.", None
 
-    # Cancela licença vitalícia existente (se houver)
+    conta = ContaMT5Cliente.query.filter_by(id=conta_mt5_id, user_id=user.id, ativo=True).first()
+    if not conta:
+        return None, "Conta MT5 não encontrada ou inativa.", None
+    if conta.bloqueada:
+        return None, "Esta conta MT5 está bloqueada pelo administrador.", None
+
+    numero_conta = conta.numero_conta
+
+    # Cancela licença vitalícia existente para esta mesma conta (se houver)
     licenca_existente = LicencaCliente.query.filter_by(
-        user_id=user.id, tipo='vitalicia', status='ativa'
+        user_id=user.id, conta_mt5_id=conta_mt5_id, tipo='vitalicia', status='ativa'
     ).first()
     if licenca_existente:
         licenca_existente.status = 'cancelada'
         db.session.add(licenca_existente)
 
-    chave = gerar_chave_vitalicia(conta_mt5, produto_id)
+    chave = gerar_chave_vitalicia(numero_conta, produto_id)
 
     nova_licenca = LicencaCliente(
         user_id=user.id,
+        conta_mt5_id=conta_mt5_id,
         chave_licenca=chave,
         ciclo_inicio=datetime.now(tz_br).date(),
         ciclo_fim=datetime.now(tz_br).date(),
         tipo='vitalicia',
         data_expiracao=None,
-        status='ativa',
-        conta_mt5=conta_mt5
+        status='ativa'
     )
     db.session.add(nova_licenca)
     db.session.commit()
@@ -152,18 +173,18 @@ def calcular_ciclo_anterior(data_ref=None):
 # CONSULTAS
 # ============================================================
 
-def obter_licenca_ativa(user, tipo=None):
-    """Retorna a licença ativa do usuário. Se tipo informado, filtra por ele."""
-    query = LicencaCliente.query.filter_by(user_id=user.id, status='ativa')
+def obter_licenca_ativa_por_conta(conta_mt5_id, tipo=None):
+    """Retorna a licença ativa para uma conta específica. Se tipo informado, filtra por ele."""
+    query = LicencaCliente.query.filter_by(conta_mt5_id=conta_mt5_id, status='ativa')
     if tipo:
         query = query.filter_by(tipo=tipo)
     return query.order_by(LicencaCliente.data_geracao.desc()).first()
 
 
-def existe_licenca_para_ciclo(user, ciclo_inicio):
-    """Verifica se já existe licença (não expirada) para aquele ciclo."""
+def existe_licenca_para_ciclo(conta_mt5_id, ciclo_inicio):
+    """Verifica se já existe licença (não expirada) para aquela conta naquele ciclo."""
     return LicencaCliente.query.filter(
-        LicencaCliente.user_id == user.id,
+        LicencaCliente.conta_mt5_id == conta_mt5_id,
         LicencaCliente.ciclo_inicio == ciclo_inicio,
         LicencaCliente.status != 'expirada'
     ).first() is not None
@@ -176,6 +197,7 @@ def existe_licenca_para_ciclo(user, ciclo_inicio):
 def verificar_condicoes_comissao(user, ciclo_inicio):
     """
     Verifica se o cliente pode gerar licença semanal para o ciclo_inicio informado.
+    (as condições são por cliente, independente da conta)
     Retorna (status, mensagem, pendencias, licenca_existente)
     """
     fatura = Fatura.query.filter_by(user_id=user.id, data_inicio=ciclo_inicio).first()
@@ -190,39 +212,46 @@ def verificar_condicoes_comissao(user, ciclo_inicio):
         if fatura.status != 'pago':
             return False, "Pagamento deste ciclo ainda não foi confirmado pela administração.", {'pagamento_pendente': True}, None
 
-    licenca_existente = LicencaCliente.query.filter(
-        LicencaCliente.user_id == user.id,
-        LicencaCliente.ciclo_inicio == ciclo_inicio,
-        LicencaCliente.status != 'expirada'
-    ).first()
-    if licenca_existente:
-        return "LICENCA_EXISTENTE", "Uma licença já foi gerada para este ciclo.", {}, licenca_existente
-
+    # Não verifica licença existente aqui (será verificado por conta)
     return True, "Condições atendidas.", {}, None
 
 
 # ============================================================
-# GERAÇÃO DE LICENÇA SEMANAL (UNIFICADA) – COM PRODUTO_ID
+# GERAÇÃO DE LICENÇA SEMANAL – COM CONTA_MT5_ID
 # ============================================================
 
-def gerar_licenca_comissao(user, conta_mt5, produto_id, semana_id=None):
+def gerar_licenca_comissao(user, conta_mt5_id, produto_id, semana_id=None):
     """
-    Gera uma nova licença semanal vinculada a um produto específico.
+    Gera uma nova licença semanal vinculada a uma conta MT5 específica e a um produto.
     Retorna (chave, mensagem, licenca_obj, ja_existente)
     """
     if is_acesso_robot_bloqueado(user):
         return None, "Seu acesso ao robô está bloqueado. Entre em contato com o suporte.", None, False
 
+    # Validar conta
+    conta = ContaMT5Cliente.query.filter_by(id=conta_mt5_id, user_id=user.id, ativo=True).first()
+    if not conta:
+        return None, "Conta MT5 não encontrada ou inativa.", None, False
+    if conta.bloqueada:
+        return None, "Esta conta MT5 está bloqueada pelo administrador.", None, False
+
     ciclo_inicio, ciclo_fim = calcular_ciclo_anterior()
-    status, msg, _, licenca_existente = verificar_condicoes_comissao(user, ciclo_inicio)
 
-    if status == "LICENCA_EXISTENTE" and licenca_existente:
-        return licenca_existente.chave_licenca, msg, licenca_existente, True
-
+    # Verificar condições gerais do cliente
+    status, msg, _, _ = verificar_condicoes_comissao(user, ciclo_inicio)
     if not status:
         return None, msg, None, False
 
-    chave = gerar_chave_semanal(conta_mt5, produto_id, semana_id)
+    # Verificar se já existe licença para esta conta neste ciclo
+    licenca_existente = LicencaCliente.query.filter(
+        LicencaCliente.conta_mt5_id == conta_mt5_id,
+        LicencaCliente.ciclo_inicio == ciclo_inicio,
+        LicencaCliente.status != 'expirada'
+    ).first()
+    if licenca_existente:
+        return licenca_existente.chave_licenca, "Licença já existente para este ciclo.", licenca_existente, True
+
+    chave = gerar_chave_semanal(conta.numero_conta, produto_id, semana_id)
 
     hoje_br = datetime.now(tz_br).date()
     dias_para_proximo_domingo = (6 - hoje_br.weekday()) % 7
@@ -237,13 +266,13 @@ def gerar_licenca_comissao(user, conta_mt5, produto_id, semana_id=None):
 
     nova_licenca = LicencaCliente(
         user_id=user.id,
+        conta_mt5_id=conta_mt5_id,
         chave_licenca=chave,
         ciclo_inicio=ciclo_inicio,
         ciclo_fim=ciclo_fim,
         tipo='semanal',
         data_expiracao=data_expiracao_utc,
-        status='ativa',
-        conta_mt5=conta_mt5
+        status='ativa'
     )
     db.session.add(nova_licenca)
 
@@ -252,35 +281,24 @@ def gerar_licenca_comissao(user, conta_mt5, produto_id, semana_id=None):
         return chave, "Licença semanal gerada com sucesso.", nova_licenca, False
     except IntegrityError:
         db.session.rollback()
-        licenca_existente_concorrente = LicencaCliente.query.filter(
-            LicencaCliente.user_id == user.id,
+        # Concorrência: tenta buscar novamente
+        licenca_concorrente = LicencaCliente.query.filter(
+            LicencaCliente.conta_mt5_id == conta_mt5_id,
             LicencaCliente.ciclo_inicio == ciclo_inicio,
             LicencaCliente.status == 'ativa'
         ).first()
-        if licenca_existente_concorrente:
-            return licenca_existente_concorrente.chave_licenca, "Licença já existente para este ciclo.", licenca_existente_concorrente, True
+        if licenca_concorrente:
+            return licenca_concorrente.chave_licenca, "Licença já existente para este ciclo.", licenca_concorrente, True
         else:
             return None, "Erro de concorrência. Tente novamente.", None, False
 
 
-def salvar_conta_mt5_e_gerar_vitalicia_se_necessario(user, nova_conta, produto_id=None):
+def salvar_conta_mt5_e_gerar_vitalicia_se_necessario(user, conta_mt5_id, produto_id=None):
     """
-    Atualiza a conta MT5 do usuário. Se o usuário for do tipo compra e ainda não tiver
-    licença ativa, gera uma licença semanal (não vitalícia), agora vinculada ao produto.
+    Este método não é mais necessário porque agora as contas são gerenciadas separadamente.
+    Mantido para compatibilidade com chamadas antigas, mas não faz nada.
     """
-    user.conta_mt5 = nova_conta
-    db.session.commit()
-
-    if user.modelo_negocio == 'compra':
-        licenca = obter_licenca_ativa(user, tipo='semanal')
-        if not licenca:
-            # Para compra, o produto deve ser informado (fallback para id=1 se não vier)
-            pid = produto_id if produto_id else 1
-            chave, msg, _, _ = gerar_licenca_comissao(user, nova_conta, pid)
-            return True, chave, msg
-        else:
-            return False, licenca.chave_licenca, "Licença já existente para este ciclo."
-    return False, None, "Conta MT5 salva (usuário não é compra)."
+    return False, None, "Operação não suportada no novo modelo de múltiplas contas."
 
 
 # ============================================================
@@ -300,7 +318,7 @@ def expirar_licencas_semanais():
     print(f"[CRON] Encontradas {len(licencas)} licenças para expirar.")
 
     for lic in licencas:
-        print(f"[CRON] Expirando licença ID {lic.id} (user {lic.user_id}, tipo {lic.tipo}, expiração {lic.data_expiracao})")
+        print(f"[CRON] Expirando licença ID {lic.id} (conta {lic.conta_mt5_id}, tipo {lic.tipo}, expiração {lic.data_expiracao})")
         lic.status = 'expirada'
 
     db.session.commit()

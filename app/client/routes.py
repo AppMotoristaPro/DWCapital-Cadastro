@@ -17,24 +17,31 @@ from app.services.dashboard_service import obter_dados_dashboard_cliente
 from app.services.pix_service import PixService
 from app.utils.autentique import obter_url_visualizacao_autentique
 from app.services.parcela_service import todas_parcelas_pagas
-from app.services.licenca_service import obter_licenca_ativa
+from app.services.licenca_service import obter_licenca_ativa_por_conta  # ajustado
 
 logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
 client_bp = Blueprint('client', __name__, url_prefix='/portal')
 
+
 # ==================== FUNÇÃO AUXILIAR ====================
 def precisa_gerar_vitalicia_aviso(user):
-    """Verifica se o usuário (compra) quitou todas as parcelas e ainda não possui licença vitalícia."""
+    """Verifica se o usuário (compra) quitou todas as parcelas e ainda não possui licença vitalícia para NENHUMA conta."""
     if user.modelo_negocio != 'compra':
         return False
     if not todas_parcelas_pagas(user.id):
         return False
-    if obter_licenca_ativa(user, tipo='vitalicia'):
+    # Verifica se já existe alguma licença vitalícia ativa para qualquer conta
+    from app.models import LicencaCliente
+    tem_vitalicia = LicencaCliente.query.filter_by(
+        user_id=user.id, tipo='vitalicia', status='ativa'
+    ).first()
+    if tem_vitalicia:
         return False
     if user.produto_vitalicio_id:
         return False
     return True
+
 
 # ==================== BEFORE_REQUEST ====================
 @client_bp.before_request
@@ -84,6 +91,7 @@ def check_paywall():
         else:
             session.pop('mostrar_aviso_vitalicia', None)
 
+
 # ==================== SETUP (taxa única) ====================
 @client_bp.route('/setup')
 @login_required
@@ -92,6 +100,7 @@ def pagamento_setup():
         return redirect(url_for('client.dashboard'))
     inter_sandbox = os.environ.get('INTER_SANDBOX', 'true').lower() in ('true', '1', 't')
     return render_template('client/setup_pagamento.html', inter_sandbox=inter_sandbox)
+
 
 @client_bp.route('/setup/gerar_pix', methods=['POST'])
 @login_required
@@ -107,10 +116,12 @@ def gerar_pix_setup():
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
+
 @client_bp.route('/setup/status')
 @login_required
 def status_setup():
     return jsonify({"pago": current_user.setup_pago})
+
 
 # ==================== NOTIFICAÇÕES ====================
 @client_bp.route('/api/notificacoes')
@@ -131,6 +142,7 @@ def api_notificacoes():
         'data': n.data_criacao.strftime('%d/%m/%Y')
     } for n in notificacoes])
 
+
 @client_bp.route('/api/notificacao/marcar_lida/<int:notif_id>', methods=['POST'])
 @login_required
 def marcar_notificacao_lida(notif_id):
@@ -142,6 +154,7 @@ def marcar_notificacao_lida(notif_id):
     notif.lida = True
     db.session.commit()
     return jsonify({"success": True})
+
 
 # ==================== COMPRA DE ROBÔ ====================
 @client_bp.route('/comprar_robo', methods=['GET', 'POST'])
@@ -155,19 +168,17 @@ def comprar_robo():
         return redirect(url_for('client.dashboard'))
     
     if request.method == 'POST':
-        # Data de migração
         current_user.modelo_negocio = 'compra'
         current_user.data_migracao_compra = datetime.now(tz_br)
-        # Gera as 10 parcelas
         parcelas = gerar_parcelas_compra_unificado(current_user.id)
         db.session.add_all(parcelas)
-        # Marca todas as notificações de migração como lidas
         Notificacao.query.filter_by(user_id=current_user.id, tipo='migracao').update({'lida': True})
         db.session.commit()
         flash('Parabéns! Agora você é um cliente compra. As parcelas foram geradas e o acesso ao robô será liberado após o pagamento da entrada.', 'success')
         return redirect(url_for('client.dashboard'))
     
     return render_template('client/comprar_robo.html')
+
 
 # ==================== OUTRAS ROTAS ====================
 @client_bp.route('/api/buscar_dados_whatsapp', methods=['POST'])
@@ -180,6 +191,7 @@ def buscar_dados_whatsapp():
         link = f"https://wa.me/5511991167709?text={urllib.parse.quote(msg)}"
         return jsonify({"success": True, "link": link})
     return jsonify({"success": False, "message": "O CPF informado não foi encontrado em nossa base de dados."})
+
 
 @client_bp.route('/bloqueio_pagamento')
 @login_required
@@ -196,6 +208,7 @@ def bloqueio_pagamento():
         return redirect(url_for('client.dashboard'))
     inter_sandbox = os.environ.get('INTER_SANDBOX', 'true').lower() in ('true', '1', 't')
     return render_template('client/bloqueio_pix.html', parcela=parcela_pendente, inter_sandbox=inter_sandbox)
+
 
 @client_bp.route('/faturas/gerar_pix/<int:fatura_id>', methods=['POST'])
 @login_required
@@ -215,6 +228,7 @@ def gerar_pix_fatura(fatura_id):
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
+
 @client_bp.route('/licencas/gerar_pix/<int:parcela_id>', methods=['POST'])
 @login_required
 def gerar_pix_licenca(parcela_id):
@@ -230,11 +244,13 @@ def gerar_pix_licenca(parcela_id):
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
+
 @client_bp.route('/api/status_fatura/<int:fatura_id>')
 @login_required
 def status_fatura_api(fatura_id):
     fatura = Fatura.query.get_or_404(fatura_id)
     return jsonify({"pago": fatura.status == 'pago'})
+
 
 @client_bp.route('/api/status_licenca/<int:parcela_id>')
 @login_required
@@ -242,11 +258,13 @@ def status_licenca_api(parcela_id):
     parcela = ParcelaCompra.query.get_or_404(parcela_id)
     return jsonify({"pago": parcela.status == 'pago'})
 
+
 @client_bp.route('/fechar_aviso_vitalicia', methods=['POST'])
 @login_required
 def fechar_aviso_vitalicia():
     session.pop('mostrar_aviso_vitalicia', None)
     return jsonify({"success": True})
+
 
 @client_bp.route('/dashboard')
 @login_required
@@ -257,6 +275,7 @@ def dashboard():
     dados = obter_dados_dashboard_cliente(current_user.id, request.args.get('dia'), request.args.get('semana_dia'), request.args.get('ano'))
     mostrar_aviso = session.get('mostrar_aviso_vitalicia', False)
     return render_template('client/index.html', user=current_user, mostrar_aviso_vitalicia=mostrar_aviso, **dados)
+
 
 @client_bp.route('/assinar')
 @login_required
@@ -283,6 +302,7 @@ def assinar_termo():
     ).options(joinedload(DocumentoCliente.template)).all()
     return render_template('client/assinar_termo.html', documentos=pendentes)
 
+
 @client_bp.route('/api/status_assinatura')
 @login_required
 def api_status_assinatura():
@@ -294,10 +314,12 @@ def api_status_assinatura():
             all_signed = False
     return jsonify({"assinado": all_signed})
 
+
 @client_bp.route('/dados_pessoais')
 @login_required
 def dados_pessoais():
     return render_template('client/dados_pessoais.html', user=current_user)
+
 
 @client_bp.route('/faturas', methods=['GET', 'POST'])
 @login_required
@@ -306,7 +328,6 @@ def faturas():
     auto_gerar_ciclo(current_user)
     faturas_carregadas = Fatura.query.options(joinedload(Fatura.dias)).filter_by(user_id=current_user.id).order_by(Fatura.data_inicio.desc()).all()
     
-    # Pré-calcula o subtotal de cada fatura usando a lógica de modelo vigente por data
     for fatura in faturas_carregadas:
         modelo = modelo_para_fatura(current_user, fatura.data_inicio)
         if modelo == 'compra':
@@ -337,15 +358,20 @@ def faturas():
         return jsonify(resultado)
     inter_sandbox = os.environ.get('INTER_SANDBOX', 'true').lower() in ('true', '1', 't')
     
-    # Calcula se todas as parcelas do cliente compra estão pagas
     todas_parcelas_quitadas = False
     if current_user.modelo_negocio == 'compra':
         todas_parcelas_quitadas = todas_parcelas_pagas(current_user.id)
     
+    # Busca contas ativas do cliente para usar na geração de licença
+    from app.services.conta_mt5_service import listar_contas
+    contas_ativas = listar_contas(current_user.id, apenas_ativas=True)
+    
     return render_template('client/faturas.html', 
                            faturas=faturas_carregadas, 
                            inter_sandbox=inter_sandbox,
-                           todas_parcelas_quitadas=todas_parcelas_quitadas)
+                           todas_parcelas_quitadas=todas_parcelas_quitadas,
+                           contas_ativas=contas_ativas)
+
 
 @client_bp.route('/faturas/comprovante/<int:fatura_id>', methods=['POST'])
 @login_required
@@ -365,6 +391,7 @@ def enviar_comprovante(fatura_id):
             flash(f"Erro ao enviar para nuvem: {str(e)}", "danger")
     return redirect(url_for('client.faturas'))
 
+
 @client_bp.route('/faturas/remover/<int:dia_id>', methods=['POST'])
 @login_required
 def remover_fatura(dia_id):
@@ -377,11 +404,13 @@ def remover_fatura(dia_id):
     atualizar_totais_semana(dia.fatura_semanal)
     return redirect(url_for('client.faturas'))
 
+
 @client_bp.route('/documentos')
 @login_required
 def documentos():
     meus_docs = DocumentoCliente.query.filter_by(user_id=current_user.id, status='assinado').options(joinedload(DocumentoCliente.template)).order_by(DocumentoCliente.data_envio.desc()).all()
     return render_template('client/documentos.html', documentos=meus_docs)
+
 
 @client_bp.route('/documentos/visualizar/<int:doc_id>')
 @login_required
@@ -401,6 +430,7 @@ def visualizar_documento(doc_id):
     flash('Não foi possível localizar o documento. Entre em contato com o suporte.', 'error')
     return redirect(url_for('client.documentos'))
 
+
 @client_bp.route('/api/status_documento/<int:doc_id>')
 @login_required
 def api_status_documento(doc_id):
@@ -408,6 +438,7 @@ def api_status_documento(doc_id):
     if not autorizado:
         return jsonify({"assinado": False}), 403
     return jsonify({"assinado": assinado})
+
 
 @client_bp.route('/api/explicacao_dashboard', methods=['GET'])
 @login_required
@@ -443,9 +474,6 @@ def api_explicacao_dashboard():
             periodo = "Nenhuma fatura encontrada"
     dias = []
     totais = {'bruto': 0.0, 'liquido': 0.0, 'repasse': 0.0}
-    # A variável is_comissao será determinada por fatura, mas para simplificar, usaremos o modelo vigente na primeira fatura (se existir)
-    # Ou podemos calcular por dia. Para não complicar, vamos usar o modelo do usuário (já que a API é usada apenas para explicação).
-    # Mas para precisão, faremos um loop simples.
     for fatura in faturas:
         modelo = modelo_para_fatura(current_user, fatura.data_inicio)
         for dia in fatura.dias:
@@ -484,8 +512,8 @@ def api_explicacao_dashboard():
         'modelo_negocio': current_user.modelo_negocio
     })
 
-# ==================== MÚLTIPLAS CONTAS MT5 ====================
 
+# ==================== MÚLTIPLAS CONTAS MT5 ====================
 from app.services.conta_mt5_service import (
     listar_contas, adicionar_conta, atualizar_conta, desativar_conta,
     obter_conta, validar_numero_conta, contar_contas_ativas
@@ -583,6 +611,7 @@ def api_desativar_conta(conta_id):
         return jsonify({'success': True})
     except ValueError as e:
         return jsonify({'success': False, 'message': str(e)}), 404
+
 
 @client_bp.route('/ajuda')
 @login_required

@@ -129,7 +129,7 @@
                                                 <td class="px-8 py-5 text-right">
                                                     <div class="flex items-center justify-end gap-2">
                                                         <input type="file" id="file-{{ dia.id }}" accept=".pdf" class="w-48 text-[10px] text-gray-500 file:mr-2 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-white file:border file:border-gray-200 file:text-navy file:font-bold cursor-pointer outline-none">
-                                                        <!-- Botão de três pontos e dropdown (NOVO) -->
+                                                        <!-- Botão de três pontos e dropdown -->
                                                         <div class="relative inline-block">
                                                             <button type="button" onclick="toggleDropdown(this)" class="text-gray-500 hover:text-gray-700 px-2 py-1 rounded">⋮</button>
                                                             <div class="dropdown-menu hidden absolute right-0 mt-1 w-40 bg-white border rounded shadow-lg z-10">
@@ -194,6 +194,7 @@
         </div>
     </div>
 
+    <!-- Modal "Não operei" -->
     <div id="modal-nao-operei" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-[300]">
         <div class="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 class="text-lg font-bold mb-2">📄 Não operei nesse dia</h3>
@@ -206,9 +207,97 @@
         </div>
     </div>
 
-    <!-- DEMAIS MODAIS (PIX, LICENÇA, ETC.) - MANTIDOS ORIGINAIS -->
+    <!-- Modal de regras para licença (com select de contas) -->
+    <div id="modal-regras-licenca" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
+        <div class="bg-white w-full max-w-md rounded-[2rem] shadow-2xl p-10 relative border border-gray-100">
+            <button onclick="fecharModalRegras()" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black text-xl outline-none">&times;</button>
+            <div class="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-6 text-purple-600">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+            </div>
+            <h3 class="text-xl font-black text-navy mb-4">
+                {% if todas_parcelas_quitadas %}
+                    Regras da Licença Vitalícia
+                {% else %}
+                    Regras da Licença Semanal
+                {% endif %}
+            </h3>
+            <ul class="text-sm text-gray-600 space-y-2 text-left list-disc pl-4 mb-6">
+                {% if todas_parcelas_quitadas %}
+                    <li>A licença vitalícia é gerada apenas uma vez e é válida para sempre.</li>
+                    <li>Você ficará permanentemente vinculado ao robô baixado no ciclo atual.</li>
+                    <li>Não será possível trocar de robô após gerar a licença vitalícia.</li>
+                    <li>A chave gerada não expira nunca.</li>
+                {% else %}
+                    <li>A licença é gerada apenas em dias úteis (segunda a sexta).</li>
+                    <li>O ciclo anterior (sexta a quinta) deve estar com TODAS as notas enviadas.</li>
+                    <li>Para comissionados o pagamento do ciclo deve estar confirmado pelo administrador.</li>
+                    <li>Uma mesma licença não pode ser gerada duas vezes para o mesmo ciclo.</li>
+                    <li>A licença gerada é válida até o domingo seguinte, às 23:59.</li>
+                {% endif %}
+            </ul>
+
+            <!-- Select de contas MT5 -->
+            <div class="mb-6">
+                <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Conta MT5</label>
+                <select id="select-conta-licenca" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-royal">
+                    {% if contas_ativas %}
+                        {% for conta in contas_ativas %}
+                            <option value="{{ conta.id }}">{{ conta.numero_conta }} ({{ conta.nome_corretora }})</option>
+                        {% endfor %}
+                    {% else %}
+                        <option value="">Nenhuma conta ativa - cadastre em "Minhas Contas"</option>
+                    {% endif %}
+                </select>
+                {% if not contas_ativas %}
+                <p class="text-[9px] text-red-500 mt-1">Você precisa adicionar uma conta MT5 em "Minhas Contas" antes de gerar a licença.</p>
+                {% endif %}
+            </div>
+
+            <button onclick="aceitarRegrasEProsseguir()" class="w-full py-4 bg-purple-600 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg hover:bg-purple-700 transition {% if not contas_ativas %}opacity-50 cursor-not-allowed{% endif %}" {% if not contas_ativas %}disabled{% endif %}>
+                {% if todas_parcelas_quitadas %}
+                    Li e Aceito as Regras (Vitalícia)
+                {% else %}
+                    Li e Aceito as Regras
+                {% endif %}
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal de exibição da chave -->
+    <div id="modal-chave-licenca" class="hidden fixed inset-0 z-[150] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
+        <div class="bg-white w-full max-w-md rounded-[2rem] shadow-2xl p-10 relative text-center border border-gray-100">
+            <button onclick="fecharModalChave()" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black text-xl outline-none">&times;</button>
+            <div class="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-6 text-green-600">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+            </div>
+            <h3 id="modal-chave-titulo" class="text-xl font-black text-navy mb-2">Licença Gerada</h3>
+            <p class="text-xs text-gray-500 font-medium mb-6">Utilize a chave abaixo para ativar seu robô.</p>
+            <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6">
+                <code id="chave-licenca-exibida" class="text-sm font-mono font-bold text-royal break-all"></code>
+            </div>
+            <button onclick="copiarChaveExibida()" class="w-full py-3 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">Copiar Chave</button>
+        </div>
+    </div>
+
+    <!-- Modal senha XP -->
+    <div id="modal-senha" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
+        <div class="bg-white w-full max-w-sm rounded-[2rem] shadow-2xl p-10 relative text-center border border-gray-100">
+            <div class="w-16 h-16 bg-royal/10 rounded-2xl flex items-center justify-center mx-auto mb-6 text-royal">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2H6a2 2 0 00-2-2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+            </div>
+            <h3 class="text-xl font-black text-navy mb-2">Nota Protegida (XP)</h3>
+            <p class="text-xs text-gray-500 font-medium mb-8">Por padrão da XP, a nota vem com senha. Digite os 3 últimos dígitos do seu CPF.</p>
+            <input type="hidden" id="modal-dia-id">
+            <input type="password" id="input-senha-manual" placeholder="•••" class="block w-full rounded-2xl px-5 py-4 bg-gray-50 border border-gray-200 text-center text-xl font-black tracking-[0.5em] focus:bg-white focus:border-royal mb-6 outline-none transition">
+            <button onclick="tentarComSenhaManual()" class="w-full py-4 bg-royal text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg hover:-translate-y-1 transition">Desbloquear PDF</button>
+            <button onclick="fecharModalSenha()" class="mt-4 text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-navy transition w-full py-2">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Modais de pagamento PIX (original) -->
     {% if current_user.modelo_negocio != 'compra' %}
     <div id="modal-auditoria-pix-global" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
+        <!-- conteúdo original mantido, sem alterações necessárias para múltiplas contas -->
         <div class="bg-white border border-gray-100 w-full max-w-lg rounded-[2.5rem] shadow-2xl p-8 md:p-10 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
             <button onclick="fecharModalAuditoriaPagamento()" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black text-xl outline-none">&times;</button>
             <div class="mb-6 pb-4 border-b border-gray-100">
@@ -278,89 +367,6 @@
         </div>
     </div>
     {% endif %}
-
-    <!-- Modal para solicitar conta MT5 -->
-    <div id="modal-solicitar-conta" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
-        <div class="bg-white w-full max-w-md rounded-[2rem] shadow-2xl p-10 relative border border-gray-100">
-            <button onclick="fecharModalSolicitarConta()" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black text-xl outline-none">&times;</button>
-            <div class="w-16 h-16 bg-royal/10 rounded-2xl flex items-center justify-center mx-auto mb-6 text-royal">
-                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
-            </div>
-            <h3 class="text-xl font-black text-navy mb-2">Conta MT5 Necessária</h3>
-            <p class="text-xs text-gray-500 font-medium mb-6">Para gerar sua licença, precisamos do número da sua conta MetaTrader 5.</p>
-            <input type="number" id="input-conta-mt5" placeholder="Ex: 123456" class="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-xl text-center text-lg font-black focus:bg-white focus:border-royal mb-6 outline-none transition">
-            <button onclick="salvarContaMT5()" class="w-full py-4 bg-royal text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg hover:-translate-y-1 transition">Salvar e Continuar</button>
-            <button onclick="fecharModalSolicitarConta()" class="mt-4 text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-navy transition w-full py-2">Cancelar</button>
-        </div>
-    </div>
-
-    <!-- Modal de regras para licença (condicional) -->
-    <div id="modal-regras-licenca" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
-        <div class="bg-white w-full max-w-md rounded-[2rem] shadow-2xl p-10 relative border border-gray-100">
-            <button onclick="fecharModalRegras()" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black text-xl outline-none">&times;</button>
-            <div class="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-6 text-purple-600">
-                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-            </div>
-            <h3 class="text-xl font-black text-navy mb-4">
-                {% if todas_parcelas_quitadas %}
-                    Regras da Licença Vitalícia
-                {% else %}
-                    Regras da Licença Semanal
-                {% endif %}
-            </h3>
-            <ul class="text-sm text-gray-600 space-y-2 text-left list-disc pl-4 mb-6">
-                {% if todas_parcelas_quitadas %}
-                    <li>A licença vitalícia é gerada apenas uma vez e é válida para sempre.</li>
-                    <li>Você ficará permanentemente vinculado ao robô baixado no ciclo atual.</li>
-                    <li>Não será possível trocar de robô após gerar a licença vitalícia.</li>
-                    <li>A chave gerada não expira nunca.</li>
-                {% else %}
-                    <li>A licença é gerada apenas em dias úteis (segunda a sexta).</li>
-                    <li>O ciclo anterior (sexta a quinta) deve estar com TODAS as notas enviadas.</li>
-                    <li>Para comissionados o pagamento do ciclo deve estar confirmado pelo administrador.</li>
-                    <li>Uma mesma licença não pode ser gerada duas vezes para o mesmo ciclo.</li>
-                    <li>A licença gerada é válida até o domingo seguinte, às 23:59.</li>
-                {% endif %}
-            </ul>
-            <button onclick="aceitarRegrasEProsseguir()" class="w-full py-4 bg-purple-600 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg hover:bg-purple-700 transition">
-                {% if todas_parcelas_quitadas %}
-                    Li e Aceito as Regras (Vitalícia)
-                {% else %}
-                    Li e Aceito as Regras
-                {% endif %}
-            </button>
-        </div>
-    </div>
-
-    <!-- Modal de exibição da chave (para ambos os tipos) -->
-    <div id="modal-chave-licenca" class="hidden fixed inset-0 z-[150] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
-        <div class="bg-white w-full max-w-md rounded-[2rem] shadow-2xl p-10 relative text-center border border-gray-100">
-            <button onclick="fecharModalChave()" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black text-xl outline-none">&times;</button>
-            <div class="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-6 text-green-600">
-                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-            </div>
-            <h3 id="modal-chave-titulo" class="text-xl font-black text-navy mb-2">Licença Gerada</h3>
-            <p class="text-xs text-gray-500 font-medium mb-6">Utilize a chave abaixo para ativar seu robô.</p>
-            <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6">
-                <code id="chave-licenca-exibida" class="text-sm font-mono font-bold text-royal break-all"></code>
-            </div>
-            <button onclick="copiarChaveExibida()" class="w-full py-3 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">Copiar Chave</button>
-        </div>
-    </div>
-
-    <div id="modal-senha" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
-        <div class="bg-white w-full max-w-sm rounded-[2rem] shadow-2xl p-10 relative text-center border border-gray-100">
-            <div class="w-16 h-16 bg-royal/10 rounded-2xl flex items-center justify-center mx-auto mb-6 text-royal">
-                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2H6a2 2 0 00-2-2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-            </div>
-            <h3 class="text-xl font-black text-navy mb-2">Nota Protegida (XP)</h3>
-            <p class="text-xs text-gray-500 font-medium mb-8">Por padrão da XP, a nota vem com senha. Digite os 3 últimos dígitos do seu CPF.</p>
-            <input type="hidden" id="modal-dia-id">
-            <input type="password" id="input-senha-manual" placeholder="•••" class="block w-full rounded-2xl px-5 py-4 bg-gray-50 border border-gray-200 text-center text-xl font-black tracking-[0.5em] focus:bg-white focus:border-royal mb-6 outline-none transition">
-            <button onclick="tentarComSenhaManual()" class="w-full py-4 bg-royal text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg hover:-translate-y-1 transition">Desbloquear PDF</button>
-            <button onclick="fecharModalSenha()" class="mt-4 text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-navy transition w-full py-2">Cancelar</button>
-        </div>
-    </div>
 </div>
 
 <script>
@@ -473,10 +479,22 @@ async function enviarRelatorioNaoOperei() {
 
 // ==================== LICENÇAS (UNIFICADA) ====================
 function gerarLicencaComissao() {
+    const selectConta = document.getElementById('select-conta-licenca');
+    if (!selectConta || !selectConta.value) {
+        alert('Selecione uma conta MT5 ativa primeiro.');
+        return;
+    }
+    // Armazena o ID da conta para usar depois
+    window.contaSelecionadaId = selectConta.value;
+
     pendingGenerateCallback = () => {
         fetch("{{ url_for('licenca.licenca_gerar') }}", {
             method: 'POST',
-            headers: { 'X-CSRFToken': '{{ csrf_token() }}' }
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}' 
+            },
+            body: JSON.stringify({ conta_mt5_id: window.contaSelecionadaId })
         })
         .then(response => response.json())
         .then(data => {
@@ -489,7 +507,7 @@ function gerarLicencaComissao() {
                 }
                 document.getElementById('modal-chave-licenca').classList.remove('hidden');
             } else if (data.error === 'PRECISA_CONTA') {
-                abrirModalSolicitarConta(() => gerarLicencaComissao());
+                alert('Você precisa cadastrar uma conta MT5 em "Minhas Contas" antes de gerar a licença.');
             } else {
                 alert(data.message || 'Erro ao gerar licença.');
             }
@@ -505,44 +523,6 @@ function aceitarRegrasEProsseguir() {
         pendingGenerateCallback();
         pendingGenerateCallback = null;
     }
-}
-
-function salvarContaMT5() {
-    const conta = document.getElementById('input-conta-mt5').value.trim();
-    if (!conta) {
-        alert('Digite o número da sua conta MT5.');
-        return;
-    }
-    fetch("{{ url_for('licenca.api_salvar_conta_mt5') }}", {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
-        body: JSON.stringify({ conta_mt5: conta })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            fecharModalSolicitarConta();
-            if (pendingGenerateCallback) {
-                pendingGenerateCallback();
-                pendingGenerateCallback = null;
-            } else {
-                window.location.reload();
-            }
-        } else {
-            alert(data.message || 'Erro ao salvar conta MT5.');
-        }
-    })
-    .catch(err => alert('Erro de comunicação com o servidor.'));
-}
-
-function abrirModalSolicitarConta(callback) {
-    pendingGenerateCallback = callback;
-    document.getElementById('input-conta-mt5').value = '';
-    document.getElementById('modal-solicitar-conta').classList.remove('hidden');
-}
-
-function fecharModalSolicitarConta() {
-    document.getElementById('modal-solicitar-conta').classList.add('hidden');
 }
 
 function fecharModalRegras() {
@@ -603,7 +583,7 @@ function abrirModalSenha(diaId) { document.getElementById('modal-dia-id').value 
 function fecharModalSenha() { document.getElementById('modal-senha').classList.add('hidden'); document.getElementById('input-senha-manual').value = ''; }
 function tentarComSenhaManual() { const diaId = document.getElementById('modal-dia-id').value; const senha = document.getElementById('input-senha-manual').value; if (!senha) return; fecharModalSenha(); enviarRelatorio(diaId, senha); }
 
-// ==================== PAGAMENTO ====================
+// ==================== PAGAMENTO (original) ====================
 {% if current_user.modelo_negocio != 'compra' %}
 function abrirModalAuditoriaPagamento() {
     if (!globalFaturaAtivaId) return;
