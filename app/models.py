@@ -85,6 +85,14 @@ class ContaMT5Cliente(db.Model):
     bloqueada = db.Column(db.Boolean, default=False)       # bloqueio específico por conta
     data_cadastro = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
 
+    # Relacionamento com User – nomeado como 'cliente' para uso interno
+    cliente = db.relationship('User', backref='contas_mt5')
+
+    @property
+    def user(self):
+        """Alias para 'cliente' – compatibilidade com código do admin que espera 'conta.user'."""
+        return self.cliente
+
     def __repr__(self):
         return f"<ContaMT5Cliente user={self.user_id} conta={self.numero_conta}>"
 
