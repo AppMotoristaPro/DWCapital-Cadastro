@@ -23,12 +23,8 @@ class User(db.Model, UserMixin):
     email = db.Column(db.String(120))
     celular = db.Column(db.String(20))
     
-    # Campos legados (serão mantidos para compatibilidade, mas novos dados vão para ContaMT5Cliente)
     corretora = db.Column(db.String(50), nullable=True)
     capital_alocado = db.Column(db.Float, default=0.0)
-    
-    # Campo antigo (será removido na migração)
-    # conta_mt5 = db.Column(db.String(20), nullable=True)  # REMOVIDO
     
     licenca_bloqueada = db.Column(db.Boolean, default=False)
     robot_acesso_bloqueado = db.Column(db.Boolean, default=False)
@@ -62,8 +58,8 @@ class User(db.Model, UserMixin):
     downloads = db.relationship('DownloadControle', backref='cliente', lazy=True, cascade="all, delete-orphan")
     licencas = db.relationship('LicencaCliente', backref='cliente', lazy=True, cascade="all, delete-orphan")
     
-    # NOVO: contas MT5 do cliente
-    contas_mt5 = db.relationship('ContaMT5Cliente', backref='cliente', lazy=True, cascade="all, delete-orphan")
+    # Contas MT5 – relacionamento corrigido
+    contas_mt5 = db.relationship('ContaMT5Cliente', back_populates='usuario', lazy=True, cascade="all, delete-orphan")
 
     @validates('cpf')
     def validate_cpf(self, key, cpf):
@@ -82,16 +78,16 @@ class ContaMT5Cliente(db.Model):
     nome_corretora = db.Column(db.String(50), nullable=False)
     capital_alocado = db.Column(db.Float, default=0.0)
     ativo = db.Column(db.Boolean, default=True)
-    bloqueada = db.Column(db.Boolean, default=False)       # bloqueio específico por conta
+    bloqueada = db.Column(db.Boolean, default=False)
     data_cadastro = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
 
-    # Relacionamento com User – nomeado como 'cliente' para uso interno
-    cliente = db.relationship('User', backref='contas_mt5')
+    # Relacionamento com User – nome interno 'usuario'
+    usuario = db.relationship('User', back_populates='contas_mt5')
 
+    # Propriedade de compatibilidade para código que espera 'conta.user'
     @property
     def user(self):
-        """Alias para 'cliente' – compatibilidade com código do admin que espera 'conta.user'."""
-        return self.cliente
+        return self.usuario
 
     def __repr__(self):
         return f"<ContaMT5Cliente user={self.user_id} conta={self.numero_conta}>"
@@ -294,18 +290,15 @@ class DownloadControle(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    # Nova FK para a conta MT5
     conta_mt5_id = db.Column(db.Integer, db.ForeignKey('conta_mt5_cliente.id'), nullable=False)
     versao_id = db.Column(db.Integer, db.ForeignKey('versao_robo.id', ondelete='RESTRICT'), nullable=False)
     data_download = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     ciclo_inicio = db.Column(db.Date, nullable=True)
     
-    # Relacionamentos
     versao = db.relationship('VersaoRobo', backref='downloads')
     conta = db.relationship('ContaMT5Cliente', backref='downloads')
 
     __table_args__ = (
-        # Cada conta pode baixar a mesma versão no mesmo ciclo apenas uma vez
         db.UniqueConstraint('conta_mt5_id', 'versao_id', 'ciclo_inicio', name='_conta_versao_ciclo_uc'),
     )
 
@@ -318,7 +311,6 @@ class LicencaCliente(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    # Nova FK para a conta MT5
     conta_mt5_id = db.Column(db.Integer, db.ForeignKey('conta_mt5_cliente.id'), nullable=False)
     chave_licenca = db.Column(db.String(100), nullable=False)
     data_geracao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
@@ -329,11 +321,9 @@ class LicencaCliente(db.Model):
     data_expiracao = db.Column(db.DateTime, nullable=True)
     status = db.Column(db.String(20), nullable=False, default='ativa')
     
-    # Relacionamentos
     conta = db.relationship('ContaMT5Cliente', backref='licencas')
 
     __table_args__ = (
-        # Cada conta pode ter apenas uma licença ativa por ciclo (evita duplicidade)
         db.UniqueConstraint('conta_mt5_id', 'ciclo_inicio', name='_conta_ciclo_uc'),
     )
 
