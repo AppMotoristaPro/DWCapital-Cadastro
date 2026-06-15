@@ -15,7 +15,8 @@ from app.utils.decorators import admin_required
 from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo, auto_gerar_ciclos_em_lote
 from app.services.documento_service import disparar_lote, disparar_unico
 from app.services.dashboard_service import obter_dados_dashboard
-from app.services.licenca_service import gerar_licenca_vitalicia, obter_licenca_ativa, expirar_licencas_semanais
+from app.services.licenca_service import gerar_licenca_vitalicia, expirar_licencas_semanais
+from app.services.licenca_service import obter_licenca_ativa_por_conta as obter_licenca_ativa
 from app.utils.parsers.gerenciador_pdf import processar_pdf
 from app.utils.validators import validar_cpf
 from app.services.parcela_service import gerar_parcelas_compra_unificado, contar_indicacoes_com_entrada_paga
