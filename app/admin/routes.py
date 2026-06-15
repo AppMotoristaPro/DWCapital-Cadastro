@@ -1502,6 +1502,42 @@ def admin_reativar_conta(conta_id):
     registrar_log(f"Reativou a conta MT5 {conta.numero_conta} do cliente {conta.user.nome}.", "Clientes")
     return jsonify({'success': True})
 
+@admin_bp.route('/api/conta/<int:conta_id>/excluir', methods=['DELETE'])
+@admin_required
+def admin_excluir_conta(conta_id):
+    """Admin exclui permanentemente uma conta MT5 (hard delete)."""
+    conta = ContaMT5Cliente.query.get_or_404(conta_id)
+    nome_cliente = conta.user.nome
+    numero_conta = conta.numero_conta
+    
+    # Verifica se é a última conta ativa do cliente (opcional, para evitar ficar sem nenhuma conta)
+    from app.services.conta_mt5_service import listar_contas
+    outras_contas = listar_contas(conta.user_id, apenas_ativas=True)
+    if len(outras_contas) <= 1:
+        return jsonify({
+            "success": False, 
+            "message": "Esta é a única conta ativa do cliente. Excluí-la pode causar problemas. Considere desativar em vez de excluir."
+        }), 400
+    
+    try:
+        # Remove registros dependentes (downloads e licenças) para não violar FK
+        from app.models import DownloadControle, LicencaCliente
+        downloads = DownloadControle.query.filter_by(conta_mt5_id=conta.id).all()
+        for d in downloads:
+            db.session.delete(d)
+        licencas = LicencaCliente.query.filter_by(conta_mt5_id=conta.id).all()
+        for l in licencas:
+            db.session.delete(l)
+        
+        db.session.delete(conta)
+        db.session.commit()
+        
+        registrar_log(f"Excluiu permanentemente a conta MT5 {numero_conta} do cliente {nome_cliente}.", "Clientes")
+        return jsonify({"success": True, "message": "Conta excluída com sucesso."})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": f"Erro ao excluir: {str(e)}"}), 500
+
 # ==================== FUNÇÕES AUXILIARES ====================
 
 def _executar_reprocessamento_por_corretora(corretora_nome):

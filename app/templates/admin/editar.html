@@ -138,7 +138,7 @@
             </button>
         </div>
 
-        <!-- ==================== NOVA SEÇÃO: CONTAS MT5 ==================== -->
+        <!-- ==================== SEÇÃO: CONTAS MT5 ==================== -->
         <div class="space-y-5 pt-4">
             <h3 class="text-xs font-black text-royal uppercase tracking-widest bg-blue-50/50 p-3 rounded-lg border border-blue-100">Contas MT5 do Cliente</h3>
             
@@ -177,6 +177,7 @@
                                 </button>
                                 {% if conta.ativo %}
                                     <button type="button" onclick="desativarContaAdmin({{ conta.id }})" class="text-red-500 text-[10px] font-black">Desativar</button>
+                                    <button type="button" onclick="excluirContaAdmin({{ conta.id }})" class="text-red-700 text-[10px] font-black">Excluir</button>
                                 {% else %}
                                     <button type="button" onclick="reativarContaAdmin({{ conta.id }})" class="text-green-600 text-[10px] font-black">Reativar</button>
                                 {% endif %}
@@ -388,6 +389,27 @@ async function reativarContaAdmin(contaId) {
         if (data.success) location.reload();
         else alert(data.message || 'Erro ao reativar conta.');
     } catch (err) { alert('Erro de comunicação.'); }
+}
+
+// Função para excluir permanentemente a conta
+async function excluirContaAdmin(contaId) {
+    if (!confirm('⚠️ ATENÇÃO: Esta ação irá EXCLUIR PERMANENTEMENTE a conta MT5 e TODOS os seus downloads e licenças associados. Esta operação não pode ser desfeita. Deseja continuar?')) return;
+    const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '{{ csrf_token() }}';
+    try {
+        const response = await fetch(`/admin/api/conta/${contaId}/excluir`, {
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': csrfToken }
+        });
+        const data = await response.json();
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert(data.message || 'Erro ao excluir conta.');
+        }
+    } catch (err) {
+        alert('Erro de comunicação com o servidor.');
+    }
 }
 </script>
 {% endblock %}
