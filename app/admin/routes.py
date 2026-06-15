@@ -23,6 +23,8 @@ import cloudinary.uploader
 import pytz
 import re
 import bleach
+from app.models import ContaMT5Cliente
+from app.services.conta_mt5_service import adicionar_conta, validar_numero_conta, bloquear_conta, desativar_conta
 
 # Tags e atributos permitidos para o campo novidades (changelog)
 ALLOWED_TAGS = [
@@ -1415,6 +1417,84 @@ def processar_premio(solicitacao_id):
         flash('Ação inválida.', 'error')
     
     return redirect(url_for('admin.premios'))
+
+# ==================== ADMIN: GESTÃO DE CONTAS MT5 ====================
+
+@admin_bp.route('/api/cliente/<int:user_id>/conta', methods=['POST'])
+@admin_required
+def admin_adicionar_conta(user_id):
+    """Admin adiciona uma nova conta MT5 para o cliente."""
+    data = request.get_json()
+    numero_conta = data.get('numero_conta', '').strip()
+    nome_corretora = data.get('nome_corretora', '').upper()
+    capital_alocado = float(data.get('capital_alocado', 0))
+    
+    if not validar_numero_conta(numero_conta):
+        return jsonify({'success': False, 'message': 'Número da conta inválido (apenas números).'}), 400
+    if nome_corretora not in ['GENIAL', 'BTG', 'XP']:
+        return jsonify({'success': False, 'message': 'Corretora inválida.'}), 400
+    if capital_alocado < 0:
+        return jsonify({'success': False, 'message': 'Capital não pode ser negativo.'}), 400
+    
+    try:
+        conta = adicionar_conta(user_id, numero_conta, nome_corretora, capital_alocado)
+        return jsonify({'success': True, 'conta': {'id': conta.id}})
+    except ValueError as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+
+@admin_bp.route('/api/conta/<int:conta_id>', methods=['PUT'])
+@admin_required
+def admin_editar_conta(conta_id):
+    """Admin edita capital e corretora de uma conta existente."""
+    data = request.get_json()
+    conta = ContaMT5Cliente.query.get_or_404(conta_id)
+    if 'capital_alocado' in data:
+        if data['capital_alocado'] < 0:
+            return jsonify({'success': False, 'message': 'Capital não pode ser negativo.'}), 400
+        conta.capital_alocado = data['capital_alocado']
+    if 'nome_corretora' in data:
+        corretora = data['nome_corretora'].upper()
+        if corretora not in ['GENIAL', 'BTG', 'XP']:
+            return jsonify({'success': False, 'message': 'Corretora inválida.'}), 400
+        conta.nome_corretora = corretora
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@admin_bp.route('/api/conta/<int:conta_id>/bloquear', methods=['POST'])
+@admin_required
+def admin_bloquear_conta(conta_id):
+    """Admin bloqueia ou desbloqueia uma conta MT5."""
+    data = request.get_json()
+    bloqueado = data.get('bloqueado', True)
+    conta = ContaMT5Cliente.query.get_or_404(conta_id)
+    conta.bloqueada = bloqueado
+    db.session.commit()
+    registrar_log(f"{'Bloqueou' if bloqueado else 'Desbloqueou'} a conta MT5 {conta.numero_conta} do cliente {conta.user.nome}.", "Clientes")
+    return jsonify({'success': True})
+
+
+@admin_bp.route('/api/conta/<int:conta_id>/desativar', methods=['POST'])
+@admin_required
+def admin_desativar_conta(conta_id):
+    """Admin desativa uma conta MT5 (soft delete)."""
+    conta = ContaMT5Cliente.query.get_or_404(conta_id)
+    conta.ativo = False
+    db.session.commit()
+    registrar_log(f"Desativou a conta MT5 {conta.numero_conta} do cliente {conta.user.nome}.", "Clientes")
+    return jsonify({'success': True})
+
+
+@admin_bp.route('/api/conta/<int:conta_id>/reativar', methods=['POST'])
+@admin_required
+def admin_reativar_conta(conta_id):
+    """Admin reativa uma conta MT5 previamente desativada."""
+    conta = ContaMT5Cliente.query.get_or_404(conta_id)
+    conta.ativo = True
+    db.session.commit()
+    registrar_log(f"Reativou a conta MT5 {conta.numero_conta} do cliente {conta.user.nome}.", "Clientes")
+    return jsonify({'success': True})
 
 # ==================== FUNÇÕES AUXILIARES ====================
 

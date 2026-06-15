@@ -1,7 +1,7 @@
 {% extends "admin/layout.html" %}
 
 {% block admin_content %}
-<div class="max-w-3xl mx-auto bg-white/80 backdrop-blur-xl p-10 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white relative z-10 pb-10">
+<div class="max-w-5xl mx-auto bg-white/80 backdrop-blur-xl p-10 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white relative z-10 pb-10">
     <div class="flex justify-between items-center mb-8 border-b border-gray-100 pb-6">
         <div>
             <h2 class="text-3xl font-black text-navy tracking-tight">Editar Cliente</h2>
@@ -47,11 +47,6 @@
                     <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Celular / WhatsApp</label>
                     <input type="text" name="celular" value="{{ cliente.celular or '' }}" class="w-full px-5 py-4 bg-white border border-gray-200 rounded-xl outline-none font-bold text-navy focus:border-royal shadow-sm transition">
                 </div>
-                <!-- Conta MT5 -->
-                <div>
-                    <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Conta MT5</label>
-                    <input type="text" name="conta_mt5" value="{{ cliente.conta_mt5 or '' }}" placeholder="Ex: 123456" class="w-full px-5 py-4 bg-white border border-gray-200 rounded-xl outline-none font-bold text-navy focus:border-royal shadow-sm transition">
-                </div>
             </div>
 
             <div class="mt-6 p-6 bg-purple-50/50 border border-purple-100 rounded-2xl flex items-center justify-between shadow-sm">
@@ -65,7 +60,7 @@
                 </label>
             </div>
 
-            <!-- NOVO BLOCO: Bloqueio de Licenças -->
+            <!-- BLOCO: Bloqueio de Licenças -->
             <div class="mt-6 p-6 bg-red-50/50 border border-red-100 rounded-2xl flex items-center justify-between shadow-sm">
                 <div>
                     <p class="text-sm font-black text-red-700 uppercase tracking-widest">Bloquear Licenças</p>
@@ -76,7 +71,8 @@
                     <div class="w-14 h-7 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-red-600 shadow-inner"></div>
                 </label>
             </div>
-            <!-- NOVO BLOCO: Setup pago (taxa única) -->
+
+            <!-- BLOCO: Setup pago (taxa única) -->
             <div class="mt-6 p-6 bg-green-50/50 border border-green-100 rounded-2xl flex items-center justify-between shadow-sm">
                 <div>
                     <p class="text-sm font-black text-green-800 uppercase tracking-widest">Setup pago (R$ 399,90)</p>
@@ -142,6 +138,64 @@
             </button>
         </div>
 
+        <!-- ==================== NOVA SEÇÃO: CONTAS MT5 ==================== -->
+        <div class="space-y-5 pt-4">
+            <h3 class="text-xs font-black text-royal uppercase tracking-widest bg-blue-50/50 p-3 rounded-lg border border-blue-100">Contas MT5 do Cliente</h3>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse bg-white rounded-xl overflow-hidden shadow-sm">
+                    <thead class="bg-gray-50 text-gray-400 text-[10px] font-black uppercase">
+                        <tr>
+                            <th class="px-4 py-3">ID</th>
+                            <th class="px-4 py-3">Nº Conta</th>
+                            <th class="px-4 py-3">Corretora</th>
+                            <th class="px-4 py-3">Capital Alocado</th>
+                            <th class="px-4 py-3">Status</th>
+                            <th class="px-4 py-3 text-right">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="contas-mt5-tbody">
+                        {% for conta in cliente.contas_mt5 %}
+                        <tr class="border-b border-gray-100 conta-row" data-id="{{ conta.id }}">
+                            <td class="px-4 py-3 text-xs">{{ conta.id }}</td>
+                            <td class="px-4 py-3 font-mono">{{ conta.numero_conta }}</td>
+                            <td class="px-4 py-3">{{ conta.nome_corretora }}</td>
+                            <td class="px-4 py-3">R$ {{ conta.capital_alocado|format_brl }}</td>
+                            <td class="px-4 py-3">
+                                {% if not conta.ativo %}
+                                    <span class="px-2 py-1 bg-gray-200 text-gray-500 rounded text-[9px]">Inativa</span>
+                                {% elif conta.bloqueada %}
+                                    <span class="px-2 py-1 bg-red-100 text-red-700 rounded text-[9px]">Bloqueada</span>
+                                {% else %}
+                                    <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-[9px]">Ativa</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-right space-x-2">
+                                <button type="button" onclick="editarContaAdmin({{ conta.id }})" class="text-royal text-[10px] font-black">Editar</button>
+                                <button type="button" onclick="toggleBloqueioContaAdmin({{ conta.id }}, {{ 'true' if conta.bloqueada else 'false' }})" class="text-purple-600 text-[10px] font-black">
+                                    {{ 'Desbloquear' if conta.bloqueada else 'Bloquear' }}
+                                </button>
+                                {% if conta.ativo %}
+                                    <button type="button" onclick="desativarContaAdmin({{ conta.id }})" class="text-red-500 text-[10px] font-black">Desativar</button>
+                                {% else %}
+                                    <button type="button" onclick="reativarContaAdmin({{ conta.id }})" class="text-green-600 text-[10px] font-black">Reativar</button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="px-4 py-8 text-center text-gray-400">Nenhuma conta MT5 cadastrada.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <button type="button" onclick="abrirModalNovaContaAdmin()" class="px-4 py-2 bg-royal text-white rounded-lg text-xs font-black uppercase tracking-widest shadow-md hover:bg-royal-dark transition">
+                + Adicionar Conta MT5
+            </button>
+        </div>
+
         <button type="submit" class="w-full py-5 bg-navy text-white font-black uppercase tracking-widest rounded-2xl mt-10 shadow-xl hover:bg-gray-900 transition hover:-translate-y-0.5">Atualizar Cadastro Institucional</button>
     </form>
 
@@ -171,22 +225,42 @@
     </div>
 </div>
 
-<script>
-document.getElementById('modelo-negocio-edit')?.addEventListener('change', function(e) {
-    if (e.target.value === 'compra' && '{{ cliente.modelo_negocio or "comissao" }}' === 'comissao') {
-        alert('ATENÇÃO DO SISTEMA:\n\nAlterar o modelo para "Compra de Licença" irá congelar as faturas semanais de 30% deste parceiro.\n\nO sistema irá gerar IMEDIATAMENTE as 10 parcelas de licenciamento (1x R$ 3.000,00 + 9x R$ 500,00 semanais) que bloquearão o próximo acesso dele até o pagamento.\n\nSe o cliente já tiver conta MT5 e termo assinado, a licença vitalícia será gerada automaticamente.');
-    }
-});
+<!-- Modal para adicionar/editar conta MT5 (admin) -->
+<div id="modal-conta-admin" class="hidden fixed inset-0 z-[1000] flex items-center justify-center bg-navy/80 backdrop-blur-sm p-4">
+    <div class="bg-white/95 backdrop-blur-xl border border-white/60 w-full max-w-md rounded-2xl shadow-2xl relative">
+        <button onclick="fecharModalContaAdmin()" class="absolute top-3 right-3 w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center text-gray-700 font-bold text-lg transition shadow-md">✕</button>
+        <div class="p-6">
+            <h3 id="modal-conta-titulo" class="text-xl font-black text-navy mb-4">Nova Conta MT5</h3>
+            <form id="form-conta-admin" onsubmit="return false;">
+                <input type="hidden" id="conta-id-admin" value="">
+                <div class="mb-4">
+                    <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Número da Conta</label>
+                    <input type="text" id="numero-conta-admin" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-royal" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Corretora</label>
+                    <select id="corretora-admin" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-royal">
+                        <option value="GENIAL">GENIAL INVESTIMENTOS</option>
+                        <option value="BTG">BTG PACTUAL</option>
+                        <option value="XP">XP INVESTIMENTOS</option>
+                    </select>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-[10px] font-black text-green-600 uppercase tracking-widest mb-1.5">Capital Alocado (R$)</label>
+                    <input type="number" step="0.01" min="0" id="capital-admin" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-green-400" value="0">
+                </div>
+                <button type="submit" class="w-full py-3 bg-royal text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">Salvar</button>
+            </form>
+        </div>
+    </div>
+</div>
 
+<script>
+// Funções das alocações (já existentes)
 function adicionarCorretora() {
     const container = document.getElementById('corretoras-container');
     const cards = container.querySelectorAll('.corretora-card');
-    
-    if (cards.length >= 3) {
-        alert('Limite máximo de 3 corretoras ativas atingido.');
-        return;
-    }
-    
+    if (cards.length >= 3) { alert('Limite máximo de 3 corretoras ativas atingido.'); return; }
     const clone = cards[0].cloneNode(true);
     const selectBox = clone.querySelector('select');
     selectBox.value = "";
@@ -194,16 +268,126 @@ function adicionarCorretora() {
     inputNum.value = "";
     container.appendChild(clone);
 }
-
 function removerCorretora(btn) {
     const container = document.getElementById('corretoras-container');
-    const cards = container.querySelectorAll('.corretora-card');
-    
-    if (cards.length > 1) {
+    if (container.querySelectorAll('.corretora-card').length > 1) {
         btn.closest('.corretora-card').remove();
-    } else {
-        alert('É necessário manter pelo menos uma corretora alocada para este parceiro.');
+    } else { alert('É necessário manter pelo menos uma corretora alocada para este parceiro.'); }
+}
+
+// ==================== ADMIN: GESTÃO DE CONTAS MT5 ====================
+const clienteId = {{ cliente.id }};
+let editingContaId = null;
+
+function abrirModalNovaContaAdmin() {
+    editingContaId = null;
+    document.getElementById('modal-conta-titulo').innerText = 'Nova Conta MT5';
+    document.getElementById('form-conta-admin').reset();
+    document.getElementById('conta-id-admin').value = '';
+    document.getElementById('numero-conta-admin').disabled = false;
+    document.getElementById('modal-conta-admin').classList.remove('hidden');
+}
+
+function editarContaAdmin(contaId) {
+    editingContaId = contaId;
+    const row = document.querySelector(`.conta-row[data-id="${contaId}"]`);
+    if (!row) return;
+    const numero = row.cells[1].innerText;
+    const corretora = row.cells[2].innerText;
+    const capitalText = row.cells[3].innerText.replace('R$ ', '').replace(/\./g, '').replace(',', '.');
+    const capital = parseFloat(capitalText) || 0;
+    document.getElementById('modal-conta-titulo').innerText = 'Editar Conta MT5';
+    document.getElementById('conta-id-admin').value = contaId;
+    document.getElementById('numero-conta-admin').value = numero;
+    document.getElementById('corretora-admin').value = corretora;
+    document.getElementById('capital-admin').value = capital;
+    document.getElementById('numero-conta-admin').disabled = true; // número não pode ser alterado após criado
+    document.getElementById('modal-conta-admin').classList.remove('hidden');
+}
+
+function fecharModalContaAdmin() {
+    document.getElementById('modal-conta-admin').classList.add('hidden');
+}
+
+document.getElementById('form-conta-admin').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const id = document.getElementById('conta-id-admin').value;
+    const numero = document.getElementById('numero-conta-admin').value.trim();
+    const corretora = document.getElementById('corretora-admin').value;
+    const capital = parseFloat(document.getElementById('capital-admin').value) || 0;
+    const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '{{ csrf_token() }}';
+    
+    try {
+        let url, method, body;
+        if (id) {
+            // Editar (PUT) - apenas capital e corretora
+            url = `/admin/api/conta/${id}`;
+            method = 'PUT';
+            body = JSON.stringify({ capital_alocado: capital, nome_corretora: corretora });
+        } else {
+            // Adicionar (POST)
+            url = `/admin/api/cliente/${clienteId}/conta`;
+            method = 'POST';
+            body = JSON.stringify({ numero_conta: numero, nome_corretora: corretora, capital_alocado: capital });
+        }
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: body
+        });
+        const data = await response.json();
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.message || 'Erro ao salvar conta.');
+        }
+    } catch (err) {
+        alert('Erro de comunicação com o servidor.');
     }
+});
+
+async function toggleBloqueioContaAdmin(contaId, isCurrentlyBlocked) {
+    const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '{{ csrf_token() }}';
+    const novoStatus = !isCurrentlyBlocked;
+    if (!confirm(`Deseja ${novoStatus ? 'BLOQUEAR' : 'DESBLOQUEAR'} esta conta?`)) return;
+    try {
+        const response = await fetch(`/admin/api/conta/${contaId}/bloquear`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ bloqueado: novoStatus })
+        });
+        const data = await response.json();
+        if (data.success) location.reload();
+        else alert(data.message || 'Erro ao alterar bloqueio.');
+    } catch (err) { alert('Erro de comunicação.'); }
+}
+
+async function desativarContaAdmin(contaId) {
+    if (!confirm('Desativar esta conta? O cliente não poderá mais usá-la, mas o histórico será mantido.')) return;
+    const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '{{ csrf_token() }}';
+    try {
+        const response = await fetch(`/admin/api/conta/${contaId}/desativar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }
+        });
+        const data = await response.json();
+        if (data.success) location.reload();
+        else alert(data.message || 'Erro ao desativar conta.');
+    } catch (err) { alert('Erro de comunicação.'); }
+}
+
+async function reativarContaAdmin(contaId) {
+    if (!confirm('Reativar esta conta?')) return;
+    const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '{{ csrf_token() }}';
+    try {
+        const response = await fetch(`/admin/api/conta/${contaId}/reativar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }
+        });
+        const data = await response.json();
+        if (data.success) location.reload();
+        else alert(data.message || 'Erro ao reativar conta.');
+    } catch (err) { alert('Erro de comunicação.'); }
 }
 </script>
 {% endblock %}
