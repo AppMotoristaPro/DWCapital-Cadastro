@@ -5,6 +5,7 @@ from app import db
 from app.models import Fatura, LicencaCliente, User, ProdutoRobo, ContaMT5Cliente
 from sqlalchemy.exc import IntegrityError
 from app.services.parcela_service import todas_parcelas_pagas
+from app.services.conta_mt5_service import verificar_licenca_comprada
 
 tz_br = pytz.timezone('America/Sao_Paulo')
 
@@ -108,7 +109,7 @@ def gerar_licenca_vitalicia(user, conta_mt5_id, produto_id=None):
     """
     Gera uma licença vitalícia usando a nova fórmula, vinculada a uma conta MT5 específica.
     Se já existir uma licença vitalícia ativa para essa conta, cancela a anterior.
-    Para clientes modelo compra, verifica se todas as parcelas daquela conta estão pagas.
+    Para clientes modelo compra, verifica se a licença foi comprada e se todas as parcelas estão pagas.
     Retorna (chave, mensagem, licenca_obj)
     """
     if is_acesso_robot_bloqueado(user):
@@ -120,15 +121,19 @@ def gerar_licenca_vitalicia(user, conta_mt5_id, produto_id=None):
     if conta.bloqueada:
         return None, "Esta conta MT5 está bloqueada pelo administrador.", None
 
-    # ==================== VALIDAÇÃO PARA CLIENTES COMPRA ====================
+    # ==================== VERIFICAÇÃO PARA CLIENTES COMPRA ====================
     if user.modelo_negocio == 'compra':
-        # Verifica se existem parcelas associadas a esta conta
+        # 1. Verifica se a licença foi comprada para esta conta
+        if not verificar_licenca_comprada(conta_mt5_id, user.id):
+            return None, "Licença não adquirida para esta conta. Compre uma licença em 'Minhas Contas'.", None
+
+        # 2. Verifica se existem parcelas associadas a esta conta
         from app.models import ParcelaCompra
         parcelas_conta = ParcelaCompra.query.filter_by(conta_mt5_id=conta_mt5_id).all()
         if not parcelas_conta:
             return None, "Esta conta MT5 não possui parcelas associadas. É necessário realizar a compra da licença para esta conta.", None
 
-        # Verifica se todas as parcelas da conta estão pagas
+        # 3. Verifica se todas as parcelas da conta estão pagas
         if not todas_parcelas_pagas(user.id, conta_mt5_id):
             return None, "Existem parcelas pendentes para esta conta. Quite todas as parcelas para obter a licença vitalícia.", None
 
@@ -237,6 +242,7 @@ def verificar_condicoes_comissao(user, ciclo_inicio):
 def gerar_licenca_comissao(user, conta_mt5_id, produto_id, semana_id=None):
     """
     Gera uma nova licença semanal vinculada a uma conta MT5 específica e a um produto.
+    Para clientes compra, verifica se a licença foi comprada para a conta.
     Retorna (chave, mensagem, licenca_obj, ja_existente)
     """
     if is_acesso_robot_bloqueado(user):
@@ -248,6 +254,11 @@ def gerar_licenca_comissao(user, conta_mt5_id, produto_id, semana_id=None):
         return None, "Conta MT5 não encontrada ou inativa.", None, False
     if conta.bloqueada:
         return None, "Esta conta MT5 está bloqueada pelo administrador.", None, False
+
+    # ==================== VERIFICAÇÃO PARA CLIENTES COMPRA ====================
+    if user.modelo_negocio == 'compra':
+        if not verificar_licenca_comprada(conta_mt5_id, user.id):
+            return None, "Licença não adquirida para esta conta. Compre uma licença em 'Minhas Contas'.", None, False
 
     ciclo_inicio, ciclo_fim = calcular_ciclo_anterior()
 

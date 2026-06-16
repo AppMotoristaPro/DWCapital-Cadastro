@@ -7,6 +7,7 @@ Fornece funções para:
 - Contar quantas indicações de um usuário já pagaram a entrada.
 - Calcular o prêmio acumulado do indicador.
 - Verificar se todas as parcelas de um cliente (ou conta) foram pagas.
+- Marcar licença comprada ao gerar parcelas.
 """
 
 from datetime import datetime, timedelta
@@ -75,6 +76,7 @@ def gerar_parcelas_compra_unificado(user_id: int, conta_mt5_id: int = None, data
 def gerar_parcelas_para_conta(conta_mt5_id: int, data_inicio: datetime.date = None):
     """
     Gera as 10 parcelas específicas para uma conta MT5.
+    Após gerar as parcelas, marca a conta como licenca_comprada = True.
 
     Args:
         conta_mt5_id (int): ID da conta MT5
@@ -94,7 +96,13 @@ def gerar_parcelas_para_conta(conta_mt5_id: int, data_inicio: datetime.date = No
     if existentes:
         raise ValueError("Esta conta MT5 já possui parcelas geradas.")
 
-    return gerar_parcelas_compra_unificado(conta.user_id, conta_mt5_id, data_inicio)
+    parcelas = gerar_parcelas_compra_unificado(conta.user_id, conta_mt5_id, data_inicio)
+
+    # Após gerar as parcelas, marca a conta como licenca_comprada = True
+    conta.licenca_comprada = True
+    db.session.commit()
+
+    return parcelas
 
 
 def contar_indicacoes_com_entrada_paga(user_id: int) -> int:

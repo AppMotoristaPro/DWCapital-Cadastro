@@ -1,14 +1,16 @@
 """
 Serviço para controle de versão do robô e downloads.
 Gerencia a versão ativa, o histórico de downloads por cliente e o bloqueio de múltiplos downloads por conta.
+Inclui verificação de licença comprada para clientes compra.
 """
 
 from datetime import datetime
 import pytz
 import logging
 from app import db
-from app.models import VersaoRobo, DownloadControle, ProdutoRobo, ContaMT5Cliente
+from app.models import VersaoRobo, DownloadControle, ProdutoRobo, ContaMT5Cliente, User
 from app.services.licenca_service import calcular_ciclo_por_data
+from app.services.conta_mt5_service import verificar_licenca_comprada
 
 logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
@@ -107,6 +109,7 @@ def liberado_para_download_produto(user, produto_id, ciclo_inicio, conta_mt5_id)
     """
     Verifica se o cliente pode baixar um determinado produto no ciclo atual usando a conta especificada.
     Retorna (bool, mensagem, versao_obj)
+    Inclui verificação de licença comprada para clientes compra.
     """
     logger.info(f"[LIBERADO] Iniciando verificação: user={user.id}, produto={produto_id}, ciclo={ciclo_inicio}, conta={conta_mt5_id}")
 
@@ -121,6 +124,12 @@ def liberado_para_download_produto(user, produto_id, ciclo_inicio, conta_mt5_id)
     if conta.bloqueada:
         logger.warning(f"[LIBERADO] Conta bloqueada: {conta_mt5_id}")
         return False, "Esta conta MT5 está bloqueada pelo administrador.", None
+
+    # ========== VERIFICAÇÃO DE LICENÇA COMPRADA ==========
+    # Para clientes compra, a conta deve ter licenca_comprada = True
+    if user.modelo_negocio == 'compra' and not verificar_licenca_comprada(conta_mt5_id, user.id):
+        logger.warning(f"[LIBERADO] Licença não comprada para conta {conta_mt5_id}")
+        return False, "Licença não adquirida para esta conta. Compre uma licença em 'Minhas Contas'.", None
 
     # Bloqueio administrativo geral
     if getattr(user, 'robot_acesso_bloqueado', False):

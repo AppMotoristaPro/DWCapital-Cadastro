@@ -3,9 +3,10 @@
 Serviço para gerenciar as contas MT5 dos clientes.
 Permite adicionar, editar, desativar, listar e verificar contas.
 Sincroniza automaticamente com AlocacaoCorretora para gerar faturas.
+Gerencia também o status de licença comprada para clientes compra.
 """
 from app import db
-from app.models import ContaMT5Cliente, AlocacaoCorretora
+from app.models import ContaMT5Cliente, AlocacaoCorretora, User
 from datetime import datetime
 import pytz
 
@@ -57,6 +58,9 @@ def adicionar_conta(user_id, numero_conta, nome_corretora, capital_alocado=0.0):
     """
     Adiciona uma nova conta MT5 para o usuário.
     Cria/atualiza a AlocacaoCorretora correspondente.
+    Define licenca_comprada com base no modelo do usuário:
+        - Se comissão: True (todas as contas são liberadas)
+        - Se compra: False (precisa comprar licença para esta conta)
     """
     # A constraint UniqueConstraint('user_id', 'numero_conta') já impede duplicidade
     existente = ContaMT5Cliente.query.filter_by(
@@ -66,6 +70,10 @@ def adicionar_conta(user_id, numero_conta, nome_corretora, capital_alocado=0.0):
     if existente:
         raise ValueError("Este número de conta MT5 já está cadastrado para este cliente.")
 
+    # Verifica o modelo do usuário
+    user = User.query.get(user_id)
+    licenca_comprada = True if user.modelo_negocio == 'comissao' else False
+
     nova = ContaMT5Cliente(
         user_id=user_id,
         numero_conta=numero_conta,
@@ -73,6 +81,7 @@ def adicionar_conta(user_id, numero_conta, nome_corretora, capital_alocado=0.0):
         capital_alocado=float(capital_alocado),
         ativo=True,
         bloqueada=False,
+        licenca_comprada=licenca_comprada,
         data_cadastro=datetime.now(tz_br)
     )
     db.session.add(nova)
@@ -135,6 +144,30 @@ def bloquear_conta(conta_id, user_id, bloqueado):
     conta.bloqueada = bloqueado
     db.session.commit()
     return conta
+
+
+def marcar_licenca_comprada(conta_id, user_id):
+    """Marca a conta como tendo licença comprada (True)."""
+    conta = obter_conta(conta_id, user_id)
+    if not conta:
+        raise ValueError("Conta não encontrada.")
+    conta.licenca_comprada = True
+    db.session.commit()
+    return conta
+
+
+def verificar_licenca_comprada(conta_id, user_id):
+    """
+    Verifica se a conta tem licença comprada.
+    Para clientes comissão, sempre retorna True (mesmo que a flag seja False, por segurança).
+    """
+    conta = obter_conta(conta_id, user_id)
+    if not conta:
+        return False
+    user = User.query.get(user_id)
+    if user.modelo_negocio == 'comissao':
+        return True
+    return conta.licenca_comprada
 
 
 def contar_contas_ativas(user_id):
