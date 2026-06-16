@@ -12,6 +12,16 @@
             <div class="mt-2 text-sm text-gray-500">Capital alocado: R$ {{ conta.capital_alocado|format_brl }}</div>
         </div>
 
+        <!-- Mensagem de migração para compra (se cliente for comissão) -->
+        {% if current_user.modelo_negocio == 'comissao' %}
+        <div class="bg-yellow-50 border border-yellow-300 rounded-xl p-4 mb-6">
+            <p class="text-yellow-800 text-sm font-bold flex items-start gap-2">
+                <span class="text-lg">⚠️</span>
+                <span>Esta é a <strong>primeira compra</strong> de licença para uma conta. Ao confirmar, você será <strong>migrado para o modelo COMPRA</strong> permanentemente. As demais contas ficarão bloqueadas para downloads e geração de licenças até que suas respectivas licenças sejam compradas.</span>
+            </p>
+        </div>
+        {% endif %}
+
         <div class="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-8">
             <h3 class="font-bold text-blue-800 text-lg mb-3">📋 Condições da compra</h3>
             <ul class="list-disc ml-5 space-y-2 text-gray-700">

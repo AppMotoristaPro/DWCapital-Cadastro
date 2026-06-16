@@ -20,6 +20,7 @@
                         <th class="px-6 py-5">Corretora</th>
                         <th class="px-6 py-5">Capital Alocado</th>
                         <th class="px-6 py-5">Status</th>
+                        <th class="px-6 py-5">Licença</th>
                         <th class="px-8 py-5 text-right">Ações</th>
                     </tr>
                 </thead>
@@ -38,6 +39,17 @@
                                 <span class="px-2 py-1 bg-green-100 text-green-700 text-[9px] font-black rounded-lg">Ativa</span>
                             {% endif %}
                         </td>
+                        <td class="px-6 py-5">
+                            {% if current_user.modelo_negocio == 'comissao' %}
+                                <span class="text-green-600 text-[9px] font-black">✅ Livre</span>
+                            {% else %}
+                                {% if conta.licenca_comprada %}
+                                    <span class="text-green-600 text-[9px] font-black">✅ Comprada</span>
+                                {% else %}
+                                    <span class="text-red-500 text-[9px] font-black">❌ Não comprada</span>
+                                {% endif %}
+                            {% endif %}
+                        </td>
                         <td class="px-8 py-5 text-right space-x-2">
                             {% if conta.ativo %}
                                 <!-- Botão Editar -->
@@ -48,18 +60,23 @@
                                 <button onclick="desativarConta({{ conta.id }})" 
                                         class="text-red-500 text-[10px] font-black uppercase hover:underline">Desativar</button>
                                 
-                                <!-- Botão Comprar Licença (aparece apenas se não houver parcelas nem licença vitalícia ativa) -->
-                                {% set possui_parcelas = conta.parcelas|length > 0 %}
-                                {% set possui_licenca_vital = false %}
-                                {% for lic in conta.licencas %}
-                                    {% if lic.tipo == 'vitalicia' and lic.status == 'ativa' %}
-                                        {% set possui_licenca_vital = true %}
-                                    {% endif %}
-                                {% endfor %}
-                                
-                                {% if not possui_parcelas and not possui_licenca_vital %}
+                                <!-- Botão Comprar Licença (aparece apenas para clientes compra sem licença comprada, ou comissão que ainda não comprou) -->
+                                {% if current_user.modelo_negocio == 'compra' and not conta.licenca_comprada %}
                                     <a href="{{ url_for('client.comprar_licenca_conta', conta_id=conta.id) }}" 
                                        class="text-green-600 text-[10px] font-black uppercase hover:underline">Comprar Licença</a>
+                                {% elif current_user.modelo_negocio == 'comissao' %}
+                                    {# Para comissão, permitir comprar licença para qualquer conta #}
+                                    {% set possui_parcelas = conta.parcelas|length > 0 %}
+                                    {% set possui_licenca_vital = false %}
+                                    {% for lic in conta.licencas %}
+                                        {% if lic.tipo == 'vitalicia' and lic.status == 'ativa' %}
+                                            {% set possui_licenca_vital = true %}
+                                        {% endif %}
+                                    {% endfor %}
+                                    {% if not possui_parcelas and not possui_licenca_vital %}
+                                        <a href="{{ url_for('client.comprar_licenca_conta', conta_id=conta.id) }}" 
+                                           class="text-green-600 text-[10px] font-black uppercase hover:underline">Comprar Licença</a>
+                                    {% endif %}
                                 {% endif %}
                             {% else %}
                                 <span class="text-gray-400 text-[10px]">Inativa</span>
@@ -68,7 +85,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="5" class="px-8 py-16 text-center text-gray-400 font-medium">
+                        <td colspan="6" class="px-8 py-16 text-center text-gray-400 font-medium">
                             Nenhuma conta MT5 cadastrada. Clique em "+ Nova Conta" para adicionar.
                         </td>
                     </tr>

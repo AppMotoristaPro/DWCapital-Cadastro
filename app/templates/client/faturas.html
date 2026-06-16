@@ -236,7 +236,7 @@
                 {% endif %}
             </ul>
 
-            <!-- Select de contas MT5 -->
+            <!-- Select de contas MT5 (apenas contas com licença comprada para clientes compra) -->
             <div class="mb-6">
                 <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Conta MT5</label>
                 <select id="select-conta-licenca" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-royal">
@@ -245,10 +245,12 @@
                             <option value="{{ conta.id }}">{{ conta.numero_conta }} ({{ conta.nome_corretora }})</option>
                         {% endfor %}
                     {% else %}
-                        <option value="">Nenhuma conta ativa - cadastre em "Minhas Contas"</option>
+                        <option value="">Nenhuma conta disponível</option>
                     {% endif %}
                 </select>
-                {% if not contas_ativas %}
+                {% if not contas_ativas and current_user.modelo_negocio == 'compra' %}
+                <p class="text-[9px] text-red-500 mt-1">Você precisa comprar uma licença para pelo menos uma conta antes de gerar a licença.</p>
+                {% elif not contas_ativas %}
                 <p class="text-[9px] text-red-500 mt-1">Você precisa adicionar uma conta MT5 em "Minhas Contas" antes de gerar a licença.</p>
                 {% endif %}
             </div>
@@ -476,7 +478,7 @@ async function enviarRelatorioNaoOperei() {
     }
 }
 
-// ==================== LICENÇAS (UNIFICADA) - CORRIGIDA ====================
+// ==================== LICENÇAS (UNIFICADA) ====================
 function gerarLicencaComissao() {
     const selectConta = document.getElementById('select-conta-licenca');
     if (!selectConta || !selectConta.value) {
@@ -485,7 +487,6 @@ function gerarLicencaComissao() {
     }
 
     pendingGenerateCallback = () => {
-        // Lê o valor ATUAL do select no momento da confirmação
         const selectConta = document.getElementById('select-conta-licenca');
         const contaId = selectConta ? selectConta.value : null;
         if (!contaId) {
@@ -507,11 +508,11 @@ function gerarLicencaComissao() {
                 if (data.ja_existente) {
                     document.getElementById('modal-chave-titulo').innerText = 'Licença já existente';
                 } else {
-                    document.getElementById('modal-chave-titulo').innerText = 'Licença Semanal Gerada';
+                    document.getElementById('modal-chave-titulo').innerText = 'Licença Gerada';
                 }
                 document.getElementById('modal-chave-licenca').classList.remove('hidden');
-            } else if (data.error === 'PRECISA_CONTA') {
-                alert('Você precisa cadastrar uma conta MT5 em "Minhas Contas" antes de gerar a licença.');
+            } else if (data.error === 'PRECISA_CONTA' || data.error === 'CONTA_INVALIDA') {
+                alert('Conta MT5 inválida ou inativa. Verifique em "Minhas Contas".');
             } else {
                 alert(data.message || 'Erro ao gerar licença.');
             }
