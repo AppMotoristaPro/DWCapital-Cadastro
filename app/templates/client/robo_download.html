@@ -28,15 +28,21 @@
             </div>
             <div class="mt-auto">
                 {% if item.disponivel %}
-                    {% if contas_ativas %}
+                    {% if item.download_disponivel %}
                     <button onclick="abrirModal({{ item.produto.id }})" class="w-full py-3 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">
                         Ver detalhes e baixar
                     </button>
                     {% else %}
                     <div class="w-full py-3 bg-gray-200 text-gray-500 rounded-xl text-center text-xs font-black uppercase tracking-widest cursor-not-allowed">
-                        Sem contas MT5
+                        Download indisponível
                     </div>
-                    <p class="text-xs text-red-500 mt-2 text-center">Cadastre uma conta em "Minhas Contas" primeiro.</p>
+                    <p class="text-xs text-red-500 mt-2 text-center">
+                        {% if item.mensagem %}
+                            {{ item.mensagem }}
+                        {% else %}
+                            Todas as suas contas já baixaram um robô neste ciclo. Aguarde a próxima semana.
+                        {% endif %}
+                    </p>
                     {% endif %}
                 {% else %}
                 <div class="w-full py-3 bg-gray-200 text-gray-500 rounded-xl text-center text-xs font-black uppercase tracking-widest">
@@ -66,31 +72,37 @@
                         </div>
                     </div>
 
-                    <!-- Select de conta MT5 -->
+                    <!-- Select de conta MT5 - apenas contas disponíveis -->
                     <div class="mb-6">
                         <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Conta MT5</label>
                         <select id="select-conta-{{ item.produto.id }}" class="conta-select w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-royal" data-produto-id="{{ item.produto.id }}">
-                            {% if contas_ativas %}
-                                {% for conta in contas_ativas %}
+                            {% if item.download_disponivel %}
+                                {% for conta in item.contas_disponiveis %}
                                     <option value="{{ conta.id }}">{{ conta.numero_conta }} ({{ conta.nome_corretora }})</option>
                                 {% endfor %}
                             {% else %}
-                                <option value="">Nenhuma conta ativa</option>
+                                <option value="">Nenhuma conta disponível</option>
                             {% endif %}
                         </select>
-                        {% if not contas_ativas %}
-                        <p class="text-[9px] text-red-500 mt-1">Você precisa adicionar uma conta MT5 em "Minhas Contas" antes de baixar.</p>
+                        {% if not item.download_disponivel %}
+                        <p class="text-[9px] text-red-500 mt-1">
+                            {% if item.mensagem %}
+                                {{ item.mensagem }}
+                            {% else %}
+                                Todas as suas contas já baixaram um robô neste ciclo. Aguarde a próxima semana.
+                            {% endif %}
+                        </p>
                         {% endif %}
                     </div>
 
                     <!-- Botão de download -->
-                    {% if item.disponivel and contas_ativas %}
+                    {% if item.disponivel and item.download_disponivel %}
                     <button onclick="baixarRobo({{ item.produto.id }}, this)" class="download-btn w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">
                         Baixar {{ item.produto.nome }}
                     </button>
                     {% else %}
                     <div class="w-full py-3 bg-gray-200 text-gray-500 rounded-xl text-center text-xs font-black uppercase tracking-widest">
-                        {{ 'Selecione uma conta primeiro' if not contas_ativas else 'Download indisponível' }}
+                        Download indisponível
                     </div>
                     {% endif %}
                 </div>

@@ -10,7 +10,8 @@ from app import db, limiter
 from app.models import User, ContaMT5Cliente
 from app.services.robo_service import (
     obter_produtos_ativos, liberado_para_download_produto, registrar_download_produto,
-    obter_produto_baixado_no_ciclo_atual_por_conta, historico_downloads_por_conta
+    obter_produto_baixado_no_ciclo_atual_por_conta, historico_downloads_por_conta,
+    conta_baixou_algum_produto_no_ciclo
 )
 from app.services.licenca_service import (
     gerar_licenca_comissao,
@@ -30,26 +31,33 @@ licenca_bp = Blueprint('licenca', __name__, url_prefix='/licenca')
 @licenca_bp.route('/robo')
 @login_required
 def robo_download():
-    """Página principal de download – exibe os robôs disponíveis."""
+    """Página principal de download – exibe os robôs disponíveis e contas disponíveis."""
     produtos = obter_produtos_ativos()
     ciclo_inicio, _ = calcular_ciclo_por_data()
+
+    from app.services.conta_mt5_service import listar_contas
+    contas_ativas = listar_contas(current_user.id, apenas_ativas=True)
+
+    # Para cada produto, calcular quais contas ainda podem baixar neste ciclo
+    for p in produtos:
+        contas_disponiveis = []
+        for conta in contas_ativas:
+            if not conta_baixou_algum_produto_no_ciclo(conta.id, ciclo_inicio):
+                contas_disponiveis.append(conta)
+        p['contas_disponiveis'] = contas_disponiveis
+        p['download_disponivel'] = len(contas_disponiveis) > 0
+        p['mensagem'] = ""  # será preenchido se bloqueado
 
     # Se cliente compra já possui vínculo vitalício, bloqueia os outros produtos
     if current_user.modelo_negocio == 'compra' and current_user.produto_vitalicio_id:
         for p in produtos:
             if p['produto'].id != current_user.produto_vitalicio_id:
-                p['liberado'] = False
+                p['download_disponivel'] = False
                 p['mensagem'] = "Você já possui licença vitalícia para outro robô e não pode mais baixar este."
 
-    for p in produtos:
-        p['liberado'] = True
-        p['mensagem'] = "Selecione uma conta para baixar"
-
     # Histórico de downloads por conta
-    from app.services.conta_mt5_service import listar_contas
-    contas = listar_contas(current_user.id, apenas_ativas=True)
     historico_por_conta = []
-    for conta in contas:
+    for conta in contas_ativas:
         hist = historico_downloads_por_conta(conta.id)
         if hist:
             historico_por_conta.append({
@@ -61,7 +69,7 @@ def robo_download():
         'client/robo_download.html',
         produtos=produtos,
         historico_por_conta=historico_por_conta,
-        contas_ativas=contas
+        contas_ativas=contas_ativas
     )
 
 
