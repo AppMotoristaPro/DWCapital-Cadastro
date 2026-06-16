@@ -203,8 +203,23 @@ def liberar_cliente():
     hoje = datetime.now(tz_br).date()
     
     if modelo_negocio == 'compra':
-        parcelas = gerar_parcelas_compra_unificado(novo.id, data_inicio=hoje)
-        db.session.add_all(parcelas)
+        # CORREÇÃO: Cria uma conta MT5 padrão para o cliente compra
+        # Isso evita o erro de NOT NULL na coluna conta_mt5_id da parcela_compra
+        from app.services.conta_mt5_service import adicionar_conta
+        try:
+            numero_conta_padrao = f"PENDENTE_{novo.id}"
+            conta_padrao = adicionar_conta(
+                user_id=novo.id,
+                numero_conta=numero_conta_padrao,
+                nome_corretora="GENIAL",
+                capital_alocado=0.0
+            )
+            parcelas = gerar_parcelas_compra_unificado(novo.id, conta_padrao.id, data_inicio=hoje)
+            db.session.add_all(parcelas)
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Erro ao criar conta padrão para cliente compra: {str(e)}', 'error')
+            return redirect(url_for('admin.clientes_list'))
     else:
         dias_para_sexta = (hoje.weekday() - 4) % 7
         inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
