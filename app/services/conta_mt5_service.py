@@ -2,13 +2,42 @@
 """
 Serviço para gerenciar as contas MT5 dos clientes.
 Permite adicionar, editar, desativar, listar e verificar contas.
+Sincroniza automaticamente com AlocacaoCorretora para gerar faturas.
 """
 from app import db
-from app.models import ContaMT5Cliente
+from app.models import ContaMT5Cliente, AlocacaoCorretora
 from datetime import datetime
 import pytz
 
 tz_br = pytz.timezone('America/Sao_Paulo')
+
+
+def _sincronizar_alocacao(user_id, nome_corretora, capital_alocado):
+    """
+    Cria ou atualiza a AlocacaoCorretora correspondente à conta MT5.
+    Se já existir uma alocação com o mesmo nome_corretora, atualiza o capital.
+    Caso contrário, cria uma nova.
+    """
+    aloc = AlocacaoCorretora.query.filter_by(user_id=user_id, nome_corretora=nome_corretora).first()
+    if aloc:
+        aloc.capital_alocado = capital_alocado
+    else:
+        aloc = AlocacaoCorretora(
+            user_id=user_id,
+            nome_corretora=nome_corretora,
+            capital_alocado=capital_alocado
+        )
+        db.session.add(aloc)
+    db.session.commit()
+    return aloc
+
+
+def _remover_sincronizacao(user_id, nome_corretora):
+    """Remove a AlocacaoCorretora correspondente (se existir)."""
+    aloc = AlocacaoCorretora.query.filter_by(user_id=user_id, nome_corretora=nome_corretora).first()
+    if aloc:
+        db.session.delete(aloc)
+        db.session.commit()
 
 
 def listar_contas(user_id, apenas_ativas=True):
@@ -27,18 +56,15 @@ def obter_conta(conta_id, user_id):
 def adicionar_conta(user_id, numero_conta, nome_corretora, capital_alocado=0.0):
     """
     Adiciona uma nova conta MT5 para o usuário.
-    Agora verifica duplicidade independente do status (ativo/inativo),
-    pois a constraint UNIQUE no banco já impede.
+    Cria/atualiza a AlocacaoCorretora correspondente.
     """
-    # A constraint UniqueConstraint('user_id', 'numero_conta') no modelo
-    # garante que não exista outro registro com o mesmo número para o mesmo usuário.
-    # A verificação abaixo é redundante, mas útil para mensagem de erro amigável.
+    # A constraint UniqueConstraint('user_id', 'numero_conta') já impede duplicidade
     existente = ContaMT5Cliente.query.filter_by(
         user_id=user_id,
         numero_conta=numero_conta
     ).first()
     if existente:
-        raise ValueError("Este número de conta MT5 já está cadastrado para este cliente, mesmo que inativo.")
+        raise ValueError("Este número de conta MT5 já está cadastrado para este cliente.")
 
     nova = ContaMT5Cliente(
         user_id=user_id,
@@ -51,16 +77,19 @@ def adicionar_conta(user_id, numero_conta, nome_corretora, capital_alocado=0.0):
     )
     db.session.add(nova)
     db.session.commit()
+
+    # Sincroniza com AlocacaoCorretora
+    _sincronizar_alocacao(user_id, nome_corretora.upper(), float(capital_alocado))
+
     return nova
 
 
 def atualizar_conta(conta_id, user_id, **kwargs):
-    """Atualiza os campos de uma conta (capital_alocado, nome_corretora)."""
+    """Atualiza capital e corretora, e sincroniza a alocação."""
     conta = obter_conta(conta_id, user_id)
     if not conta:
         raise ValueError("Conta não encontrada.")
 
-    # Converte capital_alocado para float se presente
     if 'capital_alocado' in kwargs:
         try:
             kwargs['capital_alocado'] = float(kwargs['capital_alocado'])
@@ -78,6 +107,8 @@ def atualizar_conta(conta_id, user_id, **kwargs):
 
     try:
         db.session.commit()
+        # Sincroniza a alocação (pode ser que a corretora tenha mudado)
+        _sincronizar_alocacao(user_id, conta.nome_corretora, conta.capital_alocado)
     except Exception as e:
         db.session.rollback()
         raise ValueError(f"Erro ao salvar: {str(e)}")
@@ -85,12 +116,14 @@ def atualizar_conta(conta_id, user_id, **kwargs):
 
 
 def desativar_conta(conta_id, user_id):
-    """Desativa a conta (não exclui, para manter histórico)."""
+    """Desativa a conta e remove a alocação correspondente."""
     conta = obter_conta(conta_id, user_id)
     if not conta:
         raise ValueError("Conta não encontrada.")
     conta.ativo = False
     db.session.commit()
+    # Remove a alocação de corretora associada (para que a fatura não exija mais aquela corretora)
+    _remover_sincronizacao(user_id, conta.nome_corretora)
     return conta
 
 
