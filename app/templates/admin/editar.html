@@ -151,6 +151,7 @@
                             <th class="px-4 py-3">Corretora</th>
                             <th class="px-4 py-3">Capital Alocado</th>
                             <th class="px-4 py-3">Status</th>
+                            <th class="px-4 py-3">Licença</th>
                             <th class="px-4 py-3 text-right">Ações</th>
                         </tr>
                     </thead>
@@ -170,6 +171,21 @@
                                     <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-[9px]">Ativa</span>
                                 {% endif %}
                             </td>
+                            <td class="px-4 py-3">
+                                {% if cliente.modelo_negocio == 'comissao' %}
+                                    <span class="text-green-600 text-[9px] font-black">✅ Livre</span>
+                                {% else %}
+                                    {% if conta.licenca_comprada %}
+                                        <span class="text-green-600 text-[9px] font-black">✅ Comprada</span>
+                                    {% else %}
+                                        <span class="text-red-500 text-[9px] font-black">❌ Não comprada</span>
+                                    {% endif %}
+                                    <button type="button" onclick="toggleLicencaComprada({{ conta.id }}, {{ 'true' if conta.licenca_comprada else 'false' }})" 
+                                            class="ml-2 text-purple-600 text-[9px] font-black uppercase hover:underline">
+                                        {{ 'Desmarcar' if conta.licenca_comprada else 'Marcar' }}
+                                    </button>
+                                {% endif %}
+                            </td>
                             <td class="px-4 py-3 text-right space-x-2">
                                 <button type="button" onclick="editarContaAdmin({{ conta.id }})" class="text-royal text-[10px] font-black">Editar</button>
                                 <button type="button" onclick="toggleBloqueioContaAdmin({{ conta.id }}, {{ 'true' if conta.bloqueada else 'false' }})" class="text-purple-600 text-[10px] font-black">
@@ -185,7 +201,7 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="6" class="px-4 py-8 text-center text-gray-400">Nenhuma conta MT5 cadastrada.</td>
+                            <td colspan="7" class="px-4 py-8 text-center text-gray-400">Nenhuma conta MT5 cadastrada.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -409,6 +425,28 @@ async function excluirContaAdmin(contaId) {
         }
     } catch (err) {
         alert('Erro de comunicação com o servidor.');
+    }
+}
+
+// Função para alternar o status de licença comprada
+async function toggleLicencaComprada(contaId, isCurrentlyComprada) {
+    const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '{{ csrf_token() }}';
+    const novoStatus = !isCurrentlyComprada;
+    if (!confirm(`Deseja ${novoStatus ? 'MARCAR' : 'DESMARCAR'} a licença comprada para esta conta?`)) return;
+    try {
+        const response = await fetch(`/admin/api/conta/${contaId}/toggle_licenca`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ licenca_comprada: novoStatus })
+        });
+        const data = await response.json();
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.message || 'Erro ao alterar status.');
+        }
+    } catch (err) {
+        alert('Erro de comunicação.');
     }
 }
 </script>

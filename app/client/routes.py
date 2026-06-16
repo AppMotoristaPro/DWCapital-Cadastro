@@ -185,8 +185,9 @@ def comprar_robo():
 def comprar_licenca_conta(conta_id):
     """
     Permite que o cliente compre uma licença para uma conta MT5 específica.
-    GET: exibe página de confirmação com detalhes do valor.
-    POST: gera as 10 parcelas para a conta.
+    Se o cliente ainda for comissão, migra para compra.
+    GET: exibe página de confirmação.
+    POST: gera as 10 parcelas e marca a conta como licenca_comprada=True.
     """
     conta = ContaMT5Cliente.query.filter_by(id=conta_id, user_id=current_user.id, ativo=True).first()
     if not conta:
@@ -209,9 +210,18 @@ def comprar_licenca_conta(conta_id):
     if request.method == 'POST':
         try:
             from app.services.parcela_service import gerar_parcelas_para_conta
+
+            # ===== SE O CLIENTE AINDA FOR COMISSÃO, MIGRA PARA COMPRA =====
+            if current_user.modelo_negocio == 'comissao':
+                current_user.modelo_negocio = 'compra'
+                current_user.data_migracao_compra = datetime.now(tz_br)
+                # As demais contas permanecem com licenca_comprada = False (já é o padrão)
+
+            # Gera as parcelas para a conta (isso já define licenca_comprada = True)
             parcelas = gerar_parcelas_para_conta(conta.id)
             db.session.add_all(parcelas)
             db.session.commit()
+
             flash(f'Compra realizada com sucesso! Foram geradas 10 parcelas para a conta {conta.numero_conta}. A primeira parcela vence hoje.', 'success')
             return redirect(url_for('client.faturas'))
         except ValueError as e:
@@ -224,7 +234,6 @@ def comprar_licenca_conta(conta_id):
 
     # GET: exibe página de confirmação
     return render_template('client/comprar_licenca_conta.html', conta=conta)
-
 
 # ==================== OUTRAS ROTAS ====================
 @client_bp.route('/api/buscar_dados_whatsapp', methods=['POST'])
@@ -561,7 +570,8 @@ def api_explicacao_dashboard():
 # ==================== MÚLTIPLAS CONTAS MT5 ====================
 from app.services.conta_mt5_service import (
     listar_contas, adicionar_conta, atualizar_conta, desativar_conta,
-    obter_conta, validar_numero_conta, contar_contas_ativas
+    obter_conta, validar_numero_conta, contar_contas_ativas,
+    marcar_licenca_comprada, verificar_licenca_comprada  # <-- NOVAS
 )
 
 @client_bp.route('/minhas_contas')

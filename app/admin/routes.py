@@ -25,7 +25,10 @@ import pytz
 import re
 import bleach
 from app.models import ContaMT5Cliente
-from app.services.conta_mt5_service import adicionar_conta, validar_numero_conta, bloquear_conta, desativar_conta
+from app.services.conta_mt5_service import (
+    adicionar_conta, validar_numero_conta, bloquear_conta, desativar_conta,
+    marcar_licenca_comprada
+)
 
 # Tags e atributos permitidos para o campo novidades (changelog)
 ALLOWED_TAGS = [
@@ -1537,6 +1540,21 @@ def admin_excluir_conta(conta_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"success": False, "message": f"Erro ao excluir: {str(e)}"}), 500
+
+@admin_bp.route('/api/conta/<int:conta_id>/toggle_licenca', methods=['POST'])
+@admin_required
+def admin_toggle_licenca_comprada(conta_id):
+    """Admin marca ou desmarca a licença comprada de uma conta MT5."""
+    data = request.get_json()
+    licenca_comprada = data.get('licenca_comprada', True)
+    conta = ContaMT5Cliente.query.get_or_404(conta_id)
+    conta.licenca_comprada = licenca_comprada
+    db.session.commit()
+    registrar_log(
+        f"{'Marcou' if licenca_comprada else 'Desmarcou'} a licença comprada da conta MT5 {conta.numero_conta} do cliente {conta.user.nome}.",
+        "Clientes"
+    )
+    return jsonify({'success': True})
 
 # ==================== FUNÇÕES AUXILIARES ====================
 
