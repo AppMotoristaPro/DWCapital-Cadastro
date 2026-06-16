@@ -4,10 +4,11 @@ from datetime import datetime
 from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify, session
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from app.models import User, AlocacaoCorretora, DocumentoTemplate, DocumentoCliente
+from app.models import User, AlocacaoCorretora, DocumentoTemplate, DocumentoCliente, ContaMT5Cliente
 from app import db, limiter
 from app.utils.validators import validar_cpf
-from app.services.parcela_service import gerar_parcelas_compra_unificado  # PROGRAMA DE INDICAÇÃO
+from app.services.parcela_service import gerar_parcelas_compra_unificado
+from app.services.conta_mt5_service import adicionar_conta
 import pytz
 
 tz_br = pytz.timezone('America/Sao_Paulo')
@@ -177,7 +178,7 @@ def primeiro_acesso():
     if not user.modelo_negocio:
         user.modelo_negocio = request.form.get('modelo_negocio', 'comissao')
     
-    # Valida capital mínimo e processa dados do formulário (código original)
+    # Valida capital mínimo e processa dados do formulário
     corretoras_selecionadas = request.form.getlist('corretora[]')
     capitais_alocados = request.form.getlist('capital[]')
     
@@ -219,16 +220,44 @@ def primeiro_acesso():
             soma_capital += valor_capital 
     
     user.capital_alocado = soma_capital 
-    
-    # Geração de parcelas (apenas para compra)
+
+    # ==================== NOVO: Criação da conta MT5 e parcelas (se compra) ====================
     if user.modelo_negocio == 'compra':
-        parcelas = gerar_parcelas_compra_unificado(user.id)
-        db.session.add_all(parcelas)
+        conta_mt5_numero = request.form.get('conta_mt5', '').strip()
+        if not conta_mt5_numero:
+            flash('Número da conta MT5 é obrigatório para o modelo compra.', 'error')
+            return render_template('auth/primeiro_acesso.html', 
+                                   cpf_preenchido=cpf_sessao, 
+                                   modelo_pre_selecionado=user.modelo_negocio)
+        
+        # Corretora associada à conta MT5 (escolhida pelo cliente)
+        corretora_conta = request.form.get('conta_corretora')
+        if not corretora_conta:
+            # Fallback: usa a primeira corretora da lista
+            corretora_conta = corretoras_selecionadas[0] if corretoras_selecionadas else 'GENIAL'
+        
+        try:
+            # Cria a conta MT5 com os dados informados
+            nova_conta = adicionar_conta(
+                user_id=user.id,
+                numero_conta=conta_mt5_numero,
+                nome_corretora=corretora_conta,
+                capital_alocado=soma_capital  # ou pode ser 0, conforme sua regra
+            )
+            # Gera as 10 parcelas associadas a essa conta
+            hoje = datetime.now(tz_br).date()
+            parcelas = gerar_parcelas_compra_unificado(user.id, nova_conta.id, data_inicio=hoje)
+            db.session.add_all(parcelas)
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Erro ao criar conta MT5: {str(e)}', 'error')
+            return render_template('auth/primeiro_acesso.html',
+                                   cpf_preenchido=cpf_sessao,
+                                   modelo_pre_selecionado=user.modelo_negocio)
     
-    # ==================== NOVO: Criação de documentos de onboarding ====================
+    # ==================== Criação de documentos de onboarding ====================
     templates_onboarding = DocumentoTemplate.query.filter_by(is_onboarding=True).all()
     if templates_onboarding:
-        # Verifica se já não existem documentos para este cliente (evita duplicidade)
         existing = DocumentoCliente.query.filter_by(user_id=user.id).first()
         if not existing:
             docs_onboarding = [
