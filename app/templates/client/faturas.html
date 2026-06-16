@@ -170,7 +170,7 @@
                                                     </div>
                                                 </td>
                                             {% endif %}
-                                        </tr>
+                                        <tr>
                                         {% endif %}
                                     {% endfor %}
                                 </tbody>
@@ -283,7 +283,7 @@
     <div id="modal-senha" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
         <div class="bg-white w-full max-w-sm rounded-[2rem] shadow-2xl p-10 relative text-center border border-gray-100">
             <div class="w-16 h-16 bg-royal/10 rounded-2xl flex items-center justify-center mx-auto mb-6 text-royal">
-                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2H6a2 2 0 00-2-2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
             </div>
             <h3 class="text-xl font-black text-navy mb-2">Nota Protegida (XP)</h3>
             <p class="text-xs text-gray-500 font-medium mb-8">Por padrão da XP, a nota vem com senha. Digite os 3 últimos dígitos do seu CPF.</p>
@@ -297,7 +297,6 @@
     <!-- Modais de pagamento PIX (original) -->
     {% if current_user.modelo_negocio != 'compra' %}
     <div id="modal-auditoria-pix-global" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-navy/60 backdrop-blur-md p-4">
-        <!-- conteúdo original mantido, sem alterações necessárias para múltiplas contas -->
         <div class="bg-white border border-gray-100 w-full max-w-lg rounded-[2.5rem] shadow-2xl p-8 md:p-10 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
             <button onclick="fecharModalAuditoriaPagamento()" class="absolute top-6 right-6 text-gray-400 hover:text-gray-900 font-black text-xl outline-none">&times;</button>
             <div class="mb-6 pb-4 border-b border-gray-100">
@@ -477,24 +476,29 @@ async function enviarRelatorioNaoOperei() {
     }
 }
 
-// ==================== LICENÇAS (UNIFICADA) ====================
+// ==================== LICENÇAS (UNIFICADA) - CORRIGIDA ====================
 function gerarLicencaComissao() {
     const selectConta = document.getElementById('select-conta-licenca');
     if (!selectConta || !selectConta.value) {
         alert('Selecione uma conta MT5 ativa primeiro.');
         return;
     }
-    // Armazena o ID da conta para usar depois
-    window.contaSelecionadaId = selectConta.value;
 
     pendingGenerateCallback = () => {
+        // Lê o valor ATUAL do select no momento da confirmação
+        const selectConta = document.getElementById('select-conta-licenca');
+        const contaId = selectConta ? selectConta.value : null;
+        if (!contaId) {
+            alert('Selecione uma conta MT5.');
+            return;
+        }
         fetch("{{ url_for('licenca.licenca_gerar') }}", {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
                 'X-CSRFToken': '{{ csrf_token() }}' 
             },
-            body: JSON.stringify({ conta_mt5_id: window.contaSelecionadaId })
+            body: JSON.stringify({ conta_mt5_id: contaId })
         })
         .then(response => response.json())
         .then(data => {
