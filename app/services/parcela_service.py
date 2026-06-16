@@ -14,7 +14,9 @@ from datetime import datetime, timedelta
 import pytz
 from app.models import ParcelaCompra, User, ContaMT5Cliente
 from app import db
+import logging
 
+logger = logging.getLogger(__name__)
 tz_br = pytz.timezone('America/Sao_Paulo')
 
 
@@ -38,6 +40,9 @@ def gerar_parcelas_compra_unificado(user_id: int, conta_mt5_id: int = None, data
     if data_inicio is None:
         data_inicio = datetime.now(tz_br).date()
 
+    # DEBUG: exibe os valores recebidos
+    print(f"[DEBUG] gerar_parcelas_compra_unificado - user_id={user_id}, conta_mt5_id={conta_mt5_id}, data_inicio={data_inicio}")
+
     parcelas = []
 
     # Parcela 1 – entrada (R$ 3.000,00)
@@ -49,6 +54,7 @@ def gerar_parcelas_compra_unificado(user_id: int, conta_mt5_id: int = None, data
         data_vencimento=data_inicio,
         status='pendente'
     )
+    print(f"[DEBUG] Parcela 1 criada: conta_mt5_id={p1.conta_mt5_id}")
     parcelas.append(p1)
 
     # Encontra o primeiro sábado após data_inicio
@@ -68,6 +74,7 @@ def gerar_parcelas_compra_unificado(user_id: int, conta_mt5_id: int = None, data
             data_vencimento=vencimento,
             status='pendente'
         )
+        print(f"[DEBUG] Parcela {i} criada: conta_mt5_id={parcela.conta_mt5_id}")
         parcelas.append(parcela)
 
     return parcelas
@@ -85,6 +92,8 @@ def gerar_parcelas_para_conta(conta_mt5_id: int, data_inicio: datetime.date = No
     Returns:
         list: Lista de objetos ParcelaCompra (prontos para db.session.add_all)
     """
+    print(f"[DEBUG] gerar_parcelas_para_conta - conta_mt5_id={conta_mt5_id}")
+
     conta = ContaMT5Cliente.query.get(conta_mt5_id)
     if not conta:
         raise ValueError("Conta MT5 não encontrada.")
@@ -96,11 +105,22 @@ def gerar_parcelas_para_conta(conta_mt5_id: int, data_inicio: datetime.date = No
     if existentes:
         raise ValueError("Esta conta MT5 já possui parcelas geradas.")
 
+    # Gera as parcelas passando o conta_mt5_id
     parcelas = gerar_parcelas_compra_unificado(conta.user_id, conta_mt5_id, data_inicio)
 
-    # Após gerar as parcelas, marca a conta como licenca_comprada = True
+    # Adiciona todas as parcelas à sessão
+    for p in parcelas:
+        db.session.add(p)
+    print(f"[DEBUG] {len(parcelas)} parcelas adicionadas à sessão.")
+
+    # Força o flush para garantir que os IDs sejam gerados e os dados persistidos
+    db.session.flush()
+    print("[DEBUG] Flush executado.")
+
+    # Marca a conta como licenca_comprada = True
     conta.licenca_comprada = True
     db.session.commit()
+    print("[DEBUG] Commit realizado com sucesso.")
 
     return parcelas
 
