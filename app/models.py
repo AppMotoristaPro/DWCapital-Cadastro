@@ -61,6 +61,14 @@ class User(db.Model, UserMixin):
     # Contas MT5 – relacionamento corrigido
     contas_mt5 = db.relationship('ContaMT5Cliente', back_populates='usuario', lazy=True, cascade="all, delete-orphan")
 
+    # NOTIFICAÇÕES – agora com cascade para exclusão
+    notificacoes = db.relationship(
+        'Notificacao',
+        back_populates='usuario',
+        lazy=True,
+        cascade='all, delete-orphan'
+    )
+
     @validates('cpf')
     def validate_cpf(self, key, cpf):
         if cpf and not validar_cpf(cpf):
@@ -82,14 +90,12 @@ class ContaMT5Cliente(db.Model):
     capital_alocado = db.Column(db.Float, default=0.0)
     ativo = db.Column(db.Boolean, default=True)
     bloqueada = db.Column(db.Boolean, default=False)
-    # NOVO CAMPO: indica se a licença para esta conta foi comprada (clientes compra)
     licenca_comprada = db.Column(db.Boolean, default=False)
     data_cadastro = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
 
     # Relacionamento com User – nome interno 'usuario'
     usuario = db.relationship('User', back_populates='contas_mt5')
 
-    # Propriedade de compatibilidade para código que espera 'conta.user'
     @property
     def user(self):
         return self.usuario
@@ -103,7 +109,6 @@ class ParcelaCompra(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    # FK para a conta MT5 associada a esta compra
     conta_mt5_id = db.Column(db.Integer, db.ForeignKey('conta_mt5_cliente.id'), nullable=True)
     
     ordem = db.Column(db.Integer, nullable=False)
@@ -117,7 +122,6 @@ class ParcelaCompra(db.Model):
     data_pagamento = db.Column(db.DateTime, nullable=True)
     data_criacao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
     
-    # Relacionamento com a conta MT5
     conta = db.relationship('ContaMT5Cliente', backref='parcelas')
     
     def __repr__(self):
@@ -351,7 +355,7 @@ class Notificacao(db.Model):
     __tablename__ = 'notificacao'
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
     titulo = db.Column(db.String(200), nullable=False)
     mensagem = db.Column(db.Text, nullable=False)
     link = db.Column(db.String(500), nullable=True)
@@ -359,7 +363,8 @@ class Notificacao(db.Model):
     lida = db.Column(db.Boolean, default=False)
     tipo = db.Column(db.String(50), default='migracao')
     
-    user = db.relationship('User', backref='notificacoes')
+    # Relacionamento com User – back_populates para manter coerência
+    usuario = db.relationship('User', back_populates='notificacoes')
     
     def __repr__(self):
         return f"<Notificacao user={self.user_id} tipo={self.tipo}>"
