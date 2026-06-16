@@ -25,14 +25,20 @@ def obter_conta(conta_id, user_id):
 
 
 def adicionar_conta(user_id, numero_conta, nome_corretora, capital_alocado=0.0):
-    """Adiciona uma nova conta MT5 para o usuário."""
+    """
+    Adiciona uma nova conta MT5 para o usuário.
+    Agora verifica duplicidade independente do status (ativo/inativo),
+    pois a constraint UNIQUE no banco já impede.
+    """
+    # A constraint UniqueConstraint('user_id', 'numero_conta') no modelo
+    # garante que não exista outro registro com o mesmo número para o mesmo usuário.
+    # A verificação abaixo é redundante, mas útil para mensagem de erro amigável.
     existente = ContaMT5Cliente.query.filter_by(
         user_id=user_id,
-        numero_conta=numero_conta,
-        ativo=True
+        numero_conta=numero_conta
     ).first()
     if existente:
-        raise ValueError("Já existe uma conta ativa com este número para este cliente.")
+        raise ValueError("Este número de conta MT5 já está cadastrado para este cliente, mesmo que inativo.")
 
     nova = ContaMT5Cliente(
         user_id=user_id,

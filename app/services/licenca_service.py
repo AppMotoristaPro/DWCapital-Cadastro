@@ -4,6 +4,7 @@ import os
 from app import db
 from app.models import Fatura, LicencaCliente, User, ProdutoRobo, ContaMT5Cliente
 from sqlalchemy.exc import IntegrityError
+from app.services.parcela_service import todas_parcelas_pagas
 
 tz_br = pytz.timezone('America/Sao_Paulo')
 
@@ -107,6 +108,7 @@ def gerar_licenca_vitalicia(user, conta_mt5_id, produto_id=None):
     """
     Gera uma licença vitalícia usando a nova fórmula, vinculada a uma conta MT5 específica.
     Se já existir uma licença vitalícia ativa para essa conta, cancela a anterior.
+    Para clientes modelo compra, verifica se todas as parcelas daquela conta estão pagas.
     Retorna (chave, mensagem, licenca_obj)
     """
     if is_acesso_robot_bloqueado(user):
@@ -117,6 +119,18 @@ def gerar_licenca_vitalicia(user, conta_mt5_id, produto_id=None):
         return None, "Conta MT5 não encontrada ou inativa.", None
     if conta.bloqueada:
         return None, "Esta conta MT5 está bloqueada pelo administrador.", None
+
+    # ==================== VALIDAÇÃO PARA CLIENTES COMPRA ====================
+    if user.modelo_negocio == 'compra':
+        # Verifica se existem parcelas associadas a esta conta
+        from app.models import ParcelaCompra
+        parcelas_conta = ParcelaCompra.query.filter_by(conta_mt5_id=conta_mt5_id).all()
+        if not parcelas_conta:
+            return None, "Esta conta MT5 não possui parcelas associadas. É necessário realizar a compra da licença para esta conta.", None
+
+        # Verifica se todas as parcelas da conta estão pagas
+        if not todas_parcelas_pagas(user.id, conta_mt5_id):
+            return None, "Existem parcelas pendentes para esta conta. Quite todas as parcelas para obter a licença vitalícia.", None
 
     numero_conta = conta.numero_conta
 
@@ -299,6 +313,20 @@ def salvar_conta_mt5_e_gerar_vitalicia_se_necessario(user, conta_mt5_id, produto
     Mantido para compatibilidade com chamadas antigas, mas não faz nada.
     """
     return False, None, "Operação não suportada no novo modelo de múltiplas contas."
+
+
+# ============================================================
+# FUNÇÃO DE COMPATIBILIDADE PARA ADMIN
+# ============================================================
+
+def obter_licenca_ativa(user, tipo=None):
+    """
+    Compatibilidade com código antigo (admin). Retorna primeira licença ativa do usuário (qualquer conta).
+    """
+    query = LicencaCliente.query.filter_by(user_id=user.id, status='ativa')
+    if tipo:
+        query = query.filter_by(tipo=tipo)
+    return query.order_by(LicencaCliente.data_geracao.desc()).first()
 
 
 # ============================================================

@@ -1,0 +1,40 @@
+{% extends "client/layout.html" %}
+{% block client_content %}
+<div class="max-w-2xl mx-auto pb-20">
+    <div class="bg-white/80 backdrop-blur-xl rounded-2xl shadow-md border border-white p-8">
+        <h1 class="text-3xl font-black text-navy mb-6">Comprar Licença</h1>
+        <p class="text-gray-600 mb-4">Você está comprando a licença para a conta MT5:</p>
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6">
+            <div class="flex justify-between items-center">
+                <span class="font-bold text-navy">{{ conta.numero_conta }}</span>
+                <span class="px-3 py-1 bg-blue-100 text-royal rounded-lg text-xs font-black">{{ conta.nome_corretora }}</span>
+            </div>
+            <div class="mt-2 text-sm text-gray-500">Capital alocado: R$ {{ conta.capital_alocado|format_brl }}</div>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-8">
+            <h3 class="font-bold text-blue-800 text-lg mb-3">📋 Condições da compra</h3>
+            <ul class="list-disc ml-5 space-y-2 text-gray-700">
+                <li><strong>Entrada:</strong> R$ 3.000,00 (paga no momento da compra).</li>
+                <li><strong>Mais 9 parcelas semanais</strong> de R$ 500,00 cada.</li>
+                <li>Após quitar <strong>todas as 10 parcelas</strong>, você poderá gerar uma <strong>licença vitalícia</strong> para esta conta.</li>
+                <li>Enquanto houver parcelas pendentes, você poderá gerar licenças <strong>semanais</strong>.</li>
+            </ul>
+        </div>
+
+        <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-8">
+            <p class="text-yellow-800 text-sm font-bold">⚠️ Atenção: Esta compra é específica para a conta MT5 {{ conta.numero_conta }} e não pode ser transferida para outra conta.</p>
+        </div>
+
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="flex gap-4">
+                <a href="{{ url_for('client.minhas_contas') }}" class="flex-1 py-3 bg-gray-200 text-gray-700 rounded-xl font-black text-center hover:bg-gray-300 transition">Cancelar</a>
+                <button type="submit" class="flex-1 py-3 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-sm transition shadow-md">
+                    Confirmar Compra
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

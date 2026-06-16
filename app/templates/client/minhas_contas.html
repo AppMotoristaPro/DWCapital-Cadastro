@@ -40,10 +40,27 @@
                         </td>
                         <td class="px-8 py-5 text-right space-x-2">
                             {% if conta.ativo %}
+                                <!-- Botão Editar -->
                                 <button onclick="editarConta({{ conta.id }}, '{{ conta.numero_conta }}', '{{ conta.nome_corretora }}', {{ conta.capital_alocado }})" 
                                         class="text-royal text-[10px] font-black uppercase hover:underline">Editar</button>
+                                
+                                <!-- Botão Desativar -->
                                 <button onclick="desativarConta({{ conta.id }})" 
                                         class="text-red-500 text-[10px] font-black uppercase hover:underline">Desativar</button>
+                                
+                                <!-- Botão Comprar Licença (aparece apenas se não houver parcelas nem licença vitalícia ativa) -->
+                                {% set possui_parcelas = conta.parcelas|length > 0 %}
+                                {% set possui_licenca_vital = false %}
+                                {% for lic in conta.licencas %}
+                                    {% if lic.tipo == 'vitalicia' and lic.status == 'ativa' %}
+                                        {% set possui_licenca_vital = true %}
+                                    {% endif %}
+                                {% endfor %}
+                                
+                                {% if not possui_parcelas and not possui_licenca_vital %}
+                                    <a href="{{ url_for('client.comprar_licenca_conta', conta_id=conta.id) }}" 
+                                       class="text-green-600 text-[10px] font-black uppercase hover:underline">Comprar Licença</a>
+                                {% endif %}
                             {% else %}
                                 <span class="text-gray-400 text-[10px]">Inativa</span>
                             {% endif %}

@@ -8,7 +8,7 @@ from flask_login import login_required, current_user
 import cloudinary
 import cloudinary.uploader
 from app import db, limiter
-from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, User
+from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, User, ContaMT5Cliente
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo, modelo_para_fatura
@@ -16,7 +16,7 @@ from app.services.documento_service import verificar_status_documento_cliente, e
 from app.services.dashboard_service import obter_dados_dashboard_cliente
 from app.services.pix_service import PixService
 from app.utils.autentique import obter_url_visualizacao_autentique
-from app.services.parcela_service import todas_parcelas_pagas
+from app.services.parcela_service import todas_parcelas_pagas, gerar_parcelas_para_conta, tem_parcelas_pendentes_por_conta
 from app.services.licenca_service import obter_licenca_ativa_por_conta
 
 logger = logging.getLogger(__name__)
@@ -177,6 +177,53 @@ def comprar_robo():
         return redirect(url_for('client.dashboard'))
     
     return render_template('client/comprar_robo.html')
+
+
+# ==================== COMPRA DE LICENÇA POR CONTA MT5 ====================
+@client_bp.route('/comprar_licenca_conta/<int:conta_id>', methods=['GET', 'POST'])
+@login_required
+def comprar_licenca_conta(conta_id):
+    """
+    Permite que o cliente compre uma licença para uma conta MT5 específica.
+    GET: exibe página de confirmação com detalhes do valor.
+    POST: gera as 10 parcelas para a conta.
+    """
+    conta = ContaMT5Cliente.query.filter_by(id=conta_id, user_id=current_user.id, ativo=True).first()
+    if not conta:
+        flash('Conta MT5 não encontrada ou inativa.', 'error')
+        return redirect(url_for('client.minhas_contas'))
+
+    # Verifica se a conta já possui parcelas
+    from app.services.parcela_service import parcelas_por_conta
+    parcelas_existentes = parcelas_por_conta(conta.id)
+    if parcelas_existentes:
+        flash('Esta conta já possui parcelas geradas. Verifique o status no seu extrato.', 'warning')
+        return redirect(url_for('client.faturas'))
+
+    # Verifica se já existe licença vitalícia ativa para esta conta
+    licenca_vital = obter_licenca_ativa_por_conta(conta.id, tipo='vitalicia')
+    if licenca_vital:
+        flash('Esta conta já possui licença vitalícia ativa.', 'info')
+        return redirect(url_for('client.faturas'))
+
+    if request.method == 'POST':
+        try:
+            from app.services.parcela_service import gerar_parcelas_para_conta
+            parcelas = gerar_parcelas_para_conta(conta.id)
+            db.session.add_all(parcelas)
+            db.session.commit()
+            flash(f'Compra realizada com sucesso! Foram geradas 10 parcelas para a conta {conta.numero_conta}. A primeira parcela vence hoje.', 'success')
+            return redirect(url_for('client.faturas'))
+        except ValueError as e:
+            flash(str(e), 'error')
+            return redirect(url_for('client.minhas_contas'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Erro ao gerar parcelas: {str(e)}', 'error')
+            return redirect(url_for('client.minhas_contas'))
+
+    # GET: exibe página de confirmação
+    return render_template('client/comprar_licenca_conta.html', conta=conta)
 
 
 # ==================== OUTRAS ROTAS ====================
@@ -521,9 +568,13 @@ from app.services.conta_mt5_service import (
 @login_required
 def minhas_contas():
     """Página para gerenciar as contas MT5 do cliente."""
-    contas = listar_contas(current_user.id, apenas_ativas=False)
+    contas = ContaMT5Cliente.query.filter_by(
+        user_id=current_user.id
+    ).options(
+        joinedload(ContaMT5Cliente.parcelas),
+        joinedload(ContaMT5Cliente.licencas)
+    ).order_by(ContaMT5Cliente.data_cadastro.desc()).all()
     return render_template('client/minhas_contas.html', contas=contas)
-
 
 @client_bp.route('/api/contas', methods=['GET'])
 @login_required
@@ -543,7 +594,7 @@ def api_listar_contas():
 @login_required
 @limiter.limit("10 per minute")
 def api_adicionar_conta():
-    """Adiciona uma nova conta MT5."""
+    """Adiciona uma nova conta MT5 e regera os ciclos de faturamento."""
     data = request.get_json()
     numero_conta = data.get('numero_conta', '').strip()
     nome_corretora = data.get('nome_corretora', '').strip().upper()
@@ -560,6 +611,10 @@ def api_adicionar_conta():
 
     try:
         nova = adicionar_conta(current_user.id, numero_conta, nome_corretora, capital_alocado)
+        
+        # Após adicionar a conta e a alocação, regerar os ciclos/faturas pendentes
+        auto_gerar_ciclo(current_user)
+        
         return jsonify({'success': True, 'conta': {
             'id': nova.id,
             'numero_conta': nova.numero_conta,

@@ -71,6 +71,9 @@ class User(db.Model, UserMixin):
 class ContaMT5Cliente(db.Model):
     """Conta MT5 associada a um cliente, com corretora e capital alocado."""
     __tablename__ = 'conta_mt5_cliente'
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'numero_conta', name='_user_conta_uc'),
+    )
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -94,8 +97,13 @@ class ContaMT5Cliente(db.Model):
 
 
 class ParcelaCompra(db.Model):
+    __tablename__ = 'parcela_compra'
+    
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    # NOVA: FK para a conta MT5 associada a esta compra
+    conta_mt5_id = db.Column(db.Integer, db.ForeignKey('conta_mt5_cliente.id'), nullable=True)
+    
     ordem = db.Column(db.Integer, nullable=False)
     valor = db.Column(db.Float, nullable=False)
     data_vencimento = db.Column(db.Date, nullable=False)
@@ -106,6 +114,12 @@ class ParcelaCompra(db.Model):
     status = db.Column(db.String(20), default='pendente')
     data_pagamento = db.Column(db.DateTime, nullable=True)
     data_criacao = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
+    
+    # Relacionamento com a conta MT5
+    conta = db.relationship('ContaMT5Cliente', backref='parcelas')
+    
+    def __repr__(self):
+        return f"<ParcelaCompra user={self.user_id} conta={self.conta_mt5_id} ordem={self.ordem}>"
 
 
 class AlocacaoCorretora(db.Model):
