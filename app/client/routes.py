@@ -8,7 +8,7 @@ from flask_login import login_required, current_user
 import cloudinary
 import cloudinary.uploader
 from app import db, limiter
-from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, User, ContaMT5Cliente
+from app.models import FaturaDiaria, Fatura, DocumentoCliente, ParcelaCompra, User, ContaMT5Cliente, AlocacaoCorretora
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 from app.services.fatura_service import atualizar_totais_semana, auto_gerar_ciclo, modelo_para_fatura
@@ -576,6 +576,7 @@ def minhas_contas():
     ).order_by(ContaMT5Cliente.data_cadastro.desc()).all()
     return render_template('client/minhas_contas.html', contas=contas)
 
+
 @client_bp.route('/api/contas', methods=['GET'])
 @login_required
 def api_listar_contas():
@@ -594,7 +595,7 @@ def api_listar_contas():
 @login_required
 @limiter.limit("10 per minute")
 def api_adicionar_conta():
-    """Adiciona uma nova conta MT5 e regera os ciclos de faturamento."""
+    """Adiciona uma nova conta MT5 e regera os ciclos de faturamento APENAS para a nova alocação."""
     data = request.get_json()
     numero_conta = data.get('numero_conta', '').strip()
     nome_corretora = data.get('nome_corretora', '').strip().upper()
@@ -612,8 +613,15 @@ def api_adicionar_conta():
     try:
         nova = adicionar_conta(current_user.id, numero_conta, nome_corretora, capital_alocado)
         
-        # Após adicionar a conta e a alocação, regerar os ciclos/faturas pendentes
-        auto_gerar_ciclo(current_user)
+        # Busca a alocação recém-criada
+        nova_alocacao = AlocacaoCorretora.query.filter_by(
+            user_id=current_user.id,
+            nome_corretora=nome_corretora
+        ).first()
+        
+        # Gera os ciclos apenas para a nova alocação
+        if nova_alocacao:
+            auto_gerar_ciclo(current_user, alocacoes_especificas=[nova_alocacao])
         
         return jsonify({'success': True, 'conta': {
             'id': nova.id,

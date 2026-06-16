@@ -13,10 +13,11 @@ def atualizar_totais_semana(fatura):
     db.session.commit()
 
 
-def auto_gerar_ciclo(user, data_base=None):
+def auto_gerar_ciclo(user, data_base=None, alocacoes_especificas=None):
     """
     Gera automaticamente a gaveta da semana e os dias úteis APENAS para o investidor ativo na sessão.
-    Agora considera a data de criação de cada alocação (conta MT5) para não criar dias anteriores à criação.
+    Se alocacoes_especificas for passado (lista de AlocacaoCorretora), processa apenas essas alocações.
+    Isso evita que a criação de uma nova conta altere faturas de outras contas.
     """
     if not user.alocacoes:
         return
@@ -28,8 +29,12 @@ def auto_gerar_ciclo(user, data_base=None):
 
     data_cadastro_global = user.data_cadastro.date() if user.data_cadastro else datetime.min.date()
 
-    # Trava Temporal: Não gera ciclo se a semana encerrou antes do cliente entrar
     if fim_ciclo < data_cadastro_global:
+        return
+
+    # Define as alocações a serem processadas
+    alocacoes = alocacoes_especificas if alocacoes_especificas is not None else user.alocacoes
+    if not alocacoes:
         return
 
     fatura_existente = Fatura.query.filter_by(user_id=user.id, data_inicio=inicio_ciclo).first()
@@ -53,7 +58,6 @@ def auto_gerar_ciclo(user, data_base=None):
                 return
 
     if fatura_existente:
-        # Determina os 5 dias úteis do ciclo (segunda a sexta)
         dias_uteis = []
         data_atual = inicio_ciclo
         while len(dias_uteis) < 5 and data_atual <= fim_ciclo:
@@ -67,9 +71,9 @@ def auto_gerar_ciclo(user, data_base=None):
         dias_existentes = FaturaDiaria.query.filter_by(fatura_id=fatura_existente.id).all()
         mapa_dias = {(d.data_pregao, d.nome_corretora) for d in dias_existentes}
 
+        # Processa apenas as alocações selecionadas
         for data in dias_uteis:
-            for alocacao in user.alocacoes:
-                # Data de criação da alocação (conta MT5)
+            for alocacao in alocacoes:
                 data_criacao_aloc = alocacao.data_criacao.date() if alocacao.data_criacao else data_cadastro_global
 
                 # Se a data do pregão for anterior à data de criação da alocação, ignorar (não criar)
@@ -86,10 +90,8 @@ def auto_gerar_ciclo(user, data_base=None):
                     continue
 
                 if (data, alocacao.nome_corretora) not in mapa_dias:
-                    # Dias anteriores ao cadastro global entram como isentos (apenas para compatibilidade)
                     is_isento = data < data_cadastro_global
                     status_dia = 'isento' if is_isento else 'pendente'
-
                     novo_dia = FaturaDiaria(
                         fatura_id=fatura_existente.id,
                         data_pregao=data,
@@ -121,7 +123,6 @@ def auto_gerar_ciclos_em_lote(users, data_base=None):
     inicio_ciclo = hoje - timedelta(days=dias_para_sexta)
     fim_ciclo = inicio_ciclo + timedelta(days=6)
 
-    # Gera os 5 dias úteis (segunda a sexta) do ciclo
     dias_uteis = []
     data_atual = inicio_ciclo
     while len(dias_uteis) < 5 and data_atual <= fim_ciclo:
@@ -168,7 +169,6 @@ def auto_gerar_ciclos_em_lote(users, data_base=None):
                 data_criacao_aloc = alocacao.data_criacao.date() if alocacao.data_criacao else data_cadastro_global
 
                 if data < data_criacao_aloc:
-                    # Remove dia se existir (para limpeza)
                     dia_existente = FaturaDiaria.query.filter_by(
                         fatura_id=fatura_obj.id,
                         data_pregao=data,
