@@ -69,7 +69,7 @@ class User(db.Model, UserMixin):
 
 
 class ContaMT5Cliente(db.Model):
-    """Conta MT5 associada a um cliente, com corretora e capital alocado."""
+    """Conta MT5 associada a um cliente, com corretora, capital alocado e status de licença comprada."""
     __tablename__ = 'conta_mt5_cliente'
     __table_args__ = (
         db.UniqueConstraint('user_id', 'numero_conta', name='_user_conta_uc'),
@@ -82,6 +82,8 @@ class ContaMT5Cliente(db.Model):
     capital_alocado = db.Column(db.Float, default=0.0)
     ativo = db.Column(db.Boolean, default=True)
     bloqueada = db.Column(db.Boolean, default=False)
+    # NOVO CAMPO: indica se a licença para esta conta foi comprada (clientes compra)
+    licenca_comprada = db.Column(db.Boolean, default=False)
     data_cadastro = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
 
     # Relacionamento com User – nome interno 'usuario'
@@ -101,7 +103,7 @@ class ParcelaCompra(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    # NOVA: FK para a conta MT5 associada a esta compra
+    # FK para a conta MT5 associada a esta compra
     conta_mt5_id = db.Column(db.Integer, db.ForeignKey('conta_mt5_cliente.id'), nullable=True)
     
     ordem = db.Column(db.Integer, nullable=False)
