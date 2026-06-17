@@ -185,9 +185,10 @@ def comprar_robo():
 def comprar_licenca_conta(conta_id):
     """
     Permite que o cliente compre uma licença para uma conta MT5 específica.
-    Se o cliente ainda for comissão, migra para compra.
+    Se o cliente ainda for comissão, migra para compra e marca APENAS a conta selecionada como comprada.
+    As demais contas ficam com licenca_comprada = False.
     GET: exibe página de confirmação.
-    POST: gera as 10 parcelas e marca a conta como licenca_comprada=True.
+    POST: gera as 10 parcelas e marca a conta como licenca_comprada = True.
     """
     conta = ContaMT5Cliente.query.filter_by(id=conta_id, user_id=current_user.id, ativo=True).first()
     if not conta:
@@ -215,9 +216,25 @@ def comprar_licenca_conta(conta_id):
             if current_user.modelo_negocio == 'comissao':
                 current_user.modelo_negocio = 'compra'
                 current_user.data_migracao_compra = datetime.now(tz_br)
-                # As demais contas permanecem com licenca_comprada = False (já é o padrão)
 
-            # Gera as parcelas para a conta (isso já define licenca_comprada = True)
+                # ===== CORREÇÃO ETAPA 5: Marcar APENAS a conta selecionada como comprada =====
+                # Busca todas as contas ativas do cliente (exceto a selecionada)
+                outras_contas = ContaMT5Cliente.query.filter(
+                    ContaMT5Cliente.user_id == current_user.id,
+                    ContaMT5Cliente.id != conta.id,
+                    ContaMT5Cliente.ativo == True
+                ).all()
+
+                # Desmarca a licença comprada para as demais contas
+                for outra in outras_contas:
+                    outra.licenca_comprada = False
+                    db.session.add(outra)
+
+                # Marca a conta selecionada como comprada
+                conta.licenca_comprada = True
+                db.session.add(conta)
+
+            # Gera as parcelas para a conta (isso já define licenca_comprada = True novamente, mas já está True)
             parcelas = gerar_parcelas_para_conta(conta.id)
             db.session.add_all(parcelas)
             db.session.commit()

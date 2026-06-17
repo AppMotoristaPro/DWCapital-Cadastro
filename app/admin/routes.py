@@ -1255,7 +1255,10 @@ def parcelas():
     page = request.args.get('page', 1, type=int)
     per_page = 20
     
-    query = ParcelaCompra.query.join(User).filter(User.modelo_negocio == 'compra', User.is_indicado.is_(True))
+    query = ParcelaCompra.query.join(User).options(joinedload(ParcelaCompra.conta)).filter(
+        User.modelo_negocio == 'compra', 
+        User.is_indicado.is_(True)
+    )
     
     if status_filter in ['pendente', 'pago']:
         query = query.filter(ParcelaCompra.status == status_filter)
@@ -1294,6 +1297,7 @@ def parcelas():
     
     return render_template('admin/parcelas.html', clientes=paginacao, status_filter=status_filter, search=search, tipo='indicacao')
 
+
 @admin_bp.route('/parcelas_diretas')
 @admin_required
 def parcelas_diretas():
@@ -1303,7 +1307,7 @@ def parcelas_diretas():
     page = request.args.get('page', 1, type=int)
     per_page = 20
     
-    query = ParcelaCompra.query.join(User).filter(
+    query = ParcelaCompra.query.join(User).options(joinedload(ParcelaCompra.conta)).filter(
         User.modelo_negocio == 'compra',
         User.is_indicado.is_(False)
     )

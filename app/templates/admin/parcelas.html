@@ -80,6 +80,8 @@
                                 <table class="w-full text-left border-collapse">
                                     <thead class="bg-gray-100 text-gray-500 text-[9px] font-black uppercase tracking-wider">
                                         <tr>
+                                            <!-- NOVA COLUNA: Conta MT5 -->
+                                            <th class="px-4 py-3">Conta MT5</th>
                                             <th class="px-4 py-3">Parcela</th>
                                             <th class="px-4 py-3">Valor</th>
                                             <th class="px-4 py-3">Vencimento</th>
@@ -91,6 +93,9 @@
                                     <tbody>
                                         {% for parcela in cliente.parcelas %}
                                         <tr class="border-b border-gray-100">
+                                            <td class="px-4 py-4 text-sm font-mono">
+                                                {{ parcela.conta.numero_conta if parcela.conta else 'N/A' }}
+                                            </td>
                                             <td class="px-4 py-4 text-sm font-bold">{{ parcela.ordem }}ª</td>
                                             <td class="px-4 py-4 text-sm">R$ {{ parcela.valor|format_brl }}</td>
                                             <td class="px-4 py-4 text-sm">{{ parcela.data_vencimento.strftime('%d/%m/%Y') }}</td>

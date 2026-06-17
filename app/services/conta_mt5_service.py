@@ -14,11 +14,7 @@ tz_br = pytz.timezone('America/Sao_Paulo')
 
 
 def _sincronizar_alocacao(user_id, nome_corretora, capital_alocado):
-    """
-    Cria ou atualiza a AlocacaoCorretora correspondente à conta MT5.
-    Se já existir uma alocação com o mesmo nome_corretora, atualiza o capital.
-    Caso contrário, cria uma nova.
-    """
+    """Cria ou atualiza a AlocacaoCorretora correspondente à conta MT5."""
     aloc = AlocacaoCorretora.query.filter_by(user_id=user_id, nome_corretora=nome_corretora).first()
     if aloc:
         aloc.capital_alocado = capital_alocado
@@ -34,7 +30,7 @@ def _sincronizar_alocacao(user_id, nome_corretora, capital_alocado):
 
 
 def _remover_sincronizacao(user_id, nome_corretora):
-    """Remove a AlocacaoCorretora correspondente (se existir)."""
+    """Remove a AlocacaoCorretora correspondente."""
     aloc = AlocacaoCorretora.query.filter_by(user_id=user_id, nome_corretora=nome_corretora).first()
     if aloc:
         db.session.delete(aloc)
@@ -62,12 +58,18 @@ def adicionar_conta(user_id, numero_conta, nome_corretora, capital_alocado=0.0):
         - Se comissão: True (todas as contas são liberadas)
         - Se compra: False (precisa comprar licença para esta conta)
     """
-    # A constraint UniqueConstraint('user_id', 'numero_conta') já impede duplicidade
-    existente = ContaMT5Cliente.query.filter_by(
+    # === VALIDAÇÃO GLOBAL: número da conta não pode existir em nenhum cliente ===
+    existente_global = ContaMT5Cliente.query.filter_by(numero_conta=numero_conta).first()
+    if existente_global:
+        raise ValueError("Este número de conta MT5 já está cadastrado por outro cliente.")
+
+    # A constraint UniqueConstraint('user_id', 'numero_conta') já impede duplicidade para o mesmo usuário
+    # (mas mantemos a verificação para mensagem de erro mais clara)
+    existente_user = ContaMT5Cliente.query.filter_by(
         user_id=user_id,
         numero_conta=numero_conta
     ).first()
-    if existente:
+    if existente_user:
         raise ValueError("Este número de conta MT5 já está cadastrado para este cliente.")
 
     # Verifica o modelo do usuário
@@ -131,7 +133,6 @@ def desativar_conta(conta_id, user_id):
         raise ValueError("Conta não encontrada.")
     conta.ativo = False
     db.session.commit()
-    # Remove a alocação de corretora associada (para que a fatura não exija mais aquela corretora)
     _remover_sincronizacao(user_id, conta.nome_corretora)
     return conta
 

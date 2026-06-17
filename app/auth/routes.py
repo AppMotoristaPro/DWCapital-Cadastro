@@ -14,11 +14,13 @@ import pytz
 tz_br = pytz.timezone('America/Sao_Paulo')
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
+
 def gerar_matricula_unica():
     while True:
         mat = ''.join(random.choices(string.digits, k=4))
         if not User.query.filter_by(matricula=mat).first():
             return mat
+
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 @limiter.limit("5 per minute", methods=["POST"])
@@ -32,7 +34,14 @@ def login():
         identificador = request.form.get('login')
         senha = request.form.get('senha')
         
-        user = User.query.filter((User.cpf == identificador) | (User.username == identificador)).first()
+        try:
+            user = User.query.filter((User.cpf == identificador) | (User.username == identificador)).first()
+        except Exception as e:
+            # Log do erro (opcional, mas recomendado)
+            import logging
+            logging.getLogger(__name__).error(f"Erro no login para identificador {identificador}: {e}")
+            flash('Erro interno no servidor. Tente novamente mais tarde.', 'auth_error')
+            return render_template('auth/login.html')
 
         if user and check_password_hash(user.password_hash, senha):
             if user.status_acesso == 'ativo':
@@ -66,6 +75,7 @@ def forcar_troca_senha():
         
     return render_template('auth/trocar_senha.html')
 
+
 @auth_bp.route('/api/verificar_cpf', methods=['POST'])
 @limiter.limit("5 per minute")
 def verificar_cpf():
@@ -83,6 +93,7 @@ def verificar_cpf():
         return jsonify({'valido': False, 'mensagem': 'Este CPF já possui uma senha ativa.'})
 
     return jsonify({'valido': True, 'mensagem': 'CPF liberado!'})
+
 
 # ==================== PROGRAMA DE INDICAÇÃO ====================
 
@@ -138,6 +149,7 @@ def indicacao():
     
     # GET - exibe o formulário
     return render_template('auth/indicacao.html', indicador=indicador)
+
 
 # ==================== PRIMEIRO ACESSO MODIFICADO ====================
 
@@ -221,14 +233,15 @@ def primeiro_acesso():
     
     user.capital_alocado = soma_capital 
 
-    # ==================== NOVO: Criação da conta MT5 e parcelas (se compra) ====================
-    if user.modelo_negocio == 'compra':
-        conta_mt5_numero = request.form.get('conta_mt5', '').strip()
-        if not conta_mt5_numero:
-            flash('Número da conta MT5 é obrigatório para o modelo compra.', 'error')
-            return render_template('auth/primeiro_acesso.html', 
-                                   cpf_preenchido=cpf_sessao, 
-                                   modelo_pre_selecionado=user.modelo_negocio)
+    # ==================== CORREÇÃO ETAPA 2: Criação de conta MT5 para TODOS os clientes ====================
+    # Agora, se o cliente preencheu o número da conta MT5, criamos a conta
+    # independentemente do modelo (comissão ou compra)
+    conta_mt5_numero = request.form.get('conta_mt5', '').strip()
+    
+    if conta_mt5_numero:
+        # Para comissão, a licença é sempre comprada (True)
+        # Para compra, a licença também é True (já que as parcelas serão geradas em seguida)
+        licenca_comprada = True  # Para ambos os casos
 
         corretora_conta = request.form.get('conta_corretora')
         if not corretora_conta:
@@ -242,14 +255,15 @@ def primeiro_acesso():
                 nome_corretora=corretora_conta,
                 capital_alocado=soma_capital
             )
-            # Marca a conta como licença comprada (mesmo com parcelas pendentes)
-            nova_conta.licenca_comprada = True
+            # Marca a conta como licença comprada
+            nova_conta.licenca_comprada = licenca_comprada
             db.session.add(nova_conta)
 
-            # Gera as 10 parcelas associadas a essa conta
-            hoje = datetime.now(tz_br).date()
-            parcelas = gerar_parcelas_compra_unificado(user.id, nova_conta.id, data_inicio=hoje)
-            db.session.add_all(parcelas)
+            # Se for compra, gera as 10 parcelas associadas a essa conta
+            if user.modelo_negocio == 'compra':
+                hoje = datetime.now(tz_br).date()
+                parcelas = gerar_parcelas_compra_unificado(user.id, nova_conta.id, data_inicio=hoje)
+                db.session.add_all(parcelas)
 
             db.session.commit()  # Commit para salvar a flag e as parcelas
         except Exception as e:
@@ -258,6 +272,14 @@ def primeiro_acesso():
             return render_template('auth/primeiro_acesso.html',
                                    cpf_preenchido=cpf_sessao,
                                    modelo_pre_selecionado=user.modelo_negocio)
+    else:
+        # Se o cliente não preencheu a conta MT5, mas é compra, bloqueia
+        if user.modelo_negocio == 'compra':
+            flash('Número da conta MT5 é obrigatório para o modelo compra.', 'error')
+            return render_template('auth/primeiro_acesso.html',
+                                   cpf_preenchido=cpf_sessao,
+                                   modelo_pre_selecionado=user.modelo_negocio)
+    # ==================================================================================
     
     # ==================== Criação de documentos de onboarding ====================
     templates_onboarding = DocumentoTemplate.query.filter_by(is_onboarding=True).all()
@@ -281,6 +303,7 @@ def primeiro_acesso():
     db.session.commit()
     flash('Cadastro concluído com sucesso! Bem-vindo à DW Capital.', 'auth_success')
     return redirect(url_for('auth.login'))
+
 
 @auth_bp.route('/logout')
 def logout():

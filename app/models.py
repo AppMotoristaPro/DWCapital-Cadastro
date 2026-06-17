@@ -58,10 +58,7 @@ class User(db.Model, UserMixin):
     downloads = db.relationship('DownloadControle', backref='cliente', lazy=True, cascade="all, delete-orphan")
     licencas = db.relationship('LicencaCliente', backref='cliente', lazy=True, cascade="all, delete-orphan")
     
-    # Contas MT5 – relacionamento corrigido
     contas_mt5 = db.relationship('ContaMT5Cliente', back_populates='usuario', lazy=True, cascade="all, delete-orphan")
-
-    # NOTIFICAÇÕES – agora com cascade para exclusão
     notificacoes = db.relationship(
         'Notificacao',
         back_populates='usuario',
@@ -77,10 +74,10 @@ class User(db.Model, UserMixin):
 
 
 class ContaMT5Cliente(db.Model):
-    """Conta MT5 associada a um cliente, com corretora, capital alocado e status de licença comprada."""
     __tablename__ = 'conta_mt5_cliente'
     __table_args__ = (
         db.UniqueConstraint('user_id', 'numero_conta', name='_user_conta_uc'),
+        db.UniqueConstraint('numero_conta', name='_global_numero_conta_uc'),
     )
     
     id = db.Column(db.Integer, primary_key=True)
@@ -93,7 +90,6 @@ class ContaMT5Cliente(db.Model):
     licenca_comprada = db.Column(db.Boolean, default=False)
     data_cadastro = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
 
-    # Relacionamento com User – nome interno 'usuario'
     usuario = db.relationship('User', back_populates='contas_mt5')
 
     @property
@@ -363,7 +359,6 @@ class Notificacao(db.Model):
     lida = db.Column(db.Boolean, default=False)
     tipo = db.Column(db.String(50), default='migracao')
     
-    # Relacionamento com User – back_populates para manter coerência
     usuario = db.relationship('User', back_populates='notificacoes')
     
     def __repr__(self):
