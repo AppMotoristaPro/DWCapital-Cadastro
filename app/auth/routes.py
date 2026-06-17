@@ -229,25 +229,29 @@ def primeiro_acesso():
             return render_template('auth/primeiro_acesso.html', 
                                    cpf_preenchido=cpf_sessao, 
                                    modelo_pre_selecionado=user.modelo_negocio)
-        
-        # Corretora associada à conta MT5 (escolhida pelo cliente)
+
         corretora_conta = request.form.get('conta_corretora')
         if not corretora_conta:
-            # Fallback: usa a primeira corretora da lista
             corretora_conta = corretoras_selecionadas[0] if corretoras_selecionadas else 'GENIAL'
-        
+
         try:
             # Cria a conta MT5 com os dados informados
             nova_conta = adicionar_conta(
                 user_id=user.id,
                 numero_conta=conta_mt5_numero,
                 nome_corretora=corretora_conta,
-                capital_alocado=soma_capital  # ou pode ser 0, conforme sua regra
+                capital_alocado=soma_capital
             )
+            # Marca a conta como licença comprada (mesmo com parcelas pendentes)
+            nova_conta.licenca_comprada = True
+            db.session.add(nova_conta)
+
             # Gera as 10 parcelas associadas a essa conta
             hoje = datetime.now(tz_br).date()
             parcelas = gerar_parcelas_compra_unificado(user.id, nova_conta.id, data_inicio=hoje)
             db.session.add_all(parcelas)
+
+            db.session.commit()  # Commit para salvar a flag e as parcelas
         except Exception as e:
             db.session.rollback()
             flash(f'Erro ao criar conta MT5: {str(e)}', 'error')
