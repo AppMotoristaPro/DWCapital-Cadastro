@@ -1,0 +1,27 @@
+{% extends "client/layout.html" %}
+{% block client_content %}
+<div class="max-w-2xl mx-auto pb-20">
+    <div class="bg-white/80 backdrop-blur-xl rounded-2xl shadow-md border border-white p-8">
+        <h1 class="text-3xl font-black text-navy mb-6">Cadastre sua Conta MT5</h1>
+        <p class="text-gray-600 mb-6">Para continuar usando a plataforma, você precisa informar o número da sua conta MetaTrader 5.</p>
+        
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="mb-4">
+                <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Número da Conta MT5</label>
+                <input type="text" name="numero_conta" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-royal" placeholder="Ex: 123456" required>
+            </div>
+            <div class="mb-6">
+                <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Corretora</label>
+                <select name="corretora" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-royal" required>
+                    <option value="">Selecione...</option>
+                    <option value="GENIAL">GENIAL INVESTIMENTOS</option>
+                    <option value="BTG">BTG PACTUAL</option>
+                    <option value="XP">XP INVESTIMENTOS</option>
+                </select>
+            </div>
+            <button type="submit" class="w-full py-3 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-sm transition shadow-md">Salvar Conta</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

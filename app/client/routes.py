@@ -45,7 +45,7 @@ def precisa_gerar_vitalicia_aviso(user):
 # ==================== BEFORE_REQUEST ====================
 @client_bp.before_request
 def check_paywall():
-    """Verifica pendências: documentos, parcelas (compra) e agora setup para comissionados novos."""
+    """Verifica pendências: documentos, parcelas (compra), setup e ATUALIZAÇÃO DE CONTA MT5."""
     if request.endpoint == 'client.buscar_dados_whatsapp':
         return
 
@@ -53,6 +53,11 @@ def check_paywall():
         return
     if getattr(current_user, 'precisa_trocar_senha', False):
         return
+
+    # ===== NOVA VERIFICAÇÃO: ATUALIZAR CONTA MT5 =====
+    if getattr(current_user, 'precisa_atualizar_conta', False):
+        if request.endpoint not in ['client.atualizar_conta_mt5', 'auth.logout']:
+            return redirect(url_for('client.atualizar_conta_mt5'))
 
     # 1. Bloqueio por documentos pendentes
     pendentes = DocumentoCliente.query.filter(
@@ -251,6 +256,93 @@ def comprar_licenca_conta(conta_id):
 
     # GET: exibe página de confirmação
     return render_template('client/comprar_licenca_conta.html', conta=conta)
+
+
+# ==================== ATUALIZAR CONTA MT5 (OBRIGATÓRIA) ====================
+
+@client_bp.route('/atualizar_conta_mt5', methods=['GET', 'POST'])
+@login_required
+def atualizar_conta_mt5():
+    """
+    Página para clientes que não têm conta MT5 cadastrada.
+    Após a migração, clientes sem conta serão redirecionados para cá.
+    """
+    # Se o cliente já tem conta(s), redireciona para o dashboard
+    if ContaMT5Cliente.query.filter_by(user_id=current_user.id).first():
+        flash('Você já possui uma conta MT5 cadastrada.', 'info')
+        return redirect(url_for('client.dashboard'))
+
+    if request.method == 'POST':
+        numero_conta = request.form.get('numero_conta', '').strip()
+        corretora = request.form.get('corretora', '').strip().upper()
+
+        if not numero_conta or not corretora:
+            flash('Preencha todos os campos.', 'error')
+            return render_template('client/atualizar_conta_mt5.html')
+
+        # ===== VALIDAÇÃO: número da conta já existe globalmente? =====
+        existente = ContaMT5Cliente.query.filter_by(numero_conta=numero_conta).first()
+        if existente:
+            flash('Este número de conta MT5 já está cadastrado por outro cliente.', 'error')
+            return render_template('client/atualizar_conta_mt5.html')
+
+        try:
+            from app.services.conta_mt5_service import adicionar_conta
+
+            # ===== CRIA A CONTA MT5 =====
+            # Busca a primeira alocação (corretora) do cliente para capital_alocado
+            aloc = AlocacaoCorretora.query.filter_by(user_id=current_user.id).first()
+            capital = aloc.capital_alocado if aloc else 0.0
+
+            # Define licenca_comprada baseado no modelo do usuário
+            # Para compra, será ajustado após associar as parcelas
+            licenca_comprada = True if current_user.modelo_negocio == 'comissao' else False
+
+            nova_conta = adicionar_conta(
+                user_id=current_user.id,
+                numero_conta=numero_conta,
+                nome_corretora=corretora,
+                capital_alocado=capital
+            )
+
+            # ===== ASSOCIA PARCELAS EXISTENTES (SE FOR COMPRA) =====
+            if current_user.modelo_negocio == 'compra':
+                parcelas = ParcelaCompra.query.filter_by(
+                    user_id=current_user.id,
+                    conta_mt5_id=None  # Apenas parcelas sem conta associada
+                ).all()
+
+                total_parcelas = len(parcelas)
+                if total_parcelas > 0:
+                    for p in parcelas:
+                        p.conta_mt5_id = nova_conta.id
+                        db.session.add(p)
+
+                    # Verifica se todas as parcelas estão pagas
+                    pagas = sum(1 for p in parcelas if p.status == 'pago')
+                    if pagas == total_parcelas:
+                        # Todas as parcelas quitadas => licença comprada = True
+                        nova_conta.licenca_comprada = True
+                        db.session.add(nova_conta)
+                        flash('Todas as suas parcelas estão quitadas! Você já pode gerar sua licença vitalícia.', 'success')
+
+                db.session.commit()
+
+            # ===== LIMPA A FLAG DE ATUALIZAÇÃO =====
+            current_user.precisa_atualizar_conta = False
+            db.session.add(current_user)
+            db.session.commit()
+
+            flash('Conta MT5 cadastrada com sucesso!', 'success')
+            return redirect(url_for('client.dashboard'))
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Erro ao criar conta: {str(e)}', 'error')
+            return render_template('client/atualizar_conta_mt5.html')
+
+    return render_template('client/atualizar_conta_mt5.html')
+
 
 # ==================== OUTRAS ROTAS ====================
 @client_bp.route('/api/buscar_dados_whatsapp', methods=['POST'])
@@ -588,7 +680,7 @@ def api_explicacao_dashboard():
 from app.services.conta_mt5_service import (
     listar_contas, adicionar_conta, atualizar_conta, desativar_conta,
     obter_conta, validar_numero_conta, contar_contas_ativas,
-    marcar_licenca_comprada, verificar_licenca_comprada  # <-- NOVAS
+    marcar_licenca_comprada, verificar_licenca_comprada
 )
 
 @client_bp.route('/minhas_contas')
