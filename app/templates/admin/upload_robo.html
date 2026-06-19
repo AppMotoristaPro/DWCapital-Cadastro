@@ -88,7 +88,16 @@
                                 <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-100 text-gray-500 text-[9px] font-black uppercase rounded-lg shadow-sm">Inativa</span>
                             {% endif %}
                         </td>
-                        <td class="px-6 py-5 text-xs text-gray-600 max-w-xs truncate">{{ v.novidades|safe if v.novidades else '—' }}</td>
+                        <td class="px-6 py-5">
+                            {% if v.novidades %}
+                                <button onclick="abrirModalNovidades({{ v.id }}, '{{ v.versao }}', '{{ v.produto.nome }}', `{{ v.novidades|safe }}`)" 
+                                        class="text-royal hover:text-royal-dark text-[10px] font-black uppercase tracking-widest transition">
+                                    Ver Detalhes
+                                </button>
+                            {% else %}
+                                <span class="text-gray-400 text-xs">—</span>
+                            {% endif %}
+                        </td>
                         <td class="px-8 py-5 text-right">
                             <div class="flex justify-end gap-2 whitespace-nowrap">
                                 <a href="{{ url_for('admin.editar_versao_robo', id=v.id) }}" class="px-3 py-1.5 bg-blue-50 text-blue-600 text-[10px] font-black uppercase rounded-lg hover:bg-blue-100 transition border border-blue-200 shadow-sm">Editar</a>
@@ -119,6 +128,28 @@
     </div>
 </div>
 
+<!-- Modal para exibir novidades (changelog) -->
+<div id="modal-novidades" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-navy/80 backdrop-blur-sm p-4">
+    <div class="bg-white/95 backdrop-blur-xl border border-white/60 w-full max-w-3xl max-h-[85vh] rounded-2xl shadow-2xl relative overflow-hidden flex flex-col">
+        <!-- Cabeçalho -->
+        <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 bg-gray-50/50 shrink-0">
+            <div>
+                <h3 id="modal-novidades-titulo" class="text-xl font-black text-navy">Novidades</h3>
+                <p id="modal-novidades-subtitulo" class="text-xs text-gray-500 font-bold uppercase tracking-widest mt-0.5">Versão </p>
+            </div>
+            <button onclick="fecharModalNovidades()" class="w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center text-gray-700 font-bold text-lg transition shadow-md">✕</button>
+        </div>
+        <!-- Conteúdo -->
+        <div id="modal-novidades-conteudo" class="p-6 overflow-y-auto flex-1 changelog-content">
+            <!-- Preenchido via JavaScript -->
+        </div>
+        <!-- Rodapé -->
+        <div class="px-6 py-4 border-t border-gray-200 bg-gray-50/50 flex justify-end shrink-0">
+            <button onclick="fecharModalNovidades()" class="px-5 py-2 bg-navy hover:bg-gray-900 text-white rounded-xl text-xs font-black uppercase tracking-widest transition shadow-md">Fechar</button>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -135,5 +166,62 @@
             console.error('TinyMCE não carregou. Verifique CSP.');
         }
     });
+
+    // ==================== FUNÇÕES DO MODAL ====================
+    function abrirModalNovidades(versaoId, versaoNum, produtoNome, novidadesHtml) {
+        const titulo = document.getElementById('modal-novidades-titulo');
+        const subtitulo = document.getElementById('modal-novidades-subtitulo');
+        const conteudo = document.getElementById('modal-novidades-conteudo');
+
+        titulo.innerText = produtoNome + ' - Novidades';
+        subtitulo.innerText = 'Versão ' + versaoNum;
+
+        // Insere o HTML com segurança
+        conteudo.innerHTML = novidadesHtml || '<em>Nenhuma novidade informada.</em>';
+
+        document.getElementById('modal-novidades').classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function fecharModalNovidades() {
+        document.getElementById('modal-novidades').classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+
+    // Fecha modal ao clicar fora do conteúdo (no backdrop)
+    document.getElementById('modal-novidades').addEventListener('click', function(e) {
+        if (e.target === this) {
+            fecharModalNovidades();
+        }
+    });
+
+    // Fecha modal com tecla ESC
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('modal-novidades');
+            if (!modal.classList.contains('hidden')) {
+                fecharModalNovidades();
+            }
+        }
+    });
 </script>
+
+<style>
+    /* Estilos para o conteúdo do modal (changelog) */
+    .changelog-content { font-family: 'Inter', sans-serif; line-height: 1.7; color: #1e293b; font-size: 0.95rem; }
+    .changelog-content h1 { font-size: 1.8rem; font-weight: 700; margin: 1.2rem 0 0.8rem; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.3rem; }
+    .changelog-content h2 { font-size: 1.5rem; font-weight: 700; margin: 1rem 0 0.6rem; color: #1e293b; }
+    .changelog-content h3 { font-size: 1.25rem; font-weight: 600; margin: 0.8rem 0 0.5rem; color: #334155; }
+    .changelog-content p { margin-bottom: 0.75rem; }
+    .changelog-content ul, .changelog-content ol { margin-left: 1.5rem; margin-bottom: 0.75rem; }
+    .changelog-content li { margin-bottom: 0.3rem; }
+    .changelog-content a { color: #4169E1; text-decoration: underline; }
+    .changelog-content table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; background-color: #fff; }
+    .changelog-content th, .changelog-content td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; vertical-align: top; }
+    .changelog-content th { background-color: #f1f5f9; font-weight: 700; }
+    .changelog-content blockquote { border-left: 4px solid #4169E1; padding-left: 1rem; color: #475569; margin: 0.8rem 0; background-color: #f8fafc; padding: 0.8rem 1rem; border-radius: 0.5rem; }
+    .changelog-content code { background-color: #f1f5f9; padding: 0.1rem 0.4rem; border-radius: 0.25rem; font-size: 0.85rem; }
+    .changelog-content pre { background-color: #0f172a; color: #e2e8f0; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 0.8rem 0; }
+    .changelog-content pre code { background-color: transparent; color: inherit; padding: 0; }
+</style>
 {% endblock %}
