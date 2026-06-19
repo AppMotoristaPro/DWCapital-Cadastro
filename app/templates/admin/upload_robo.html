@@ -90,8 +90,11 @@
                         </td>
                         <td class="px-6 py-5">
                             {% if v.novidades %}
-                                <button onclick="abrirModalNovidades({{ v.id }}, '{{ v.versao }}', '{{ v.produto.nome }}', `{{ v.novidades|safe }}`)" 
-                                        class="text-royal hover:text-royal-dark text-[10px] font-black uppercase tracking-widest transition">
+                                <button data-versao-id="{{ v.id }}" 
+                                        data-versao-num="{{ v.versao }}" 
+                                        data-produto-nome="{{ v.produto.nome }}" 
+                                        data-novidades="{{ v.novidades|tojson }}"
+                                        class="btn-ver-detalhes text-royal hover:text-royal-dark text-[10px] font-black uppercase tracking-widest transition">
                                     Ver Detalhes
                                 </button>
                             {% else %}
@@ -165,10 +168,20 @@
         } else {
             console.error('TinyMCE não carregou. Verifique CSP.');
         }
+
+        // ==================== EVENT LISTENER PARA BOTÕES "VER DETALHES" ====================
+        document.querySelectorAll('.btn-ver-detalhes').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const versaoNum = this.getAttribute('data-versao-num');
+                const produtoNome = this.getAttribute('data-produto-nome');
+                const novidadesHtml = this.getAttribute('data-novidades');
+                abrirModalNovidades(versaoNum, produtoNome, novidadesHtml);
+            });
+        });
     });
 
     // ==================== FUNÇÕES DO MODAL ====================
-    function abrirModalNovidades(versaoId, versaoNum, produtoNome, novidadesHtml) {
+    function abrirModalNovidades(versaoNum, produtoNome, novidadesHtml) {
         const titulo = document.getElementById('modal-novidades-titulo');
         const subtitulo = document.getElementById('modal-novidades-subtitulo');
         const conteudo = document.getElementById('modal-novidades-conteudo');
@@ -207,7 +220,7 @@
 </script>
 
 <style>
-    /* Estilos para o conteúdo do0 modal (changelog) */
+    /* Estilos para o conteúdo do modal (changelog) */
     .changelog-content { font-family: 'Inter', sans-serif; line-height: 1.7; color: #1e293b; font-size: 0.95rem; }
     .changelog-content h1 { font-size: 1.8rem; font-weight: 700; margin: 1.2rem 0 0.8rem; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.3rem; }
     .changelog-content h2 { font-size: 1.5rem; font-weight: 700; margin: 1rem 0 0.6rem; color: #1e293b; }
