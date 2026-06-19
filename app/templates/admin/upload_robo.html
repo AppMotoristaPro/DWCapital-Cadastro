@@ -92,8 +92,7 @@
                             {% if v.novidades %}
                                 <button data-versao-id="{{ v.id }}" 
                                         data-versao-num="{{ v.versao }}" 
-                                        data-produto-nome="{{ v.produto.nome }}" 
-                                        data-novidades="{{ v.novidades|tojson }}"
+                                        data-produto-nome="{{ v.produto.nome }}"
                                         class="btn-ver-detalhes text-royal hover:text-royal-dark text-[10px] font-black uppercase tracking-widest transition">
                                     Ver Detalhes
                                 </button>
@@ -119,6 +118,10 @@
                             </div>
                         </td>
                     </tr>
+                    <!-- Div oculta com o changelog -->
+                    <div id="novidades-{{ v.id }}" class="hidden">
+                        {{ v.novidades|safe }}
+                    </div>
                     {% endfor %}
                 </tbody>
             </table>
@@ -172,9 +175,14 @@
         // ==================== EVENT LISTENER PARA BOTÕES "VER DETALHES" ====================
         document.querySelectorAll('.btn-ver-detalhes').forEach(function(btn) {
             btn.addEventListener('click', function() {
+                const versaoId = this.getAttribute('data-versao-id');
                 const versaoNum = this.getAttribute('data-versao-num');
                 const produtoNome = this.getAttribute('data-produto-nome');
-                const novidadesHtml = this.getAttribute('data-novidades');
+                
+                // Busca o conteúdo da div oculta correspondente
+                const conteudoDiv = document.getElementById('novidades-' + versaoId);
+                const novidadesHtml = conteudoDiv ? conteudoDiv.innerHTML : '<em>Nenhuma novidade informada.</em>';
+                
                 abrirModalNovidades(versaoNum, produtoNome, novidadesHtml);
             });
         });
