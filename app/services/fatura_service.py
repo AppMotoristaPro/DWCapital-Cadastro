@@ -17,7 +17,9 @@ def auto_gerar_ciclo(user, data_base=None, alocacoes_especificas=None):
     """
     Gera automaticamente a gaveta da semana e os dias úteis APENAS para o investidor ativo na sessão.
     Se alocacoes_especificas for passado (lista de AlocacaoCorretora), processa apenas essas alocações.
-    Isso evita que a criação de uma nova conta altere faturas de outras contas.
+    
+    CORREÇÃO: Agora NUNCA remove dias existentes. Apenas adiciona os que faltam.
+    Isso preserva dados inseridos manualmente (via SQL) ou por outras fontes.
     """
     if not user.alocacoes:
         return
@@ -71,24 +73,21 @@ def auto_gerar_ciclo(user, data_base=None, alocacoes_especificas=None):
         dias_existentes = FaturaDiaria.query.filter_by(fatura_id=fatura_existente.id).all()
         mapa_dias = {(d.data_pregao, d.nome_corretora) for d in dias_existentes}
 
-        # Processa apenas as alocações selecionadas
+        # ========== CORREÇÃO: PRESERVAR TODOS OS DIAS EXISTENTES ==========
+        # Apenas adiciona dias faltantes, NUNCA remove existentes
+        # ===================================================================
+        
         for data in dias_uteis:
             for alocacao in alocacoes:
                 data_criacao_aloc = alocacao.data_criacao.date() if alocacao.data_criacao else data_cadastro_global
 
                 # Se a data do pregão for anterior à data de criação da alocação, ignorar (não criar)
                 if data < data_criacao_aloc:
-                    # Se já existir um dia para esta data/corretora, removê-lo (limpeza)
-                    dia_existente = FaturaDiaria.query.filter_by(
-                        fatura_id=fatura_existente.id,
-                        data_pregao=data,
-                        nome_corretora=alocacao.nome_corretora
-                    ).first()
-                    if dia_existente:
-                        db.session.delete(dia_existente)
-                        houve_alteracao = True
+                    # NÃO remove dias existentes mesmo que sejam anteriores à criação da alocação
+                    # Isso preserva dados que foram inseridos manualmente
                     continue
 
+                # Se o dia não existir, cria
                 if (data, alocacao.nome_corretora) not in mapa_dias:
                     is_isento = data < data_cadastro_global
                     status_dia = 'isento' if is_isento else 'pendente'
@@ -113,7 +112,8 @@ def auto_gerar_ciclos_em_lote(users, data_base=None):
     """
     Gera a gaveta principal (Fatura) e todos os dias úteis do ciclo para cada cliente ativo.
     Deve ser executado por um job agendado (cron) para garantir que todos os dias existam.
-    Agora considera a data de criação de cada alocação.
+    
+    CORREÇÃO: Agora NUNCA remove dias existentes. Apenas adiciona os que faltam.
     """
     if not users:
         return
@@ -168,16 +168,12 @@ def auto_gerar_ciclos_em_lote(users, data_base=None):
             for alocacao in user.alocacoes:
                 data_criacao_aloc = alocacao.data_criacao.date() if alocacao.data_criacao else data_cadastro_global
 
+                # Se a data for anterior à criação da alocação, NÃO remove existentes
                 if data < data_criacao_aloc:
-                    dia_existente = FaturaDiaria.query.filter_by(
-                        fatura_id=fatura_obj.id,
-                        data_pregao=data,
-                        nome_corretora=alocacao.nome_corretora
-                    ).first()
-                    if dia_existente:
-                        db.session.delete(dia_existente)
+                    # Apenas ignora, não remove
                     continue
 
+                # Se não existir, cria
                 if (data, alocacao.nome_corretora) not in mapa_dias:
                     is_isento = data < data_cadastro_global
                     status_dia = 'isento' if is_isento else 'pendente'
@@ -211,20 +207,19 @@ def modelo_para_fatura(user, data_inicio_fatura):
 
 def garantir_dias_faltantes_para_fatura(user, fatura):
     """
-    Garante que a fatura tenha exatamente os 5 dias úteis da semana, sem sábados/domingos,
-    e respeitando a data de criação de cada alocação (conta MT5).
-    Retorna True se houve alguma alteração no banco, False caso contrário.
+    Garante que a fatura tenha os dias úteis da semana.
+    
+    CORREÇÃO: NUNCA remove dias existentes, apenas adiciona os faltantes.
+    Preserva dados inseridos manualmente (via SQL) ou por outras fontes.
     """
     data_cadastro_global = user.data_cadastro.date() if user.data_cadastro else datetime.min.date()
     houve_alteracao = False
 
-    # 1. Remove dias de fim de semana (sábado/domingo)
-    for dia in list(fatura.dias):
-        if dia.data_pregao.weekday() >= 5:
-            db.session.delete(dia)
-            houve_alteracao = True
-
-    # 2. Determina os 5 dias úteis da semana (segunda a sexta)
+    # ========== CORREÇÃO: NÃO REMOVER DIAS DE FIM DE SEMANA ==========
+    # Se existirem dias de fim de semana, eles são mantidos (podem ter sido inseridos manualmente)
+    # ===================================================================
+    
+    # Determina os 5 dias úteis da semana (segunda a sexta)
     dias_uteis = []
     data_atual = fatura.data_inicio
     while len(dias_uteis) < 5 and data_atual <= fatura.data_fim:
@@ -232,27 +227,19 @@ def garantir_dias_faltantes_para_fatura(user, fatura):
             dias_uteis.append(data_atual)
         data_atual += timedelta(days=1)
 
-    # 3. Conjunto de (data, corretora) já existente
+    # Conjunto de (data, corretora) já existente
     dias_existentes = {(d.data_pregao, d.nome_corretora) for d in fatura.dias}
 
-    # 4. Para cada alocação, verifica quais dias devem existir
+    # Para cada alocação, verifica quais dias devem existir e adiciona os faltantes
     for alocacao in user.alocacoes:
         data_criacao_aloc = alocacao.data_criacao.date() if alocacao.data_criacao else data_cadastro_global
 
         for data in dias_uteis:
-            # Se data for anterior à criação da alocação, remover se existir
+            # Se a data for anterior à criação da alocação, ignora (não cria e não remove)
             if data < data_criacao_aloc:
-                dia_existente = FaturaDiaria.query.filter_by(
-                    fatura_id=fatura.id,
-                    data_pregao=data,
-                    nome_corretora=alocacao.nome_corretora
-                ).first()
-                if dia_existente:
-                    db.session.delete(dia_existente)
-                    houve_alteracao = True
                 continue
 
-            # Se data for >= data_criacao_aloc e não existir, criar
+            # Se não existir, cria
             if (data, alocacao.nome_corretora) not in dias_existentes:
                 is_isento = data < data_cadastro_global
                 status_dia = 'isento' if is_isento else 'pendente'
