@@ -277,6 +277,7 @@ class ProdutoRobo(db.Model):
     ordem = db.Column(db.Integer, default=0)
     ativo = db.Column(db.Boolean, default=True)
     codigo_algoritmo = db.Column(db.Integer, nullable=False, default=700)
+    is_demo = db.Column(db.Boolean, default=False)  # NOVO
     
     versoes = db.relationship('VersaoRobo', backref='produto', lazy=True)
     
@@ -320,6 +321,26 @@ class DownloadControle(db.Model):
 
     def __repr__(self):
         return f"<DownloadControle user={self.user_id} conta={self.conta_mt5_id} versao={self.versao_id} ciclo={self.ciclo_inicio}>"
+
+
+# ==================== NOVO MODELO PARA CONTROLE DE DOWNLOAD DEMO ====================
+class DownloadDemoControle(db.Model):
+    __tablename__ = 'download_demo_controle'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    versao_id = db.Column(db.Integer, db.ForeignKey('versao_robo.id', ondelete='CASCADE'), nullable=False)
+    data_download = db.Column(db.DateTime, default=lambda: datetime.now(tz_br))
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'versao_id', name='unique_user_versao_demo'),
+    )
+
+    user = db.relationship('User', backref='downloads_demo')
+    versao = db.relationship('VersaoRobo', backref='downloads_demo')
+
+    def __repr__(self):
+        return f"<DownloadDemoControle user={self.user_id} versao={self.versao_id}>"
 
 
 class LicencaCliente(db.Model):
