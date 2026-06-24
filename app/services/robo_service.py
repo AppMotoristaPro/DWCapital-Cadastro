@@ -2,13 +2,14 @@
 Serviço para controle de versão do robô e downloads.
 Gerencia a versão ativa, o histórico de downloads por cliente e o bloqueio de múltiplos downloads por conta.
 Inclui verificação de licença comprada para clientes compra.
+Versão com suporte a robôs demo (is_demo).
 """
 
 from datetime import datetime
 import pytz
 import logging
 from app import db
-from app.models import VersaoRobo, DownloadControle, ProdutoRobo, ContaMT5Cliente, User
+from app.models import VersaoRobo, DownloadControle, ProdutoRobo, ContaMT5Cliente, User, DownloadDemoControle
 from app.services.licenca_service import calcular_ciclo_por_data
 from app.services.conta_mt5_service import verificar_licenca_comprada
 
@@ -63,7 +64,29 @@ def historico_downloads_por_conta(conta_mt5_id):
     return historico
 
 
-# ========== NOVAS FUNÇÕES PARA MÚLTIPLOS ROBÔS E MÚLTIPLAS CONTAS ==========
+# ========== FUNÇÕES PARA DEMO ==========
+
+def cliente_ja_baixou_demo(user_id, versao_id):
+    """Retorna True se o cliente já baixou esta versão demo."""
+    return DownloadDemoControle.query.filter_by(
+        user_id=user_id,
+        versao_id=versao_id
+    ).first() is not None
+
+
+def registrar_download_demo(user_id, versao_id):
+    """Registra o download de uma versão demo."""
+    if cliente_ja_baixou_demo(user_id, versao_id):
+        return False
+    novo = DownloadDemoControle(
+        user_id=user_id,
+        versao_id=versao_id,
+        data_download=datetime.now(tz_br)
+    )
+    db.session.add(novo)
+    db.session.commit()
+    return True
+
 
 def obter_produtos_ativos():
     """
@@ -105,15 +128,47 @@ def conta_baixou_algum_produto_no_ciclo(conta_mt5_id, ciclo_inicio):
     return None
 
 
-def liberado_para_download_produto(user, produto_id, ciclo_inicio, conta_mt5_id):
+def liberado_para_download_produto(user, produto_id, ciclo_inicio, conta_mt5_id=None):
     """
     Verifica se o cliente pode baixar um determinado produto no ciclo atual usando a conta especificada.
+    Para produtos demo (is_demo=True): não exige conta MT5, verifica apenas se já baixou a versão.
     Retorna (bool, mensagem, versao_obj)
-    Inclui verificação de licença comprada para clientes compra.
     """
     logger.info(f"[LIBERADO] Iniciando verificação: user={user.id}, produto={produto_id}, ciclo={ciclo_inicio}, conta={conta_mt5_id}")
 
-    # Validar conta
+    # Busca o produto
+    produto = ProdutoRobo.query.get(produto_id)
+    if not produto:
+        logger.warning(f"[LIBERADO] Produto não encontrado: {produto_id}")
+        return False, "Produto não encontrado.", None
+
+    # ======= LÓGICA PARA DEMO =======
+    if produto.is_demo:
+        # Versão publicada?
+        versao = VersaoRobo.query.filter_by(produto_id=produto_id, publicada=True).first()
+        if not versao:
+            logger.warning(f"[LIBERADO] Versão publicada não encontrada para demo {produto_id}")
+            return False, "Robô demo indisponível no momento.", None
+
+        # Bloqueio administrativo geral (se o admin bloqueou o acesso ao robô para este cliente)
+        if getattr(user, 'robot_acesso_bloqueado', False):
+            logger.warning(f"[LIBERADO] Bloqueado: robot_acesso_bloqueado=True")
+            return False, "Acesso ao robô bloqueado pelo administrador.", None
+
+        # Verifica se já baixou esta versão demo
+        if cliente_ja_baixou_demo(user.id, versao.id):
+            logger.info(f"[LIBERADO] Demo já baixada: user={user.id}, versao={versao.id}")
+            return False, "Você já baixou esta versão demo. Aguarde uma atualização.", None
+
+        logger.info(f"[LIBERADO] Demo liberada: user={user.id}, versao={versao.id}")
+        return True, "", versao
+
+    # ======= LÓGICA PARA ROBÔS NORMAIS (existente) =======
+    # Validar conta (obrigatória)
+    if not conta_mt5_id:
+        logger.warning(f"[LIBERADO] Conta MT5 não informada para produto normal")
+        return False, "Selecione uma conta MT5 para baixar.", None
+
     conta = ContaMT5Cliente.query.filter_by(id=conta_mt5_id, user_id=user.id).first()
     if not conta:
         logger.warning(f"[LIBERADO] Conta não encontrada: {conta_mt5_id}")
@@ -125,8 +180,7 @@ def liberado_para_download_produto(user, produto_id, ciclo_inicio, conta_mt5_id)
         logger.warning(f"[LIBERADO] Conta bloqueada: {conta_mt5_id}")
         return False, "Esta conta MT5 está bloqueada pelo administrador.", None
 
-    # ========== VERIFICAÇÃO DE LICENÇA COMPRADA ==========
-    # Para clientes compra, a conta deve ter licenca_comprada = True
+    # Verificação de licença comprada para clientes compra
     if user.modelo_negocio == 'compra' and not verificar_licenca_comprada(conta_mt5_id, user.id):
         logger.warning(f"[LIBERADO] Licença não comprada para conta {conta_mt5_id}")
         return False, "Licença não adquirida para esta conta. Compre uma licença em 'Minhas Contas'.", None
@@ -136,9 +190,7 @@ def liberado_para_download_produto(user, produto_id, ciclo_inicio, conta_mt5_id)
         logger.warning(f"[LIBERADO] Bloqueado: robot_acesso_bloqueado=True")
         return False, "Acesso ao robô bloqueado pelo administrador.", None
 
-    # ========== VÍNCULO VITALÍCIO ==========
-    # Se o cliente (modelo compra) já possui um produto vitalício vinculado,
-    # ele só pode baixar exatamente aquele produto, independente da conta.
+    # Vínculo vitalício (clientes compra com produto vitalício)
     if user.modelo_negocio == 'compra' and user.produto_vitalicio_id is not None:
         if user.produto_vitalicio_id != produto_id:
             logger.warning(f"[LIBERADO] Bloqueado: usuário tem vínculo vitalício com produto {user.produto_vitalicio_id}, tentou baixar {produto_id}")
@@ -176,10 +228,24 @@ def liberado_para_download_produto(user, produto_id, ciclo_inicio, conta_mt5_id)
             return False, "Você já baixou outro robô para esta conta neste ciclo. Aguarde a próxima semana.", None
 
 
-def registrar_download_produto(user, versao_obj, ciclo_inicio, conta_mt5_id):
+def registrar_download_produto(user, versao_obj, ciclo_inicio, conta_mt5_id=None):
     """
-    Registra o download de uma versão de um produto, vinculado a uma conta MT5 e ao ciclo.
+    Registra o download de uma versão de um produto (normal ou demo).
+    Para produtos demo, registra em download_demo_controle.
+    Para produtos normais, registra em download_controle.
     """
+    produto = versao_obj.produto
+
+    # ======= DEMO =======
+    if produto.is_demo:
+        logger.info(f"[REGISTRAR] Registrando download demo: user={user.id}, versao_id={versao_obj.id}")
+        return registrar_download_demo(user.id, versao_obj.id)
+
+    # ======= NORMAL =======
+    if not conta_mt5_id:
+        logger.error(f"[REGISTRAR] conta_mt5_id é obrigatório para produto normal")
+        return False
+
     logger.info(f"[REGISTRAR] Tentando registrar: user={user.id}, versao_id={versao_obj.id}, ciclo={ciclo_inicio}, conta={conta_mt5_id}")
 
     # Verifica se já existe um registro exatamente igual
@@ -190,7 +256,7 @@ def registrar_download_produto(user, versao_obj, ciclo_inicio, conta_mt5_id):
     ).first()
     if existente:
         logger.info(f"[REGISTRAR] Registro já existe (id={existente.id}), ignorando")
-        return
+        return True
 
     novo = DownloadControle(
         user_id=user.id,
@@ -202,6 +268,7 @@ def registrar_download_produto(user, versao_obj, ciclo_inicio, conta_mt5_id):
     db.session.add(novo)
     db.session.commit()
     logger.info(f"[REGISTRAR] Registro criado com sucesso, id={novo.id}")
+    return True
 
 
 def obter_produto_baixado_no_ciclo_atual_por_conta(conta_mt5_id):

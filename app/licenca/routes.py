@@ -7,11 +7,11 @@ import requests
 from flask import Blueprint, flash, render_template, jsonify, request, send_file
 from flask_login import login_required, current_user
 from app import db, limiter
-from app.models import User, ContaMT5Cliente
+from app.models import User, ContaMT5Cliente, ProdutoRobo, VersaoRobo
 from app.services.robo_service import (
     obter_produtos_ativos, liberado_para_download_produto, registrar_download_produto,
     obter_produto_baixado_no_ciclo_atual_por_conta, historico_downloads_por_conta,
-    conta_baixou_algum_produto_no_ciclo
+    conta_baixou_algum_produto_no_ciclo, cliente_ja_baixou_demo, registrar_download_demo
 )
 from app.services.licenca_service import (
     gerar_licenca_comissao,
@@ -118,6 +118,54 @@ def baixar_robo_produto(produto_id):
         )
     except Exception as e:
         print(f"[DOWNLOAD] ERRO: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Erro interno: {str(e)}"}), 500
+
+
+@licenca_bp.route('/download_demo/<int:produto_id>', methods=['POST'])
+@login_required
+@limiter.limit("10 per minute")
+def baixar_demo(produto_id):
+    """
+    Download de robô demo (não exige conta MT5).
+    Verifica se o cliente já baixou esta versão demo.
+    """
+    logger.info(f"[DOWNLOAD_DEMO] Requisição recebida: user={current_user.id}, produto={produto_id}")
+
+    produto = ProdutoRobo.query.get_or_404(produto_id)
+    if not produto.is_demo:
+        return jsonify({"error": "Este produto não é uma versão demo."}), 400
+
+    versao = VersaoRobo.query.filter_by(produto_id=produto_id, publicada=True).first()
+    if not versao:
+        return jsonify({"error": "Nenhuma versão disponível para este robô demo."}), 404
+
+    # Verifica se o cliente já baixou esta versão demo
+    if cliente_ja_baixou_demo(current_user.id, versao.id):
+        return jsonify({"error": "Você já baixou esta versão demo. Aguarde uma atualização."}), 403
+
+    # Bloqueio administrativo geral
+    if getattr(current_user, 'robot_acesso_bloqueado', False):
+        return jsonify({"error": "Acesso ao robô bloqueado pelo administrador."}), 403
+
+    try:
+        # Download do arquivo
+        response = requests.get(versao.arquivo_url, stream=True, timeout=30)
+        response.raise_for_status()
+
+        # Registra o download
+        registrar_download_demo(current_user.id, versao.id)
+
+        nome_arquivo = f"dwcapital_demo_{produto.slug}_{versao.versao}{versao.extensao or '.exe'}"
+        return send_file(
+            io.BytesIO(response.content),
+            as_attachment=True,
+            download_name=nome_arquivo,
+            mimetype='application/octet-stream'
+        )
+    except Exception as e:
+        logger.error(f"[DOWNLOAD_DEMO] ERRO: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({"error": f"Erro interno: {str(e)}"}), 500
