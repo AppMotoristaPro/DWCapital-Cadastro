@@ -151,7 +151,12 @@
                         </div>
                         <p class="text-xs text-gray-400 mt-2 text-center">Aguarde uma atualização para baixar novamente.</p>
                     {% else %}
-                        <button onclick="abrirModalDemo({{ item.produto.id }}, {{ item.versao.id }}, {{ item.produto.nome|tojson }}, {{ item.versao.versao|tojson }}, {{ item.versao.novidades|tojson }})" class="w-full py-3 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md cursor-pointer">
+                        <button class="btn-demo-detalhes w-full py-3 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md cursor-pointer"
+                                data-produto-id="{{ item.produto.id }}"
+                                data-versao-id="{{ item.versao.id }}"
+                                data-nome="{{ item.produto.nome|escape }}"
+                                data-versao="{{ item.versao.versao|escape }}"
+                                data-novidades="{{ item.versao.novidades|escape }}">
                             Ver detalhes e baixar demo
                         </button>
                     {% endif %}
@@ -166,7 +171,7 @@
     </div>
     {% endif %}
 
-    <!-- Modal GENÉRICO para robôs demo -->
+    <!-- Modal GENÉRICO para robôs demo (exatamente igual ao normal, mas sem select de conta) -->
     <div id="modal-demo" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-navy/80 backdrop-blur-sm p-4">
         <div class="bg-white/95 backdrop-blur-xl border border-white/60 w-full max-w-2xl rounded-2xl shadow-2xl relative max-h-[85vh] overflow-y-auto">
             <button onclick="fecharModalDemo()" class="absolute top-3 right-3 w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center text-gray-700 font-bold text-lg transition shadow-md">✕</button>
@@ -263,9 +268,6 @@
     let demoVersaoId = null;
 
     function abrirModalDemo(produtoId, versaoId, nome, versao, novidades) {
-        alert('Função chamada!');
-        console.log('abrirModalDemo chamado', { produtoId, versaoId, nome, versao, novidades });
-
         demoProdutoId = produtoId;
         demoVersaoId = versaoId;
 
@@ -298,12 +300,26 @@
     // Fecha modal demo ao clicar fora
     window.onclick = function(event) {
         if (event.target.classList.contains('fixed')) {
-            // Fecha todos os modais (normais e demo)
             document.querySelectorAll('.fixed.z-\\[9999\\]').forEach(modal => {
                 modal.classList.add('hidden');
             });
         }
     };
+
+    // ========== INICIALIZAÇÃO DOS BOTÕES DEMO ==========
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.btn-demo-detalhes').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const produtoId = parseInt(this.dataset.produtoId);
+                const versaoId = parseInt(this.dataset.versaoId);
+                const nome = this.dataset.nome;
+                const versao = this.dataset.versao;
+                const novidades = this.dataset.novidades;
+                abrirModalDemo(produtoId, versaoId, nome, versao, novidades);
+            });
+        });
+    });
 
     // ========== DOWNLOAD DE ROBÔ NORMAL ==========
     async function baixarRobo(produtoId, btnElement) {
@@ -344,7 +360,6 @@
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            // Obtém o nome do arquivo do header Content-Disposition
             const contentDisposition = response.headers.get('Content-Disposition');
             let filename = `dwcapital_robo_${produtoId}.exe`;
             if (contentDisposition && contentDisposition.includes('filename=')) {
@@ -404,7 +419,6 @@
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
 
-            // Fecha o modal demo se estiver aberto
             fecharModalDemo();
             setTimeout(() => location.reload(), 1500);
         } catch (error) {
