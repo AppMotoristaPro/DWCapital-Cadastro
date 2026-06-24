@@ -40,6 +40,12 @@ def robo_download():
 
     # Para cada produto, calcular quais contas ainda podem baixar neste ciclo
     for p in produtos:
+        # Verifica se já baixou demo (apenas para produtos demo)
+        if p['produto'].is_demo and p['versao']:
+            p['ja_baixou'] = cliente_ja_baixou_demo(current_user.id, p['versao'].id)
+        else:
+            p['ja_baixou'] = False
+
         contas_disponiveis = []
         for conta in contas_ativas:
             if not conta_baixou_algum_produto_no_ciclo(conta.id, ciclo_inicio):

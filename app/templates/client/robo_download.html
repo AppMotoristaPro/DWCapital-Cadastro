@@ -145,9 +145,16 @@
                 </div>
 
                 {% if item.versao %}
-                    <button onclick="baixarRoboDemo({{ item.produto.id }}, {{ item.versao.id }})" class="mt-4 w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">
-                        Baixar Demo
-                    </button>
+                    {% if item.ja_baixou %}
+                        <div class="mt-4 w-full py-2.5 bg-gray-200 text-gray-500 rounded-xl text-center text-xs font-black uppercase tracking-widest cursor-not-allowed">
+                            ✅ Já baixou esta versão
+                        </div>
+                        <p class="text-xs text-gray-400 mt-2 text-center">Aguarde uma atualização para baixar novamente.</p>
+                    {% else %}
+                        <button onclick="abrirModalDemo({{ item.produto.id }}, {{ item.versao.id }}, '{{ item.produto.nome|escapejs }}', '{{ item.versao.versao|escapejs }}', '{{ item.versao.novidades|escapejs }}')" class="mt-4 w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">
+                            Ver detalhes e baixar demo
+                        </button>
+                    {% endif %}
                 {% else %}
                     <div class="mt-4 w-full py-2.5 bg-gray-200 text-gray-500 rounded-xl text-center text-xs font-black uppercase tracking-widest">
                         Nenhuma versão disponível
@@ -158,6 +165,31 @@
         </div>
     </div>
     {% endif %}
+
+    <!-- Modal GENÉRICO para robôs demo -->
+    <div id="modal-demo" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-navy/80 backdrop-blur-sm p-4">
+        <div class="bg-white/95 backdrop-blur-xl border border-white/60 w-full max-w-2xl rounded-2xl shadow-2xl relative max-h-[85vh] overflow-y-auto">
+            <button onclick="fecharModalDemo()" class="absolute top-3 right-3 w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center text-gray-700 font-bold text-lg transition shadow-md">✕</button>
+            <div class="p-6">
+                <h3 id="modal-demo-titulo" class="text-2xl font-black text-navy mb-2">Robô Demo</h3>
+                <p id="modal-demo-versao" class="text-xs text-gray-500 mb-4">Versão: </p>
+
+                <!-- Changelog -->
+                <div class="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-6">
+                    <p class="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Novidades desta versão</p>
+                    <div id="modal-demo-changelog" class="changelog-content text-sm text-gray-700">
+                        <em>Carregando...</em>
+                    </div>
+                </div>
+
+                <!-- Botão de download demo -->
+                <button id="btn-baixar-demo" class="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">
+                    Baixar Demo
+                </button>
+                <p class="text-[9px] text-gray-400 mt-3 text-center">Você só poderá baixar esta versão uma vez. Novas atualizações serão liberadas pelo administrador.</p>
+            </div>
+        </div>
+    </div>
 
     <!-- Histórico de downloads por conta -->
     <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden mt-16">
@@ -216,6 +248,7 @@
 </style>
 
 <script>
+    // ========== MODAL PARA ROBÔS NORMAIS ==========
     function abrirModal(produtoId) {
         const modal = document.getElementById(`modal-${produtoId}`);
         if (modal) modal.classList.remove('hidden');
@@ -224,9 +257,48 @@
         const modal = document.getElementById(`modal-${produtoId}`);
         if (modal) modal.classList.add('hidden');
     }
+
+    // ========== MODAL PARA ROBÔS DEMO (genérico) ==========
+    let demoProdutoId = null;
+    let demoVersaoId = null;
+
+    function abrirModalDemo(produtoId, versaoId, nome, versao, novidades) {
+        demoProdutoId = produtoId;
+        demoVersaoId = versaoId;
+
+        document.getElementById('modal-demo-titulo').innerText = nome;
+        document.getElementById('modal-demo-versao').innerText = 'Versão: ' + versao;
+
+        // Exibe o changelog
+        const changelogDiv = document.getElementById('modal-demo-changelog');
+        if (novidades && novidades.trim() !== '') {
+            changelogDiv.innerHTML = novidades;
+        } else {
+            changelogDiv.innerHTML = '<em>Nenhuma novidade informada.</em>';
+        }
+
+        // Configura o botão de download
+        const btnBaixar = document.getElementById('btn-baixar-demo');
+        btnBaixar.onclick = function() {
+            baixarRoboDemo(demoProdutoId, demoVersaoId);
+        };
+
+        document.getElementById('modal-demo').classList.remove('hidden');
+    }
+
+    function fecharModalDemo() {
+        document.getElementById('modal-demo').classList.add('hidden');
+        demoProdutoId = null;
+        demoVersaoId = null;
+    }
+
+    // Fecha modal demo ao clicar fora
     window.onclick = function(event) {
         if (event.target.classList.contains('fixed')) {
-            event.target.classList.add('hidden');
+            // Fecha todos os modais (normais e demo)
+            document.querySelectorAll('.fixed.z-\\[9999\\]').forEach(modal => {
+                modal.classList.add('hidden');
+            });
         }
     };
 
@@ -328,6 +400,9 @@
             a.click();
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
+
+            // Fecha o modal demo se estiver aberto
+            fecharModalDemo();
             setTimeout(() => location.reload(), 1500);
         } catch (error) {
             console.error('Erro no download demo:', error);
