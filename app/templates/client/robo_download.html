@@ -35,7 +35,7 @@
             <div class="mt-auto">
                 {% if item.disponivel %}
                     {% if item.download_disponivel %}
-                    <button onclick="abrirModal({{ item.produto.id }})" class="w-full py-3 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">
+                    <button onclick="abrirModal({{ item.produto.id }})" class="w-full py-3 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md cursor-pointer">
                         Ver detalhes e baixar
                     </button>
                     {% else %}
@@ -103,7 +103,7 @@
 
                     <!-- Botão de download -->
                     {% if item.disponivel and item.download_disponivel %}
-                    <button onclick="baixarRobo({{ item.produto.id }}, this)" class="download-btn w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">
+                    <button onclick="baixarRobo({{ item.produto.id }}, this)" class="download-btn w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md cursor-pointer">
                         Baixar {{ item.produto.nome }}
                     </button>
                     {% else %}
@@ -151,7 +151,7 @@
                         </div>
                         <p class="text-xs text-gray-400 mt-2 text-center">Aguarde uma atualização para baixar novamente.</p>
                     {% else %}
-                        <button onclick="abrirModalDemo({{ item.produto.id }}, {{ item.versao.id }}, {{ item.produto.nome|tojson }}, {{ item.versao.versao|tojson }}, {{ item.versao.novidades|tojson }})" class="mt-4 w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">
+                        <button onclick="abrirModalDemo({{ item.produto.id }}, {{ item.versao.id }}, {{ item.produto.nome|tojson }}, {{ item.versao.versao|tojson }}, {{ item.versao.novidades|tojson }})" class="mt-4 w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md cursor-pointer">
                             Ver detalhes e baixar demo
                         </button>
                     {% endif %}
@@ -183,7 +183,7 @@
                 </div>
 
                 <!-- Botão de download demo -->
-                <button id="btn-baixar-demo" class="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md">
+                <button id="btn-baixar-demo" class="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md cursor-pointer">
                     Baixar Demo
                 </button>
                 <p class="text-[9px] text-gray-400 mt-3 text-center">Você só poderá baixar esta versão uma vez. Novas atualizações serão liberadas pelo administrador.</p>
@@ -263,15 +263,17 @@
     let demoVersaoId = null;
 
     function abrirModalDemo(produtoId, versaoId, nome, versao, novidades) {
+        console.log('abrirModalDemo chamado', { produtoId, versaoId, nome, versao, novidades });
+
         demoProdutoId = produtoId;
         demoVersaoId = versaoId;
 
-        document.getElementById('modal-demo-titulo').innerText = nome;
-        document.getElementById('modal-demo-versao').innerText = 'Versão: ' + versao;
+        document.getElementById('modal-demo-titulo').innerText = nome || 'Robô Demo';
+        document.getElementById('modal-demo-versao').innerText = 'Versão: ' + (versao || 'Indisponível');
 
         // Exibe o changelog
         const changelogDiv = document.getElementById('modal-demo-changelog');
-        if (novidades && novidades.trim() !== '') {
+        if (novidades && novidades.trim() !== '' && novidades !== 'null' && novidades !== 'None') {
             changelogDiv.innerHTML = novidades;
         } else {
             changelogDiv.innerHTML = '<em>Nenhuma novidade informada.</em>';
