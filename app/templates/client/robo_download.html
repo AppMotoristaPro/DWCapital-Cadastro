@@ -19,7 +19,7 @@
     {% set produtos_demo = produtos | selectattr('produto.is_demo', 'equalto', True) | list %}
 
     {# ========== ROBÔS NORMAIS ========== #}
-    {% if produtos_normais %}
+    {% if produits_normais %}
     <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
         {% for item in produtos_normais %}
         <div class="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-md border border-gray-200 flex flex-col">
@@ -151,7 +151,7 @@
                         </div>
                         <p class="text-xs text-gray-400 mt-2 text-center">Aguarde uma atualização para baixar novamente.</p>
                     {% else %}
-                        <button onclick="abrirModalDemo({{ item.produto.id }}, {{ item.versao.id }}, {{ item.produto.nome|tojson }}, {{ item.versao.versao|tojson }}, {{ item.versao.novidades|tojson }})" class="mt-4 w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md cursor-pointer">
+                        <button onclick="abrirModalDemo({{ item.produto.id }}, {{ item.versao.id }}, {{ item.produto.nome|tojson }}, {{ item.versao.versao|tojson }}, {{ item.versao.novidades|tojson }})" class="w-full py-3 bg-royal hover:bg-royal-dark text-white rounded-xl font-black uppercase tracking-widest text-xs transition shadow-md cursor-pointer">
                             Ver detalhes e baixar demo
                         </button>
                     {% endif %}
