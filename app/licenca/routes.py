@@ -163,7 +163,12 @@ def baixar_demo(produto_id):
         # Registra o download
         registrar_download_demo(current_user.id, versao.id)
 
-        nome_arquivo = f"dwcapital_demo_{produto.slug}_{versao.versao}{versao.extensao or '.exe'}"
+        # ========== Nome do arquivo personalizado ==========
+        # Extrai o nome curto do robô (ex: "Robô Apex" → "APEX")
+        nome_curto = produto.nome.replace("Robô ", "").strip().upper()
+        extensao = versao.extensao or '.exe'
+        nome_arquivo = f"dwcapital_demo_{nome_curto}{extensao}"
+
         return send_file(
             io.BytesIO(response.content),
             as_attachment=True,
