@@ -236,7 +236,7 @@ def verificar_condicoes_comissao(user, ciclo_inicio):
 
 
 # ============================================================
-# GERAÇÃO DE LICENÇA SEMANAL – COM CONTA_MT5_ID
+# GERAÇÃO DE LICENÇA SEMANAL – COM CONTA_MT5_ID (CORRIGIDA)
 # ============================================================
 
 def gerar_licenca_comissao(user, conta_mt5_id, produto_id, semana_id=None):
@@ -276,7 +276,17 @@ def gerar_licenca_comissao(user, conta_mt5_id, produto_id, semana_id=None):
     if licenca_existente:
         return licenca_existente.chave_licenca, "Licença já existente para este ciclo.", licenca_existente, True
 
-    chave = gerar_chave_semanal(conta.numero_conta, produto_id, semana_id)
+    # ========== CORREÇÃO: calcular semana e ano com base no ciclo_inicio ==========
+    # Antes usava datetime.now(), o que causava a geração da mesma chave para semanas diferentes
+    # se a data atual caísse na mesma semana do ano. Agora usamos a data de início do ciclo.
+    if semana_id is None:
+        data_ref = ciclo_inicio
+        semana_id = obter_semana_id_mql5(data_ref)
+        ano = data_ref.year
+    else:
+        ano = datetime.now(tz_br).year
+
+    chave = gerar_chave_semanal(conta.numero_conta, produto_id, semana_id, ano)
 
     hoje_br = datetime.now(tz_br).date()
     dias_para_proximo_domingo = (6 - hoje_br.weekday()) % 7
