@@ -118,11 +118,12 @@ def ultimo_download_por_produto_e_conta(conta_mt5_id, produto_id):
 def conta_baixou_algum_produto_no_ciclo(conta_mt5_id, ciclo_inicio):
     """
     Retorna o produto_id do primeiro download feito pela conta no ciclo (ou None).
+    CORREÇÃO: agora ordena por data_download desc para pegar o mais recente.
     """
     download = DownloadControle.query.join(VersaoRobo).filter(
         DownloadControle.conta_mt5_id == conta_mt5_id,
         DownloadControle.ciclo_inicio == ciclo_inicio
-    ).first()
+    ).order_by(DownloadControle.data_download.desc()).first()
     if download:
         return download.versao.produto_id
     return None
@@ -278,10 +279,4 @@ def obter_produto_baixado_no_ciclo_atual_por_conta(conta_mt5_id):
     Se nenhum download no ciclo atual, retorna None.
     """
     ciclo_inicio, _ = calcular_ciclo_por_data()
-    download = DownloadControle.query.join(VersaoRobo).filter(
-        DownloadControle.conta_mt5_id == conta_mt5_id,
-        DownloadControle.ciclo_inicio == ciclo_inicio
-    ).first()
-    if download:
-        return download.versao.produto_id
-    return None
+    return conta_baixou_algum_produto_no_ciclo(conta_mt5_id, ciclo_inicio)
