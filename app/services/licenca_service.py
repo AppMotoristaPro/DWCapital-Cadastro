@@ -236,7 +236,7 @@ def verificar_condicoes_comissao(user, ciclo_inicio):
 
 
 # ============================================================
-# GERAÇÃO DE LICENÇA SEMANAL – COM CONTA_MT5_ID (CORRIGIDA)
+# GERAÇÃO DE LICENÇA SEMANAL – COM CONTA_MT5_ID (CORRIGIDA DEFINITIVA)
 # ============================================================
 
 def gerar_licenca_comissao(user, conta_mt5_id, produto_id, semana_id=None):
@@ -260,14 +260,15 @@ def gerar_licenca_comissao(user, conta_mt5_id, produto_id, semana_id=None):
         if not verificar_licenca_comprada(conta_mt5_id, user.id):
             return None, "Licença não adquirida para esta conta. Compre uma licença em 'Minhas Contas'.", None, False
 
+    # O ciclo anterior é usado apenas para verificar condições de pagamento
     ciclo_inicio, ciclo_fim = calcular_ciclo_anterior()
 
-    # Verificar condições gerais do cliente
+    # Verificar condições gerais do cliente (usa o ciclo anterior)
     status, msg, _, _ = verificar_condicoes_comissao(user, ciclo_inicio)
     if not status:
         return None, msg, None, False
 
-    # Verificar se já existe licença para esta conta neste ciclo
+    # Verificar se já existe licença para esta conta neste ciclo (anterior)
     licenca_existente = LicencaCliente.query.filter(
         LicencaCliente.conta_mt5_id == conta_mt5_id,
         LicencaCliente.ciclo_inicio == ciclo_inicio,
@@ -276,11 +277,12 @@ def gerar_licenca_comissao(user, conta_mt5_id, produto_id, semana_id=None):
     if licenca_existente:
         return licenca_existente.chave_licenca, "Licença já existente para este ciclo.", licenca_existente, True
 
-    # ========== CORREÇÃO: calcular semana e ano com base no ciclo_inicio ==========
-    # Antes usava datetime.now(), o que causava a geração da mesma chave para semanas diferentes
-    # se a data atual caísse na mesma semana do ano. Agora usamos a data de início do ciclo.
+    # ========== CORREÇÃO DEFINITIVA: calcular semana com base no CICLO ATUAL ==========
+    # Usamos o início do ciclo atual (não o anterior) para gerar a chave.
+    # Isso garante que a chave seja válida para o robô, que valida com a semana atual.
     if semana_id is None:
-        data_ref = ciclo_inicio
+        ciclo_atual_inicio, _ = calcular_ciclo_por_data()  # ciclo atual (sexta a quinta)
+        data_ref = ciclo_atual_inicio
         semana_id = obter_semana_id_mql5(data_ref)
         ano = data_ref.year
     else:
@@ -303,7 +305,7 @@ def gerar_licenca_comissao(user, conta_mt5_id, produto_id, semana_id=None):
         user_id=user.id,
         conta_mt5_id=conta_mt5_id,
         chave_licenca=chave,
-        ciclo_inicio=ciclo_inicio,
+        ciclo_inicio=ciclo_inicio,   # ciclo anterior (para controle de pagamento)
         ciclo_fim=ciclo_fim,
         tipo='semanal',
         data_expiracao=data_expiracao_utc,
